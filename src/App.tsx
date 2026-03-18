@@ -1,10 +1,21 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Index from "./pages/Index.tsx";
-import NotFound from "./pages/NotFound.tsx";
+import DashboardLayout from "@/components/DashboardLayout";
+import DashboardPage from "@/pages/DashboardPage";
+import InboxPage from "@/pages/InboxPage";
+import OrdersPage from "@/pages/OrdersPage";
+import ProductsPage from "@/pages/ProductsPage";
+import StoreSettingsPage from "@/pages/StoreSettingsPage";
+import PlatformsPage from "@/pages/PlatformsPage";
+import ReportsPage from "@/pages/ReportsPage";
+import AISettingsPage from "@/pages/AISettingsPage";
+import NotificationsPage from "@/pages/NotificationsPage";
+import LoginPage from "@/pages/LoginPage";
+import SignupPage from "@/pages/SignupPage";
+import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
@@ -15,8 +26,20 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/inbox" element={<InboxPage />} />
+            <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/store-settings" element={<StoreSettingsPage />} />
+            <Route path="/platforms" element={<PlatformsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/ai-settings" element={<AISettingsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+          </Route>
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

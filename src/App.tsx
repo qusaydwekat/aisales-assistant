@@ -3,6 +3,8 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider } from "@/contexts/AuthContext";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import DashboardLayout from "@/components/DashboardLayout";
 import DashboardPage from "@/pages/DashboardPage";
 import InboxPage from "@/pages/InboxPage";
@@ -25,23 +27,25 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/signup" element={<SignupPage />} />
-          <Route element={<DashboardLayout />}>
-            <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/inbox" element={<InboxPage />} />
-            <Route path="/orders" element={<OrdersPage />} />
-            <Route path="/products" element={<ProductsPage />} />
-            <Route path="/store-settings" element={<StoreSettingsPage />} />
-            <Route path="/platforms" element={<PlatformsPage />} />
-            <Route path="/reports" element={<ReportsPage />} />
-            <Route path="/ai-settings" element={<AISettingsPage />} />
-            <Route path="/notifications" element={<NotificationsPage />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+        <AuthProvider>
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+            <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/inbox" element={<InboxPage />} />
+              <Route path="/orders" element={<OrdersPage />} />
+              <Route path="/products" element={<ProductsPage />} />
+              <Route path="/store-settings" element={<StoreSettingsPage />} />
+              <Route path="/platforms" element={<PlatformsPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="/ai-settings" element={<AISettingsPage />} />
+              <Route path="/notifications" element={<NotificationsPage />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>

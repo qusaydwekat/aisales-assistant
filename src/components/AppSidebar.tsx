@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -26,6 +27,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+  const { store, profile } = useAuth();
 
   return (
     <Sidebar collapsible="icon" className="border-r border-border bg-sidebar">
@@ -66,11 +68,6 @@ export function AppSidebar() {
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
                         {!collapsed && <span>{item.title}</span>}
-                        {!collapsed && item.title === "Inbox" && (
-                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-primary text-[10px] font-bold text-primary-foreground">
-                            4
-                          </span>
-                        )}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -85,8 +82,10 @@ export function AppSidebar() {
         {!collapsed && (
           <div className="glass rounded-lg p-3">
             <p className="text-xs text-muted-foreground">Store</p>
-            <p className="text-sm font-medium text-foreground truncate">Urban Style Co.</p>
-            <p className="text-xs text-success mt-1">● Active</p>
+            <p className="text-sm font-medium text-foreground truncate">{store?.name || 'No store'}</p>
+            <p className={`text-xs mt-1 ${profile?.status === 'active' ? 'text-success' : 'text-warning'}`}>
+              ● {profile?.status === 'active' ? 'Active' : profile?.status === 'pending' ? 'Pending' : 'Suspended'}
+            </p>
           </div>
         )}
       </SidebarFooter>

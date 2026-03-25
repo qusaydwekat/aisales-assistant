@@ -14,16 +14,500 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      ai_settings: {
+        Row: {
+          auto_reply: boolean
+          created_at: string
+          escalation_threshold: number
+          fallback_message: string | null
+          greeting_facebook: string | null
+          greeting_instagram: string | null
+          greeting_whatsapp: string | null
+          id: string
+          language: string
+          order_confirmation_template: string | null
+          persona_name: string
+          response_delay: number
+          store_id: string
+          tone: string
+          updated_at: string
+        }
+        Insert: {
+          auto_reply?: boolean
+          created_at?: string
+          escalation_threshold?: number
+          fallback_message?: string | null
+          greeting_facebook?: string | null
+          greeting_instagram?: string | null
+          greeting_whatsapp?: string | null
+          id?: string
+          language?: string
+          order_confirmation_template?: string | null
+          persona_name?: string
+          response_delay?: number
+          store_id: string
+          tone?: string
+          updated_at?: string
+        }
+        Update: {
+          auto_reply?: boolean
+          created_at?: string
+          escalation_threshold?: number
+          fallback_message?: string | null
+          greeting_facebook?: string | null
+          greeting_instagram?: string | null
+          greeting_whatsapp?: string | null
+          id?: string
+          language?: string
+          order_confirmation_template?: string | null
+          persona_name?: string
+          response_delay?: number
+          store_id?: string
+          tone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_settings_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: true
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      conversations: {
+        Row: {
+          created_at: string
+          customer_address: string | null
+          customer_name: string
+          customer_phone: string | null
+          id: string
+          last_message: string | null
+          last_message_time: string | null
+          platform: Database["public"]["Enums"]["platform_type"]
+          platform_conversation_id: string | null
+          status: Database["public"]["Enums"]["conversation_status"]
+          store_id: string
+          unread: boolean
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          id?: string
+          last_message?: string | null
+          last_message_time?: string | null
+          platform: Database["public"]["Enums"]["platform_type"]
+          platform_conversation_id?: string | null
+          status?: Database["public"]["Enums"]["conversation_status"]
+          store_id: string
+          unread?: boolean
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          customer_address?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          id?: string
+          last_message?: string | null
+          last_message_time?: string | null
+          platform?: Database["public"]["Enums"]["platform_type"]
+          platform_conversation_id?: string | null
+          status?: Database["public"]["Enums"]["conversation_status"]
+          store_id?: string
+          unread?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      messages: {
+        Row: {
+          content: string
+          conversation_id: string
+          created_at: string
+          id: string
+          platform_message_id: string | null
+          sender: string
+        }
+        Insert: {
+          content: string
+          conversation_id: string
+          created_at?: string
+          id?: string
+          platform_message_id?: string | null
+          sender: string
+        }
+        Update: {
+          content?: string
+          conversation_id?: string
+          created_at?: string
+          id?: string
+          platform_message_id?: string | null
+          sender?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          read: boolean
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          read?: boolean
+          title: string
+          type?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          read?: boolean
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      orders: {
+        Row: {
+          address: string | null
+          conversation_id: string | null
+          created_at: string
+          customer_name: string
+          id: string
+          items: Json
+          notes: string | null
+          order_number: string
+          phone: string | null
+          platform: Database["public"]["Enums"]["platform_type"] | null
+          status: Database["public"]["Enums"]["order_status"]
+          store_id: string
+          total: number
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          customer_name: string
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_number?: string
+          phone?: string | null
+          platform?: Database["public"]["Enums"]["platform_type"] | null
+          status?: Database["public"]["Enums"]["order_status"]
+          store_id: string
+          total?: number
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          customer_name?: string
+          id?: string
+          items?: Json
+          notes?: string | null
+          order_number?: string
+          phone?: string | null
+          platform?: Database["public"]["Enums"]["platform_type"] | null
+          status?: Database["public"]["Enums"]["order_status"]
+          store_id?: string
+          total?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_connections: {
+        Row: {
+          created_at: string
+          credentials: Json | null
+          id: string
+          last_synced_at: string | null
+          message_count: number
+          page_id: string | null
+          page_name: string | null
+          platform: Database["public"]["Enums"]["platform_type"]
+          status: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          credentials?: Json | null
+          id?: string
+          last_synced_at?: string | null
+          message_count?: number
+          page_id?: string | null
+          page_name?: string | null
+          platform: Database["public"]["Enums"]["platform_type"]
+          status?: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          credentials?: Json | null
+          id?: string
+          last_synced_at?: string | null
+          message_count?: number
+          page_id?: string | null
+          page_name?: string | null
+          platform?: Database["public"]["Enums"]["platform_type"]
+          status?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "platform_connections_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      products: {
+        Row: {
+          active: boolean
+          category: string | null
+          compare_price: number | null
+          created_at: string
+          description: string | null
+          id: string
+          images: string[] | null
+          name: string
+          price: number
+          sku: string | null
+          stock: number
+          store_id: string
+          updated_at: string
+          variants: Json | null
+        }
+        Insert: {
+          active?: boolean
+          category?: string | null
+          compare_price?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          name: string
+          price?: number
+          sku?: string | null
+          stock?: number
+          store_id: string
+          updated_at?: string
+          variants?: Json | null
+        }
+        Update: {
+          active?: boolean
+          category?: string | null
+          compare_price?: number | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          images?: string[] | null
+          name?: string
+          price?: number
+          sku?: string | null
+          stock?: number
+          store_id?: string
+          updated_at?: string
+          variants?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          phone: string | null
+          status: Database["public"]["Enums"]["user_status"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["user_status"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          phone?: string | null
+          status?: Database["public"]["Enums"]["user_status"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      stores: {
+        Row: {
+          address: string | null
+          category: string | null
+          cover_image_url: string | null
+          created_at: string
+          delivery_info: string | null
+          description: string | null
+          email: string | null
+          id: string
+          logo_url: string | null
+          name: string
+          payment_methods: string[] | null
+          phone: string | null
+          return_policy: string | null
+          updated_at: string
+          user_id: string
+          working_hours: Json | null
+        }
+        Insert: {
+          address?: string | null
+          category?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          delivery_info?: string | null
+          description?: string | null
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          payment_methods?: string[] | null
+          phone?: string | null
+          return_policy?: string | null
+          updated_at?: string
+          user_id: string
+          working_hours?: Json | null
+        }
+        Update: {
+          address?: string | null
+          category?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          delivery_info?: string | null
+          description?: string | null
+          email?: string | null
+          id?: string
+          logo_url?: string | null
+          name?: string
+          payment_methods?: string[] | null
+          phone?: string | null
+          return_policy?: string | null
+          updated_at?: string
+          user_id?: string
+          working_hours?: Json | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "store_owner"
+      conversation_status: "open" | "resolved" | "pending_order"
+      order_status:
+        | "pending"
+        | "confirmed"
+        | "processing"
+        | "shipped"
+        | "delivered"
+        | "cancelled"
+      platform_type: "facebook" | "instagram" | "whatsapp"
+      user_status: "pending" | "active" | "suspended"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +634,19 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "store_owner"],
+      conversation_status: ["open", "resolved", "pending_order"],
+      order_status: [
+        "pending",
+        "confirmed",
+        "processing",
+        "shipped",
+        "delivered",
+        "cancelled",
+      ],
+      platform_type: ["facebook", "instagram", "whatsapp"],
+      user_status: ["pending", "active", "suspended"],
+    },
   },
 } as const

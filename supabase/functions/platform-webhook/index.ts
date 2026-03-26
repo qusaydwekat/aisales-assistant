@@ -127,6 +127,22 @@ const ORDER_TOOL = {
   },
 };
 
+const CANCEL_ORDER_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "cancel_order",
+    description: "Cancel an existing order when the customer explicitly requests to cancel. Use the order number if provided, otherwise look up the most recent pending order for this conversation.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number (e.g. ORD-00001). Optional — if not provided, the most recent pending order for this conversation will be cancelled." },
+        reason: { type: "string", description: "Reason for cancellation if the customer provides one" },
+      },
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,

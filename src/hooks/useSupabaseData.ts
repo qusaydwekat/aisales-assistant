@@ -115,7 +115,7 @@ export function useCreateOrder() {
   return useMutation({
     mutationFn: async (order: {
       customer_name: string; phone?: string; address?: string;
-      items: any; total: number; platform?: string; notes?: string;
+      items: any; total: number; platform?: "facebook" | "instagram" | "whatsapp"; notes?: string;
       conversation_id?: string;
     }) => {
       const { data, error } = await supabase

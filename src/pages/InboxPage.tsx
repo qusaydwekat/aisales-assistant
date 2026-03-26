@@ -86,6 +86,18 @@ export default function InboxPage() {
               </button>
             ))}
           </div>
+          {connectedPages.length > 1 && (
+            <select
+              value={filterPageId}
+              onChange={e => setFilterPageId(e.target.value)}
+              className="w-full text-xs bg-muted rounded-md px-2 py-1.5 text-foreground border-none outline-none"
+            >
+              <option value="all">All Pages</option>
+              {connectedPages.map(p => (
+                <option key={p.id} value={p.page_id || ''}>{p.page_name}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground text-center">{t("no_conversations")}</p>}

@@ -31,9 +31,25 @@ async function verifyMetaSignature(req: Request, body: string): Promise<boolean>
   return signature === expected;
 }
 
-// Send a message back via Meta Send API
-async function sendMetaReply(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string) {
+// Auto-detect platform from Meta webhook payload
+function detectPlatform(body: any, queryPlatform: string | null): string {
+  // If explicitly provided via query param, use it
+  if (queryPlatform) return queryPlatform;
 
+  // Auto-detect from Meta webhook object field
+  const obj = body?.object;
+  if (obj === "page") return "facebook";
+  if (obj === "instagram") return "instagram";
+  if (obj === "whatsapp_business_account") return "whatsapp";
+
+  // Fallback: check entry structure
+  if (body?.entry?.[0]?.messaging) return "facebook";
+  if (body?.entry?.[0]?.changes?.[0]?.value?.messages) return "whatsapp";
+
+  return "facebook"; // default
+}
+
+async function sendMetaReply(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string) {
   if (platform === "facebook" || platform === "instagram") {
     const url = `https://graph.facebook.com/v21.0/me/messages`;
     const res = await fetch(url, {
@@ -80,7 +96,6 @@ async function sendMetaReply(platform: string, recipientId: string, text: string
   }
 }
 
-// Generate AI reply using Lovable AI Gateway
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -94,7 +109,6 @@ async function generateAIReply(
     return aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.";
   }
 
-  // Build product catalog for AI context
   const productList = products.map(p =>
     `- ${p.name}: ${p.description || "No description"} | Price: ${p.price} | Stock: ${p.stock} | Category: ${p.category || "General"}${p.variants ? ` | Variants: ${JSON.stringify(p.variants)}` : ""}`
   ).join("\n");
@@ -139,7 +153,6 @@ Instructions:
 - Keep responses concise and helpful — this is a chat conversation.
 - Never make up product information. Only reference products from the catalog above.`;
 
-  // Build messages array with conversation history
   const messages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
     messages.push({
@@ -187,7 +200,7 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const platform = url.searchParams.get("platform");
+  const queryPlatform = url.searchParams.get("platform");
 
   // Facebook/Instagram/WhatsApp webhook verification (GET)
   if (req.method === "GET") {
@@ -198,7 +211,7 @@ Deno.serve(async (req) => {
     const VERIFY_TOKEN = Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024";
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
-      console.log("Webhook verified for platform:", platform);
+      console.log("Webhook verified for platform:", queryPlatform);
       return new Response(challenge, { status: 200, headers: corsHeaders });
     }
     return new Response("Forbidden", { status: 403, headers: corsHeaders });
@@ -216,7 +229,10 @@ Deno.serve(async (req) => {
     }
 
     const body = JSON.parse(bodyText);
-    console.log(`[${platform}] Webhook received:`, JSON.stringify(body).slice(0, 500));
+
+    // Auto-detect platform from payload
+    const platform = detectPlatform(body, queryPlatform);
+    console.log(`[${platform}] Webhook received (object: ${body?.object}):`, JSON.stringify(body).slice(0, 500));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -228,11 +244,10 @@ Deno.serve(async (req) => {
       for (const entry of body.entry || []) {
         const pageId = entry.id;
         for (const messaging of entry.messaging || []) {
-          // Skip echo messages (messages sent BY the page)
           if (messaging.message?.is_echo) continue;
           if (messaging.message?.text) {
             messages.push({
-              platform: platform!,
+              platform,
               sender: messaging.sender?.id || "unknown",
               text: messaging.message.text,
               platformId: messaging.sender?.id || "",
@@ -264,19 +279,21 @@ Deno.serve(async (req) => {
       }
     }
 
+    console.log(`[${platform}] Parsed ${messages.length} message(s)`);
+
     // Process each incoming message
     for (const msg of messages) {
-      // Find store + connection by page_id
+      // Find store + connection by page_id — try multiple platforms since Instagram pages map to FB page IDs
       let storeId: string | null = null;
       let pageAccessToken: string | null = null;
       let connectionPageId: string | null = null;
 
       if (msg.pageId) {
+        // Look for connection by page_id across all platform types
         const { data: conn } = await supabase
           .from("platform_connections")
-          .select("store_id, credentials, page_id")
+          .select("store_id, credentials, page_id, platform")
           .eq("page_id", msg.pageId)
-          .eq("platform", msg.platform)
           .eq("status", "connected")
           .maybeSingle();
 
@@ -284,13 +301,21 @@ Deno.serve(async (req) => {
           storeId = conn.store_id;
           pageAccessToken = (conn.credentials as any)?.page_access_token || null;
           connectionPageId = conn.page_id;
+          console.log(`[${platform}] Found connection for page ${msg.pageId}, store: ${storeId}`);
+        } else {
+          console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
         }
       }
 
       if (!storeId) {
+        // Fallback: find any store (for testing)
         const { data: store } = await supabase.from("stores").select("id").limit(1).single();
-        if (!store) continue;
+        if (!store) {
+          console.error("No stores found in database");
+          continue;
+        }
         storeId = store.id;
+        console.warn(`[${platform}] Using fallback store: ${storeId}`);
       }
 
       // Find or create conversation
@@ -302,7 +327,7 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!conversation) {
-        const { data: newConvo } = await supabase
+        const { data: newConvo, error: convoErr } = await supabase
           .from("conversations")
           .insert({
             store_id: storeId,
@@ -317,6 +342,10 @@ Deno.serve(async (req) => {
           })
           .select()
           .single();
+        if (convoErr) {
+          console.error("Error creating conversation:", convoErr);
+          continue;
+        }
         conversation = newConvo;
       } else {
         await supabase
@@ -336,7 +365,6 @@ Deno.serve(async (req) => {
       });
 
       // ─── AI Auto-Reply ───
-      // Fetch store info, products, AI settings, and conversation history
       const [storeRes, productsRes, aiSettingsRes, historyRes] = await Promise.all([
         supabase.from("stores").select("*").eq("id", storeId).single(),
         supabase.from("products").select("*").eq("store_id", storeId).eq("active", true),
@@ -352,20 +380,16 @@ Deno.serve(async (req) => {
       const aiSettings = aiSettingsRes.data;
       const history = historyRes.data || [];
 
-      // Check if auto_reply is enabled (default true)
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);
         continue;
       }
 
-      // Add response delay
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      // Generate AI reply
       const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history);
 
-      // Store AI reply in database
       await supabase.from("messages").insert({
         conversation_id: conversation.id,
         sender: "ai",
@@ -373,36 +397,37 @@ Deno.serve(async (req) => {
         platform_message_id: "ai_" + Date.now(),
       });
 
-      // Update conversation last message
       await supabase.from("conversations").update({
         last_message: aiReply,
         last_message_time: new Date().toISOString(),
       }).eq("id", conversation.id);
 
-      // Send reply back to customer via Meta API
+      // Send reply back to customer
       const tokenToUse = pageAccessToken || Deno.env.get("META_PAGE_ACCESS_TOKEN");
       if (tokenToUse) {
+        console.log(`[${platform}] Sending reply to ${msg.sender} using ${pageAccessToken ? "page token" : "fallback token"}`);
         await sendMetaReply(msg.platform, msg.sender, aiReply, tokenToUse, connectionPageId || msg.pageId || undefined);
       } else {
-        console.warn(`No page_access_token for platform ${msg.platform}, cannot send reply`);
+        console.warn(`No access token for platform ${msg.platform}, cannot send reply`);
       }
 
-      // Update message count
+      // Update message count and last_synced_at
       if (msg.pageId) {
         try {
-          const { data: connData } = await supabase
+          await supabase
             .from("platform_connections")
-            .select("message_count")
+            .update({
+              message_count: (await supabase
+                .from("platform_connections")
+                .select("message_count")
+                .eq("page_id", msg.pageId)
+                .eq("status", "connected")
+                .single()
+                .then(r => r.data?.message_count || 0)) + 1,
+              last_synced_at: new Date().toISOString(),
+            })
             .eq("page_id", msg.pageId)
-            .eq("platform", msg.platform)
-            .single();
-          if (connData) {
-            await supabase
-              .from("platform_connections")
-              .update({ message_count: (connData.message_count || 0) + 1 })
-              .eq("page_id", msg.pageId)
-              .eq("platform", msg.platform);
-          }
+            .eq("status", "connected");
         } catch {}
       }
     }

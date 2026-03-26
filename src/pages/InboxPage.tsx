@@ -47,6 +47,7 @@ export default function InboxPage() {
 
   const filtered = conversations.filter(c =>
     (filterPlatform === 'all' || c.platform === filterPlatform) &&
+    (filterPageId === 'all' || (c as any).page_id === filterPageId) &&
     (searchText === '' || c.customer_name.toLowerCase().includes(searchText.toLowerCase()))
   );
   const selected = conversations.find(c => c.id === selectedId);

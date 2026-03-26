@@ -1,6 +1,6 @@
 import { 
   LayoutDashboard, MessageSquare, ShoppingCart, Package, Settings, 
-  Link2, BarChart3, Bot, Bell, Zap, Globe
+  Link2, BarChart3, Bot, Bell, Zap, Globe, Shield
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";

@@ -96,12 +96,117 @@ async function sendMetaReply(platform: string, recipientId: string, text: string
   }
 }
 
+const ORDER_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "create_order",
+    description: "Create a new order when the customer has confirmed items and provided their full name, phone number, and delivery address. Call this ONLY after the customer explicitly confirms all details.",
+    parameters: {
+      type: "object",
+      properties: {
+        customer_name: { type: "string", description: "Customer's full name" },
+        phone: { type: "string", description: "Customer's phone number" },
+        address: { type: "string", description: "Customer's delivery address" },
+        items: {
+          type: "array",
+          description: "List of ordered items",
+          items: {
+            type: "object",
+            properties: {
+              product_name: { type: "string" },
+              quantity: { type: "number" },
+              price: { type: "number" },
+            },
+            required: ["product_name", "quantity", "price"],
+          },
+        },
+        notes: { type: "string", description: "Any special notes or requests from the customer" },
+      },
+      required: ["customer_name", "phone", "address", "items"],
+    },
+  },
+};
+
+async function executeCreateOrder(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  platform: string,
+  args: any
+): Promise<string> {
+  const total = (args.items || []).reduce(
+    (sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1),
+    0
+  );
+
+  const { data: order, error } = await supabase
+    .from("orders")
+    .insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      customer_name: args.customer_name,
+      phone: args.phone || "",
+      address: args.address || "",
+      items: args.items || [],
+      total,
+      notes: args.notes || "",
+      platform,
+      status: "pending",
+    })
+    .select("order_number")
+    .single();
+
+  if (error) {
+    console.error("Order creation error:", error);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+
+  // Update conversation with customer details and status
+  await supabase
+    .from("conversations")
+    .update({
+      customer_name: args.customer_name,
+      customer_phone: args.phone || null,
+      customer_address: args.address || null,
+      status: "pending_order",
+    })
+    .eq("id", conversationId);
+
+  // Create notification for store owner
+  const { data: store } = await supabase
+    .from("stores")
+    .select("user_id, name")
+    .eq("id", storeId)
+    .single();
+
+  if (store) {
+    await supabase.from("notifications").insert({
+      user_id: store.user_id,
+      title: `New order ${order.order_number}`,
+      description: `${args.customer_name} placed an order for ${args.items.length} item(s) — Total: ${total}`,
+      type: "order",
+    });
+  }
+
+  console.log(`Order created: ${order.order_number}, total: ${total}`);
+  return JSON.stringify({
+    success: true,
+    order_number: order.order_number,
+    total,
+    items_count: args.items.length,
+  });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
   products: any[],
   aiSettings: any,
-  conversationHistory: any[]
+  conversationHistory: any[],
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  platform: string
 ): Promise<string> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
@@ -148,19 +253,22 @@ ${productList || "No products available yet."}
 
 Instructions:
 - Help customers find products, answer questions about the store, and assist with orders.
-- If a customer wants to order, collect their name, phone number, and delivery address, then confirm the order details.
+- When a customer wants to order, ask for: 1) which product(s) and quantity, 2) their full name, 3) phone number, 4) delivery address.
+- Once you have ALL required info (items, name, phone, address), use the create_order tool to place the order. Do NOT ask for confirmation again after collecting all details — just create it.
+- After creating an order, confirm the order number and details to the customer.
 - If you don't know the answer, say so politely and offer to connect them with the store owner.
 - Keep responses concise and helpful — this is a chat conversation.
-- Never make up product information. Only reference products from the catalog above.`;
+- Never make up product information. Only reference products from the catalog above.
+- Use the exact product prices from the catalog when creating orders.`;
 
-  const messages: any[] = [{ role: "system", content: systemPrompt }];
+  const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
-    messages.push({
+    chatMessages.push({
       role: msg.sender === "customer" ? "user" : "assistant",
       content: msg.content,
     });
   }
-  messages.push({ role: "user", content: customerMessage });
+  chatMessages.push({ role: "user", content: customerMessage });
 
   try {
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
@@ -171,7 +279,8 @@ Instructions:
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages,
+        messages: chatMessages,
+        tools: [ORDER_TOOL],
       }),
     });
 
@@ -187,7 +296,53 @@ Instructions:
     }
 
     const data = await response.json();
-    return data.choices?.[0]?.message?.content || aiSettings?.fallback_message || "Thanks for your message!";
+    const choice = data.choices?.[0];
+
+    // Handle tool calls
+    if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {
+      const toolCalls = choice.message.tool_calls || [];
+      const toolResults: any[] = [];
+
+      for (const tc of toolCalls) {
+        if (tc.function?.name === "create_order") {
+          const args = typeof tc.function.arguments === "string"
+            ? JSON.parse(tc.function.arguments)
+            : tc.function.arguments;
+          console.log("AI triggered create_order:", JSON.stringify(args));
+          const result = await executeCreateOrder(supabase, storeId, conversationId, platform, args);
+          toolResults.push({
+            role: "tool",
+            tool_call_id: tc.id,
+            content: result,
+          });
+        }
+      }
+
+      // Send tool results back to get final reply
+      const followUp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: [
+            ...chatMessages,
+            choice.message,
+            ...toolResults,
+          ],
+        }),
+      });
+
+      if (followUp.ok) {
+        const followData = await followUp.json();
+        return followData.choices?.[0]?.message?.content || "Your order has been placed! ✅";
+      }
+      return "Your order has been placed successfully! ✅";
+    }
+
+    return choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!";
   } catch (err) {
     console.error("AI generation error:", err);
     return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";

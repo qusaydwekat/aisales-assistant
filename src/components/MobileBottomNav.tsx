@@ -1,7 +1,8 @@
-import { LayoutDashboard, MessageSquare, ShoppingCart, Package, Settings, MoreHorizontal } from "lucide-react";
+import { LayoutDashboard, MessageSquare, ShoppingCart, Package, MoreHorizontal } from "lucide-react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useUnreadConversationCount } from "@/hooks/useSupabaseData";
 
 const mobileNavItems = [
   { key: "dashboard", url: "/dashboard", icon: LayoutDashboard },
@@ -14,6 +15,7 @@ const mobileNavItems = [
 export function MobileBottomNav() {
   const location = useLocation();
   const { t } = useLanguage();
+  const { data: unreadInbox = 0 } = useUnreadConversationCount();
 
   return (
     <nav className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-background/90 backdrop-blur-md border-t border-border safe-area-bottom">
@@ -21,6 +23,7 @@ export function MobileBottomNav() {
         {mobileNavItems.map(item => {
           const isActive = location.pathname === item.url || 
             (item.key === "store_settings" && ["/store-settings", "/platforms", "/reports", "/ai-settings", "/notifications"].includes(location.pathname));
+          const badge = item.key === "inbox" ? unreadInbox : 0;
           return (
             <NavLink key={item.key} to={item.url} className="flex flex-col items-center gap-0.5 py-1 px-3 min-w-[56px] relative">
               {isActive && (
@@ -30,7 +33,14 @@ export function MobileBottomNav() {
                   transition={{ type: "spring", stiffness: 500, damping: 30 }}
                 />
               )}
-              <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+              <div className="relative">
+                <item.icon className={`h-5 w-5 ${isActive ? "text-primary" : "text-muted-foreground"}`} />
+                {badge > 0 && (
+                  <span className="absolute -top-1.5 -right-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                    {badge > 99 ? '99+' : badge}
+                  </span>
+                )}
+              </div>
               <span className={`text-[10px] ${isActive ? "text-primary font-medium" : "text-muted-foreground"}`}>
                 {t(item.key)}
               </span>

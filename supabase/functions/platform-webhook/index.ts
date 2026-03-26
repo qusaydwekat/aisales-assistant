@@ -379,8 +379,9 @@ Deno.serve(async (req) => {
       }).eq("id", conversation.id);
 
       // Send reply back to customer via Meta API
-      if (pageAccessToken) {
-        await sendMetaReply(msg.platform, msg.sender, aiReply, pageAccessToken, connectionPageId || undefined);
+      const tokenToUse = pageAccessToken || Deno.env.get("META_PAGE_ACCESS_TOKEN");
+      if (tokenToUse) {
+        await sendMetaReply(msg.platform, msg.sender, aiReply, tokenToUse, connectionPageId || msg.pageId || undefined);
       } else {
         console.warn(`No page_access_token for platform ${msg.platform}, cannot send reply`);
       }

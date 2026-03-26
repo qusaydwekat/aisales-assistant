@@ -1,6 +1,6 @@
 import { 
   LayoutDashboard, MessageSquare, ShoppingCart, Package, Settings, 
-  Link2, BarChart3, Bot, Bell, Zap, Globe
+  Link2, BarChart3, Bot, Bell, Zap, Globe, Shield
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -28,8 +28,13 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { store, profile } = useAuth();
+  const { store, profile, role } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+
+  const allNavKeys = [
+    ...navKeys,
+    ...(role === 'admin' ? [{ key: "admin", url: "/admin", icon: Shield }] : []),
+  ];
 
   return (
     <Sidebar collapsible="icon" className="border-e border-border bg-sidebar">
@@ -53,7 +58,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navKeys.map((item) => {
+              {allNavKeys.map((item) => {
                 const isActive = location.pathname === item.url;
                 return (
                   <SidebarMenuItem key={item.key}>

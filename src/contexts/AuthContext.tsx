@@ -25,7 +25,7 @@ interface AuthContextType {
   store: Store | null;
   role: "admin" | "store_owner" | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, phone: string, storeName: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, phone: string, storeName: string) => Promise<{ error: any; user?: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }

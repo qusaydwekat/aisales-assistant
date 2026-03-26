@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter } from "lucide-react";
 import { motion } from "framer-motion";
-import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders } from "@/hooks/useSupabaseData";
+import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useRealtimeMessages, useRealtimeConversations } from "@/hooks/useRealtimeMessages";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,6 +15,7 @@ const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, i
 export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<Platform | 'all'>('all');
+  const [filterPageId, setFilterPageId] = useState<string>('all');
   const [replyText, setReplyText] = useState('');
   const [searchText, setSearchText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -24,9 +25,16 @@ export default function InboxPage() {
   const { data: conversations = [], isLoading: loadingConvos } = useConversations();
   const { data: messages = [] } = useMessages(selectedId);
   const { data: orders = [] } = useOrders();
+  const { data: connections = [] } = usePlatformConnections();
   const sendMessage = useSendMessage();
   const updateStatus = useUpdateConversationStatus();
   const { upload, uploading } = useFileUpload();
+
+  // Connected pages for filter
+  const connectedPages = useMemo(() =>
+    connections.filter(c => c.status === 'connected' && c.page_name),
+    [connections]
+  );
 
   // Real-time subscriptions
   useRealtimeMessages(selectedId);
@@ -39,6 +47,7 @@ export default function InboxPage() {
 
   const filtered = conversations.filter(c =>
     (filterPlatform === 'all' || c.platform === filterPlatform) &&
+    (filterPageId === 'all' || (c as any).page_id === filterPageId) &&
     (searchText === '' || c.customer_name.toLowerCase().includes(searchText.toLowerCase()))
   );
   const selected = conversations.find(c => c.id === selectedId);
@@ -77,6 +86,18 @@ export default function InboxPage() {
               </button>
             ))}
           </div>
+          {connectedPages.length > 1 && (
+            <select
+              value={filterPageId}
+              onChange={e => setFilterPageId(e.target.value)}
+              className="w-full text-xs bg-muted rounded-md px-2 py-1.5 text-foreground border-none outline-none"
+            >
+              <option value="all">All Pages</option>
+              {connectedPages.map(p => (
+                <option key={p.id} value={p.page_id || ''}>{p.page_name}</option>
+              ))}
+            </select>
+          )}
         </div>
         <div className="flex-1 overflow-y-auto">
           {filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground text-center">{t("no_conversations")}</p>}

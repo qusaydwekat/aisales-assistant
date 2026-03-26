@@ -339,6 +339,7 @@ Deno.serve(async (req) => {
             last_message_time: msg.timestamp,
             status: "open",
             unread: true,
+            page_id: msg.pageId || "",
           })
           .select()
           .single();
@@ -348,9 +349,14 @@ Deno.serve(async (req) => {
         }
         conversation = newConvo;
       } else {
+        // Update page_id if missing
+        const updateData: any = { last_message: msg.text, last_message_time: msg.timestamp, unread: true };
+        if (msg.pageId && !conversation.page_id) {
+          updateData.page_id = msg.pageId;
+        }
         await supabase
           .from("conversations")
-          .update({ last_message: msg.text, last_message_time: msg.timestamp, unread: true })
+          .update(updateData)
           .eq("id", conversation.id);
       }
 

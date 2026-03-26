@@ -256,8 +256,7 @@ export default function PlatformsPage() {
           <p>2. Select the pages you want AI to manage — all selected pages will be connected</p>
           <p>3. Pages are automatically subscribed to receive messages — no manual Meta App setup needed</p>
           <p>4. AI will respond to messages on all connected pages using your store's products and settings</p>
-          <p>5. Copy the webhook URL and paste it in your Meta Developer Dashboard (one-time setup)</p>
-          <p>6. Verify token: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
+          <p>5. All conversations appear in your Inbox with filters by platform and page</p>
         </div>
       </div>
 

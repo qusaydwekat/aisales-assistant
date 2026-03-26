@@ -178,12 +178,13 @@ Deno.serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-      // Clean up old pending_selection records for this store
+      // Clean up old pending_selection AND disconnected records for this store+platform
       await supabase
         .from("platform_connections")
         .delete()
         .eq("store_id", storeId)
-        .eq("status", "pending_selection");
+        .eq("platform", platform)
+        .in("status", ["pending_selection", "disconnected"]);
 
       // Store pages temporarily for user selection
       const sessionId = crypto.randomUUID();

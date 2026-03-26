@@ -1,13 +1,12 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink, Link2, Unlink, RefreshCw } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink, Link2, Unlink } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { platformColors } from "@/data/mock-data";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Dialog,
   DialogContent,
@@ -16,8 +15,11 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router-dom";
 
 type Platform = "facebook" | "instagram" | "whatsapp";
+type PageOption = { id: string; name: string; instagram_business_account?: string | null };
+
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
 const platformLabels: Record<Platform, string> = { facebook: "Facebook Messenger", instagram: "Instagram Direct", whatsapp: "WhatsApp Business" };
 
@@ -26,63 +28,94 @@ export default function PlatformsPage() {
   const { store } = useAuth();
   const { t, dir } = useLanguage();
   const qc = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [connectDialog, setConnectDialog] = useState<Platform | null>(null);
-  const [pageId, setPageId] = useState("");
-  const [pageName, setPageName] = useState("");
-  const [connecting, setConnecting] = useState(false);
+  const [pages, setPages] = useState<PageOption[]>([]);
+  const [selectingPage, setSelectingPage] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [selectPlatform, setSelectPlatform] = useState<Platform | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
   const webhookBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/platform-webhook`;
+  const oauthBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth`;
 
-  const allPlatforms: Platform[] = ['facebook', 'instagram', 'whatsapp'];
-  const platformData = allPlatforms.map(p => {
-    const conn = connections.find(c => c.platform === p);
-    return {
-      id: p,
-      name: platformLabels[p],
-      icon: platformIcons[p],
-      color: platformColors[p],
-      connected: conn?.status === 'connected',
-      connectionId: conn?.id,
-      pageName: conn?.page_name || '—',
-      lastSync: conn?.last_synced_at ? new Date(conn.last_synced_at).toLocaleString() : '—',
-      messagesThisWeek: conn?.message_count || 0,
-      webhookUrl: `${webhookBaseUrl}?platform=${p}`,
-    };
-  });
+  // Handle OAuth callback redirect
+  useEffect(() => {
+    const sid = searchParams.get("session_id");
+    const platform = searchParams.get("platform") as Platform | null;
+    const error = searchParams.get("error");
 
-  const copyWebhook = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast.success("Webhook URL copied!");
+    if (error) {
+      const errorMessages: Record<string, string> = {
+        no_pages_found: "No Facebook pages found. Make sure you have a Facebook Page.",
+        token_exchange_failed: "Failed to authenticate with Meta. Please try again.",
+        callback_failed: "Connection failed. Please try again.",
+      };
+      toast.error(errorMessages[error] || `Connection error: ${error}`);
+      setSearchParams({}, { replace: true });
+      return;
+    }
+
+    if (sid && platform) {
+      setSessionId(sid);
+      setSelectPlatform(platform);
+      // Fetch pages from the pending connection
+      fetchPendingPages(sid);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams]);
+
+  const fetchPendingPages = async (sid: string) => {
+    const { data } = await supabase
+      .from("platform_connections")
+      .select("credentials")
+      .eq("status", "pending_selection")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (data) {
+      const creds = data.credentials as any;
+      if (creds?.session_id === sid && creds?.pages) {
+        setPages(creds.pages);
+        setSelectingPage(true);
+      }
+    }
   };
 
-  const handleConnect = async () => {
-    if (!store?.id || !connectDialog || !pageId.trim()) return;
-    setConnecting(true);
+  const handleSelectPage = async (pageId: string) => {
+    if (!sessionId) return;
+    setSubmitting(true);
     try {
-      const existing = connections.find(c => c.platform === connectDialog);
-      if (existing) {
-        const { error } = await supabase
-          .from("platform_connections")
-          .update({ page_id: pageId.trim(), page_name: pageName.trim() || pageId.trim(), status: "connected", last_synced_at: new Date().toISOString() })
-          .eq("id", existing.id);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from("platform_connections")
-          .insert({ store_id: store.id, platform: connectDialog, page_id: pageId.trim(), page_name: pageName.trim() || pageId.trim(), status: "connected", last_synced_at: new Date().toISOString() });
-        if (error) throw error;
-      }
-      toast.success(`${platformLabels[connectDialog]} connected!`);
+      const res = await fetch(`${oauthBaseUrl}/select-page`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, page_id: pageId }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || "Failed to select page");
+
+      toast.success(`Connected to ${result.page_name}!`);
       qc.invalidateQueries({ queryKey: ["platform_connections"] });
-      setConnectDialog(null);
-      setPageId("");
-      setPageName("");
+      setSelectingPage(false);
+      setPages([]);
+      setSessionId(null);
+      setSelectPlatform(null);
     } catch (err: any) {
-      toast.error(err.message || "Failed to connect");
+      toast.error(err.message || "Failed to connect page");
     } finally {
-      setConnecting(false);
+      setSubmitting(false);
     }
+  };
+
+  const startOAuth = (platform: Platform) => {
+    if (!store?.id) {
+      toast.error("Store not found. Please set up your store first.");
+      return;
+    }
+    const redirectUrl = window.location.origin + "/platforms";
+    const oauthUrl = `${oauthBaseUrl}/start?platform=${platform}&store_id=${store.id}&redirect_url=${encodeURIComponent(redirectUrl)}`;
+    window.location.href = oauthUrl;
   };
 
   const handleDisconnect = async (connectionId: string, name: string) => {
@@ -99,11 +132,27 @@ export default function PlatformsPage() {
     }
   };
 
-  const pageIdLabels: Record<Platform, { label: string; placeholder: string; help: string }> = {
-    facebook: { label: "Facebook Page ID", placeholder: "e.g. 123456789012345", help: "Find it in your Facebook Page → About → Page ID" },
-    instagram: { label: "Instagram Business Account ID", placeholder: "e.g. 17841400000000000", help: "Find it in Meta Business Suite → Instagram account settings" },
-    whatsapp: { label: "WhatsApp Phone Number ID", placeholder: "e.g. 100000000000000", help: "Find it in Meta Developer Portal → WhatsApp → Getting Started" },
+  const copyWebhook = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success("Webhook URL copied!");
   };
+
+  const allPlatforms: Platform[] = ['facebook', 'instagram', 'whatsapp'];
+  const platformData = allPlatforms.map(p => {
+    const conn = connections.find(c => c.platform === p && c.status === 'connected');
+    return {
+      id: p,
+      name: platformLabels[p],
+      icon: platformIcons[p],
+      color: platformColors[p],
+      connected: !!conn,
+      connectionId: conn?.id,
+      pageName: conn?.page_name || '—',
+      lastSync: conn?.last_synced_at ? new Date(conn.last_synced_at).toLocaleString() : '—',
+      messagesThisWeek: conn?.message_count || 0,
+      webhookUrl: `${webhookBaseUrl}?platform=${p}`,
+    };
+  });
 
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
@@ -139,9 +188,8 @@ export default function PlatformsPage() {
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" onClick={() => setConnectDialog(p.id)}
-                    className="gap-1.5">
-                    <Link2 className="h-4 w-4" /> Connect
+                  <Button size="sm" onClick={() => startOAuth(p.id)} className="gap-1.5">
+                    <Link2 className="h-4 w-4" /> Connect with Meta
                   </Button>
                 )}
               </div>
@@ -176,49 +224,51 @@ export default function PlatformsPage() {
           <ExternalLink className="h-4 w-4 text-primary" /> Setup Guide
         </h3>
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>1. Click <strong>Connect</strong> on the platform and enter your Page/Account ID</p>
-          <p>2. Copy the webhook URL and paste it in your Meta Developer Dashboard</p>
-          <p>3. Set the verify token to: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
-          <p>4. Subscribe to <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">messages</code> events</p>
-          <p>5. Messages will appear in your Inbox automatically</p>
+          <p>1. Click <strong>Connect with Meta</strong> — you'll be redirected to Facebook</p>
+          <p>2. Grant permissions and select the pages you want to connect</p>
+          <p>3. Choose which page to use from the selection dialog</p>
+          <p>4. Copy the webhook URL and paste it in your Meta Developer Dashboard</p>
+          <p>5. Set verify token to: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
+          <p>6. Messages will appear in your Inbox automatically</p>
         </div>
       </div>
 
-      {/* Connect Dialog */}
-      <Dialog open={!!connectDialog} onOpenChange={(open) => !open && setConnectDialog(null)}>
-        <DialogContent>
+      {/* Page Selection Dialog */}
+      <Dialog open={selectingPage} onOpenChange={(open) => { if (!open) { setSelectingPage(false); setPages([]); setSessionId(null); } }}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              {connectDialog && (() => { const Icon = platformIcons[connectDialog]; return <Icon className="h-5 w-5" style={{ color: platformColors[connectDialog] }} />; })()}
-              Connect {connectDialog ? platformLabels[connectDialog] : ''}
+              {selectPlatform && (() => { const Icon = platformIcons[selectPlatform]; return <Icon className="h-5 w-5" style={{ color: platformColors[selectPlatform] }} />; })()}
+              Select a Page
             </DialogTitle>
             <DialogDescription>
-              Enter your {connectDialog ? pageIdLabels[connectDialog].help : 'platform ID'}
+              Choose which page to connect for receiving messages
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 pt-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">
-                {connectDialog ? pageIdLabels[connectDialog].label : 'Page ID'}
-              </label>
-              <Input
-                placeholder={connectDialog ? pageIdLabels[connectDialog].placeholder : ''}
-                value={pageId}
-                onChange={(e) => setPageId(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Display Name (optional)</label>
-              <Input
-                placeholder="e.g. My Store Page"
-                value={pageName}
-                onChange={(e) => setPageName(e.target.value)}
-              />
-            </div>
-            <Button className="w-full" onClick={handleConnect} disabled={!pageId.trim() || connecting}>
-              {connecting ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Link2 className="h-4 w-4 me-2" />}
-              Connect Platform
-            </Button>
+          <div className="space-y-2 pt-2 max-h-80 overflow-y-auto">
+            {pages.map(page => (
+              <button
+                key={page.id}
+                onClick={() => handleSelectPage(page.id)}
+                disabled={submitting}
+                className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors text-start disabled:opacity-50"
+              >
+                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                  <Facebook className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-foreground truncate">{page.name}</p>
+                  <p className="text-xs text-muted-foreground">ID: {page.id}</p>
+                </div>
+                {submitting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              </button>
+            ))}
+            {pages.length === 0 && (
+              <div className="text-center py-6 text-muted-foreground text-sm">
+                <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
+                Loading pages...
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

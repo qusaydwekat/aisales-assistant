@@ -65,10 +65,11 @@ export default function PlatformsPage() {
     }
   }, [searchParams, store?.id]);
 
-  const fetchPendingPages = async (sid: string) => {
+  const fetchPendingPages = async (sid: string, storeId: string) => {
     const { data } = await supabase
       .from("platform_connections")
       .select("credentials")
+      .eq("store_id", storeId)
       .eq("status", "pending_selection")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -78,7 +79,6 @@ export default function PlatformsPage() {
       const creds = data.credentials as any;
       if (creds?.session_id === sid && creds?.pages) {
         setPages(creds.pages);
-        // Pre-select all pages
         setSelectedPageIds(new Set(creds.pages.map((p: PageOption) => p.id)));
         setSelectingPage(true);
       }

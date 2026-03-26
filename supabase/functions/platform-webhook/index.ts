@@ -408,13 +408,12 @@ Deno.serve(async (req) => {
         last_message_time: new Date().toISOString(),
       }).eq("id", conversation.id);
 
-      // Send reply back to customer
-      const tokenToUse = pageAccessToken || Deno.env.get("META_PAGE_ACCESS_TOKEN");
-      if (tokenToUse) {
-        console.log(`[${platform}] Sending reply to ${msg.sender} using ${pageAccessToken ? "page token" : "fallback token"}`);
-        await sendMetaReply(msg.platform, msg.sender, aiReply, tokenToUse, connectionPageId || msg.pageId || undefined);
+      // Send reply back to customer — only use token from DB (platform_connections)
+      if (pageAccessToken) {
+        console.log(`[${platform}] Sending reply to ${msg.sender} using stored page token`);
+        await sendMetaReply(msg.platform, msg.sender, aiReply, pageAccessToken, connectionPageId || msg.pageId || undefined);
       } else {
-        console.warn(`No access token for platform ${msg.platform}, cannot send reply`);
+        console.warn(`[${platform}] No page access token found in platform_connections for page ${msg.pageId}, cannot send reply`);
       }
 
       // Update message count and last_synced_at

@@ -28,8 +28,13 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
-  const { store, profile } = useAuth();
+  const { store, profile, role } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+
+  const allNavKeys = [
+    ...navKeys,
+    ...(role === 'admin' ? [{ key: "admin", url: "/admin", icon: Shield }] : []),
+  ];
 
   return (
     <Sidebar collapsible="icon" className="border-e border-border bg-sidebar">

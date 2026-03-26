@@ -7,7 +7,26 @@ const corsHeaders = {
 
 async function subscribePageToWebhooks(pageId: string, pageAccessToken: string): Promise<boolean> {
   try {
+    // Subscribe page to app webhooks — this replaces manual page addition in Meta Developer Dashboard
     const res = await fetch(
+      `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscribed_fields: "messages,messaging_postbacks,feed",
+          access_token: pageAccessToken,
+        }),
+      }
+    );
+    const data = await res.json();
+    if (data.success) {
+      console.log(`[meta-oauth] Page ${pageId} subscribed to webhooks successfully`);
+      return true;
+    }
+    console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
+    // If subscription fails, try without 'feed' field (some pages don't support it)
+    const retryRes = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
       {
         method: "POST",
@@ -18,12 +37,12 @@ async function subscribePageToWebhooks(pageId: string, pageAccessToken: string):
         }),
       }
     );
-    const data = await res.json();
-    if (data.success) {
-      console.log(`[meta-oauth] Page ${pageId} subscribed to webhooks`);
+    const retryData = await retryRes.json();
+    if (retryData.success) {
+      console.log(`[meta-oauth] Page ${pageId} subscribed (retry without feed)`);
       return true;
     }
-    console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
+    console.error(`[meta-oauth] Retry also failed for page ${pageId}:`, JSON.stringify(retryData));
     return false;
   } catch (err) {
     console.error(`[meta-oauth] Error subscribing page ${pageId}:`, err);

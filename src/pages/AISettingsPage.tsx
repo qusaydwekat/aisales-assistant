@@ -1,23 +1,70 @@
-import { useState } from "react";
-import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
+import { useAISettings, useUpsertAISettings } from "@/hooks/useSupabaseData";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export default function AISettingsPage() {
+  const { data: settings, isLoading } = useAISettings();
+  const upsert = useUpsertAISettings();
+
   const [personaName, setPersonaName] = useState('Sara');
   const [language, setLanguage] = useState('both');
-  const [tone, setTone] = useState(50);
+  const [tone, setTone] = useState('friendly');
   const [autoReply, setAutoReply] = useState(true);
-  const [delay, setDelay] = useState(3);
+  const [delay, setDelay] = useState(2);
   const [escalationThreshold, setEscalationThreshold] = useState(5);
   const [fallbackMessage, setFallbackMessage] = useState("I'm not sure about that. Let me connect you with our team!");
   const [testMessage, setTestMessage] = useState('');
   const [testChat, setTestChat] = useState<{ role: string; text: string }[]>([]);
+  const [isTestLoading, setIsTestLoading] = useState(false);
 
-  const handleTestSend = () => {
-    if (!testMessage.trim()) return;
-    setTestChat(prev => [...prev, { role: 'user', text: testMessage }, { role: 'ai', text: `Hi! I'm ${personaName}, your AI assistant. Let me help you with that. We have several great products available. Would you like me to show you our collection?` }]);
-    setTestMessage('');
+  useEffect(() => {
+    if (settings) {
+      setPersonaName(settings.persona_name);
+      setLanguage(settings.language);
+      setTone(settings.tone);
+      setAutoReply(settings.auto_reply);
+      setDelay(settings.response_delay);
+      setEscalationThreshold(settings.escalation_threshold);
+      setFallbackMessage(settings.fallback_message || '');
+    }
+  }, [settings]);
+
+  const handleSave = () => {
+    upsert.mutate({
+      persona_name: personaName, language, tone, auto_reply: autoReply,
+      response_delay: delay, escalation_threshold: escalationThreshold,
+      fallback_message: fallbackMessage,
+    });
   };
+
+  const handleTestSend = async () => {
+    if (!testMessage.trim()) return;
+    const userMsg = testMessage;
+    setTestChat(prev => [...prev, { role: 'user', text: userMsg }]);
+    setTestMessage('');
+    setIsTestLoading(true);
+
+    try {
+      const { data, error } = await supabase.functions.invoke('ai-chat-test', {
+        body: {
+          message: userMsg,
+          personaName, tone, language,
+        },
+      });
+      if (error) throw error;
+      setTestChat(prev => [...prev, { role: 'ai', text: data?.reply || fallbackMessage }]);
+    } catch (e: any) {
+      toast.error("AI test failed");
+      setTestChat(prev => [...prev, { role: 'ai', text: fallbackMessage }]);
+    } finally {
+      setIsTestLoading(false);
+    }
+  };
+
+  if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
     <div className="p-6 space-y-6">
@@ -27,7 +74,6 @@ export default function AISettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Settings */}
         <div className="space-y-4">
           <div className="glass rounded-xl p-6 space-y-4">
             <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> Persona</h2>
@@ -37,17 +83,17 @@ export default function AISettingsPage() {
                 <option value="en">English</option><option value="ar">Arabic</option><option value="both">Auto-detect (Both)</option>
               </select>
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Tone: {tone < 33 ? 'Professional' : tone < 66 ? 'Friendly' : 'Casual'}</label>
-              <input type="range" min={0} max={100} value={tone} onChange={e => setTone(Number(e.target.value))} className="w-full mt-1 accent-primary" />
-              <div className="flex justify-between text-[10px] text-muted-foreground"><span>Professional</span><span>Casual</span></div>
+            <div><label className="text-xs text-muted-foreground">Tone</label>
+              <select value={tone} onChange={e => setTone(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
+                <option value="professional">Professional</option><option value="friendly">Friendly</option><option value="casual">Casual</option>
+              </select>
             </div>
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">
             <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Volume2 className="h-4 w-4 text-primary" /> Behavior</h2>
             <div className="flex items-center justify-between">
-              <div><p className="text-sm text-foreground">Auto-reply</p><p className="text-xs text-muted-foreground">AI responds automatically to messages</p></div>
+              <div><p className="text-sm text-foreground">Auto-reply</p><p className="text-xs text-muted-foreground">AI responds automatically</p></div>
               <button onClick={() => setAutoReply(!autoReply)} className={`w-11 h-6 rounded-full transition-colors ${autoReply ? 'bg-primary' : 'bg-muted'}`}>
                 <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${autoReply ? 'translate-x-5' : 'translate-x-0.5'}`} />
               </button>
@@ -61,7 +107,10 @@ export default function AISettingsPage() {
             <textarea value={fallbackMessage} onChange={e => setFallbackMessage(e.target.value)} rows={3} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
           </div>
 
-          <button className="rounded-lg px-6 py-2.5 bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors">Save Settings</button>
+          <button onClick={handleSave} disabled={upsert.isPending}
+            className="rounded-lg px-6 py-2.5 bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
+            {upsert.isPending ? 'Saving...' : 'Save Settings'}
+          </button>
         </div>
 
         {/* AI Chat Simulator */}
@@ -76,15 +125,22 @@ export default function AISettingsPage() {
               <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${msg.role === 'user' ? 'bg-primary/20 text-foreground rounded-br-md' : 'bg-accent/10 text-foreground rounded-bl-md border border-accent/20 glow-accent'}`}>
                   {msg.role === 'ai' && <p className="text-[10px] font-medium text-accent mb-1">🤖 {personaName}</p>}
-                  <p>{msg.text}</p>
+                  <p className="whitespace-pre-line">{msg.text}</p>
                 </div>
               </motion.div>
             ))}
+            {isTestLoading && (
+              <div className="flex justify-start">
+                <div className="bg-accent/10 rounded-2xl px-4 py-2.5 text-sm border border-accent/20 rounded-bl-md">
+                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                </div>
+              </div>
+            )}
           </div>
           <div className="p-3 border-t border-border">
             <div className="flex gap-2">
               <input value={testMessage} onChange={e => setTestMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleTestSend()} placeholder="Type a test message..." className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-              <button onClick={handleTestSend} className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"><Send className="h-4 w-4" /></button>
+              <button onClick={handleTestSend} disabled={isTestLoading} className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"><Send className="h-4 w-4" /></button>
             </div>
           </div>
         </div>

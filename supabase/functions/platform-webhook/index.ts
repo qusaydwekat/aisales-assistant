@@ -1,9 +1,35 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.224.0/crypto/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+async function verifyMetaSignature(req: Request, body: string): Promise<boolean> {
+  const signature = req.headers.get("x-hub-signature-256");
+  if (!signature) return false;
+
+  const appSecret = Deno.env.get("META_APP_SECRET");
+  if (!appSecret) {
+    console.warn("META_APP_SECRET not set, skipping signature verification");
+    return true;
+  }
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(appSecret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
+  const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+  const expected = `sha256=${hex}`;
+
+  return signature === expected;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -11,9 +37,9 @@ Deno.serve(async (req) => {
   }
 
   const url = new URL(req.url);
-  const platform = url.searchParams.get("platform"); // facebook | instagram | whatsapp
+  const platform = url.searchParams.get("platform");
 
-  // Facebook/Instagram webhook verification (GET)
+  // Facebook/Instagram/WhatsApp webhook verification (GET)
   if (req.method === "GET") {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
@@ -30,18 +56,27 @@ Deno.serve(async (req) => {
 
   // POST: incoming message webhook
   try {
-    const body = await req.json();
+    const bodyText = await req.text();
+
+    // Verify Meta signature
+    const isValid = await verifyMetaSignature(req, bodyText);
+    if (!isValid) {
+      console.error("Invalid webhook signature");
+      return new Response("Invalid signature", { status: 401, headers: corsHeaders });
+    }
+
+    const body = JSON.parse(bodyText);
     console.log(`[${platform}] Webhook received:`, JSON.stringify(body).slice(0, 500));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let messages: { platform: string; sender: string; text: string; platformId: string; timestamp: string }[] = [];
+    let messages: { platform: string; sender: string; text: string; platformId: string; timestamp: string; pageId?: string }[] = [];
 
     if (platform === "facebook" || platform === "instagram") {
-      // Meta webhook format
       for (const entry of body.entry || []) {
+        const pageId = entry.id;
         for (const messaging of entry.messaging || []) {
           if (messaging.message?.text) {
             messages.push({
@@ -50,13 +85,14 @@ Deno.serve(async (req) => {
               text: messaging.message.text,
               platformId: messaging.sender?.id || "",
               timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+              pageId,
             });
           }
         }
       }
     } else if (platform === "whatsapp") {
-      // WhatsApp Cloud API format
       for (const entry of body.entry || []) {
+        const phoneNumberId = entry.changes?.[0]?.value?.metadata?.phone_number_id;
         for (const change of entry.changes || []) {
           if (change.value?.messages) {
             for (const msg of change.value.messages) {
@@ -67,6 +103,7 @@ Deno.serve(async (req) => {
                   text: msg.text?.body || "",
                   platformId: msg.from || "",
                   timestamp: new Date(parseInt(msg.timestamp || "0") * 1000).toISOString(),
+                  pageId: phoneNumberId,
                 });
               }
             }
@@ -77,7 +114,27 @@ Deno.serve(async (req) => {
 
     // Process each incoming message
     for (const msg of messages) {
-      // Find or create conversation by platform_conversation_id
+      // Find store by page_id from platform_connections
+      let storeId: string | null = null;
+      if (msg.pageId) {
+        const { data: conn } = await supabase
+          .from("platform_connections")
+          .select("store_id")
+          .eq("page_id", msg.pageId)
+          .eq("platform", msg.platform)
+          .eq("status", "connected")
+          .maybeSingle();
+        storeId = conn?.store_id || null;
+      }
+
+      if (!storeId) {
+        // Fallback: first store
+        const { data: store } = await supabase.from("stores").select("id").limit(1).single();
+        if (!store) continue;
+        storeId = store.id;
+      }
+
+      // Find or create conversation
       let { data: conversation } = await supabase
         .from("conversations")
         .select("*")
@@ -86,19 +143,10 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (!conversation) {
-        // Find the first store (in production, map by page_id)
-        const { data: store } = await supabase
-          .from("stores")
-          .select("id")
-          .limit(1)
-          .single();
-
-        if (!store) continue;
-
         const { data: newConvo } = await supabase
           .from("conversations")
           .insert({
-            store_id: store.id,
+            store_id: storeId,
             platform: msg.platform as any,
             platform_conversation_id: msg.platformId,
             customer_name: `Customer ${msg.platformId.slice(-4)}`,
@@ -110,16 +158,11 @@ Deno.serve(async (req) => {
           })
           .select()
           .single();
-
         conversation = newConvo;
       } else {
         await supabase
           .from("conversations")
-          .update({
-            last_message: msg.text,
-            last_message_time: msg.timestamp,
-            unread: true,
-          })
+          .update({ last_message: msg.text, last_message_time: msg.timestamp, unread: true })
           .eq("id", conversation.id);
       }
 
@@ -130,6 +173,11 @@ Deno.serve(async (req) => {
           content: msg.text,
           platform_message_id: msg.platformId + "_" + Date.now(),
         });
+
+        // Update message count on platform connection
+        if (msg.pageId) {
+          await supabase.rpc("increment_message_count" as any, { _page_id: msg.pageId, _platform: msg.platform });
+        }
       }
     }
 

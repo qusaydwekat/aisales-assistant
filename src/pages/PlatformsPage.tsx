@@ -1,8 +1,21 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink, Link2, Unlink, RefreshCw } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { platformColors } from "@/data/mock-data";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { useQueryClient } from "@tanstack/react-query";
 
 type Platform = "facebook" | "instagram" | "whatsapp";
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
@@ -10,7 +23,14 @@ const platformLabels: Record<Platform, string> = { facebook: "Facebook Messenger
 
 export default function PlatformsPage() {
   const { data: connections = [], isLoading } = usePlatformConnections();
+  const { store } = useAuth();
   const { t, dir } = useLanguage();
+  const qc = useQueryClient();
+
+  const [connectDialog, setConnectDialog] = useState<Platform | null>(null);
+  const [pageId, setPageId] = useState("");
+  const [pageName, setPageName] = useState("");
+  const [connecting, setConnecting] = useState(false);
 
   const webhookBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/platform-webhook`;
 
@@ -23,6 +43,7 @@ export default function PlatformsPage() {
       icon: platformIcons[p],
       color: platformColors[p],
       connected: conn?.status === 'connected',
+      connectionId: conn?.id,
       pageName: conn?.page_name || '—',
       lastSync: conn?.last_synced_at ? new Date(conn.last_synced_at).toLocaleString() : '—',
       messagesThisWeek: conn?.message_count || 0,
@@ -33,6 +54,55 @@ export default function PlatformsPage() {
   const copyWebhook = (url: string) => {
     navigator.clipboard.writeText(url);
     toast.success("Webhook URL copied!");
+  };
+
+  const handleConnect = async () => {
+    if (!store?.id || !connectDialog || !pageId.trim()) return;
+    setConnecting(true);
+    try {
+      const existing = connections.find(c => c.platform === connectDialog);
+      if (existing) {
+        const { error } = await supabase
+          .from("platform_connections")
+          .update({ page_id: pageId.trim(), page_name: pageName.trim() || pageId.trim(), status: "connected", last_synced_at: new Date().toISOString() })
+          .eq("id", existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("platform_connections")
+          .insert({ store_id: store.id, platform: connectDialog, page_id: pageId.trim(), page_name: pageName.trim() || pageId.trim(), status: "connected", last_synced_at: new Date().toISOString() });
+        if (error) throw error;
+      }
+      toast.success(`${platformLabels[connectDialog]} connected!`);
+      qc.invalidateQueries({ queryKey: ["platform_connections"] });
+      setConnectDialog(null);
+      setPageId("");
+      setPageName("");
+    } catch (err: any) {
+      toast.error(err.message || "Failed to connect");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async (connectionId: string, name: string) => {
+    try {
+      const { error } = await supabase
+        .from("platform_connections")
+        .update({ status: "disconnected" })
+        .eq("id", connectionId);
+      if (error) throw error;
+      toast.success(`${name} disconnected`);
+      qc.invalidateQueries({ queryKey: ["platform_connections"] });
+    } catch (err: any) {
+      toast.error(err.message || "Failed to disconnect");
+    }
+  };
+
+  const pageIdLabels: Record<Platform, { label: string; placeholder: string; help: string }> = {
+    facebook: { label: "Facebook Page ID", placeholder: "e.g. 123456789012345", help: "Find it in your Facebook Page → About → Page ID" },
+    instagram: { label: "Instagram Business Account ID", placeholder: "e.g. 17841400000000000", help: "Find it in Meta Business Suite → Instagram account settings" },
+    whatsapp: { label: "WhatsApp Phone Number ID", placeholder: "e.g. 100000000000000", help: "Find it in Meta Developer Portal → WhatsApp → Getting Started" },
   };
 
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
@@ -59,11 +129,20 @@ export default function PlatformsPage() {
               </div>
               <div className="flex items-center gap-2">
                 {p.connected ? (
-                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-success/20 text-success">
-                    <Check className="h-3 w-3" /> {t("connected")}
-                  </span>
+                  <>
+                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-success/20 text-success">
+                      <Check className="h-3 w-3" /> {t("connected")}
+                    </span>
+                    <Button variant="ghost" size="sm" onClick={() => handleDisconnect(p.connectionId!, p.name)}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                      <Unlink className="h-4 w-4" />
+                    </Button>
+                  </>
                 ) : (
-                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground">{t("not_connected")}</span>
+                  <Button size="sm" onClick={() => setConnectDialog(p.id)}
+                    className="gap-1.5">
+                    <Link2 className="h-4 w-4" /> Connect
+                  </Button>
                 )}
               </div>
             </div>
@@ -97,13 +176,52 @@ export default function PlatformsPage() {
           <ExternalLink className="h-4 w-4 text-primary" /> Setup Guide
         </h3>
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>1. Copy the webhook URL for your platform above</p>
-          <p>2. Go to your Meta/WhatsApp developer dashboard</p>
-          <p>3. Paste the webhook URL in the webhook configuration</p>
-          <p>4. Set the verify token to: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
-          <p>5. Subscribe to <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">messages</code> events</p>
+          <p>1. Click <strong>Connect</strong> on the platform and enter your Page/Account ID</p>
+          <p>2. Copy the webhook URL and paste it in your Meta Developer Dashboard</p>
+          <p>3. Set the verify token to: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
+          <p>4. Subscribe to <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">messages</code> events</p>
+          <p>5. Messages will appear in your Inbox automatically</p>
         </div>
       </div>
+
+      {/* Connect Dialog */}
+      <Dialog open={!!connectDialog} onOpenChange={(open) => !open && setConnectDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {connectDialog && (() => { const Icon = platformIcons[connectDialog]; return <Icon className="h-5 w-5" style={{ color: platformColors[connectDialog] }} />; })()}
+              Connect {connectDialog ? platformLabels[connectDialog] : ''}
+            </DialogTitle>
+            <DialogDescription>
+              Enter your {connectDialog ? pageIdLabels[connectDialog].help : 'platform ID'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 pt-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                {connectDialog ? pageIdLabels[connectDialog].label : 'Page ID'}
+              </label>
+              <Input
+                placeholder={connectDialog ? pageIdLabels[connectDialog].placeholder : ''}
+                value={pageId}
+                onChange={(e) => setPageId(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Display Name (optional)</label>
+              <Input
+                placeholder="e.g. My Store Page"
+                value={pageName}
+                onChange={(e) => setPageName(e.target.value)}
+              />
+            </div>
+            <Button className="w-full" onClick={handleConnect} disabled={!pageId.trim() || connecting}>
+              {connecting ? <Loader2 className="h-4 w-4 animate-spin me-2" /> : <Link2 className="h-4 w-4 me-2" />}
+              Connect Platform
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

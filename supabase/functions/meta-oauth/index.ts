@@ -159,9 +159,17 @@ Deno.serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+      // Clean up old pending_selection records for this store
+      await supabase
+        .from("platform_connections")
+        .delete()
+        .eq("store_id", storeId)
+        .eq("status", "pending_selection");
+
       // Store pages temporarily for user selection
       const sessionId = crypto.randomUUID();
-      await supabase.from("platform_connections").insert({
+      console.log(`[meta-oauth] Storing ${pages.length} pages for selection, session_id=${sessionId}, store_id=${storeId}`);
+      const { error: insertErr } = await supabase.from("platform_connections").insert({
         store_id: storeId,
         platform: platform as any,
         status: "pending_selection",
@@ -176,6 +184,9 @@ Deno.serve(async (req) => {
           })),
         },
       });
+      if (insertErr) {
+        console.error("[meta-oauth] Failed to insert pending record:", insertErr);
+      }
 
       const finalRedirect = redirectUrl || "/platforms";
       return new Response(null, {

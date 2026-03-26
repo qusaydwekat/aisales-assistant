@@ -196,6 +196,8 @@ Deno.serve(async (req) => {
   if (req.method === "POST" && path === "select-pages") {
     try {
       const { session_id, page_ids } = await req.json();
+      console.log(`[meta-oauth] select-pages called with session_id=${session_id}, page_ids=${JSON.stringify(page_ids)}`);
+
       if (!session_id || !page_ids || !Array.isArray(page_ids) || page_ids.length === 0) {
         return new Response(JSON.stringify({ error: "session_id and page_ids[] required" }), {
           status: 400,
@@ -205,16 +207,19 @@ Deno.serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-      // Find the pending connection
-      const { data: pending } = await supabase
+      // Find ALL pending_selection records and match by session_id in credentials
+      const { data: pendingList } = await supabase
         .from("platform_connections")
         .select("*")
         .eq("status", "pending_selection")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("created_at", { ascending: false });
 
-      if (!pending || (pending.credentials as any)?.session_id !== session_id) {
+      const pending = (pendingList || []).find(
+        (r: any) => (r.credentials as any)?.session_id === session_id
+      );
+
+      if (!pending) {
+        console.error(`[meta-oauth] No pending record found for session_id=${session_id}. Found ${pendingList?.length || 0} pending records.`);
         return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     }
 
     // Build scopes based on platform
-    let scopes = "pages_show_list,pages_messaging,pages_read_engagement";
+    let scopes = "pages_show_list,pages_messaging";
     if (platform === "instagram") {
       scopes += ",instagram_basic,instagram_manage_messages";
     }

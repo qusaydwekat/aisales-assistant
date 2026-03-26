@@ -31,10 +31,36 @@ async function verifyMetaSignature(req: Request, body: string): Promise<boolean>
   return signature === expected;
 }
 
+// Get Page Access Token from a User Access Token
+async function getPageAccessToken(pageId: string, userAccessToken: string): Promise<string | null> {
+  try {
+    const url = `https://graph.facebook.com/v21.0/${pageId}?fields=access_token&access_token=${userAccessToken}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.access_token) {
+      console.log(`[meta] Got page access token for page ${pageId}`);
+      return data.access_token;
+    }
+    console.error(`[meta] Failed to get page token:`, JSON.stringify(data));
+    return null;
+  } catch (err) {
+    console.error(`[meta] Error getting page token:`, err);
+    return null;
+  }
+}
+
 // Send a message back via Meta Send API
 async function sendMetaReply(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string) {
+  // If we have a user token (starts with EAAM) and a pageId, exchange for page token
+  if (pageId && pageAccessToken.startsWith("EAAM")) {
+    const pageToken = await getPageAccessToken(pageId, pageAccessToken);
+    if (pageToken) {
+      pageAccessToken = pageToken;
+    }
+  }
+
   if (platform === "facebook" || platform === "instagram") {
-    const url = `https://graph.facebook.com/v21.0/${pageId || "me"}/messages`;
+    const url = `https://graph.facebook.com/v21.0/me/messages`;
     const res = await fetch(url, {
       method: "POST",
       headers: {

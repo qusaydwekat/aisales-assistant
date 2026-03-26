@@ -87,3 +87,12 @@
     @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent;
   }
 }
+
+/* RTL Support */
+[dir="rtl"] {
+  font-family: 'DM Sans', 'Noto Sans Arabic', system-ui, sans-serif;
+}
+
+[dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
+  font-family: 'Space Grotesk', 'Noto Sans Arabic', system-ui, sans-serif;
+}

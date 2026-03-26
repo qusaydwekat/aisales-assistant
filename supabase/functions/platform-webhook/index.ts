@@ -213,6 +213,73 @@ async function executeCreateOrder(
   });
 }
 
+async function executeCancelOrder(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+): Promise<string> {
+  let query = supabase.from("orders").select("*").eq("store_id", storeId);
+
+  if (args.order_number) {
+    query = query.eq("order_number", args.order_number);
+  } else {
+    query = query.eq("conversation_id", conversationId)
+      .in("status", ["pending", "confirmed", "processing"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+  }
+
+  const { data: orders, error: fetchErr } = await query;
+  if (fetchErr || !orders?.length) {
+    console.error("Cancel order lookup error:", fetchErr);
+    return JSON.stringify({ success: false, error: "No active order found to cancel." });
+  }
+
+  const order = orders[0];
+  if (order.status === "cancelled") {
+    return JSON.stringify({ success: false, error: `Order ${order.order_number} is already cancelled.` });
+  }
+  if (order.status === "delivered" || order.status === "shipped") {
+    return JSON.stringify({ success: false, error: `Order ${order.order_number} has already been ${order.status} and cannot be cancelled.` });
+  }
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("id", order.id);
+
+  if (updateErr) {
+    console.error("Cancel order update error:", updateErr);
+    return JSON.stringify({ success: false, error: updateErr.message });
+  }
+
+  // Update conversation status back to open
+  await supabase
+    .from("conversations")
+    .update({ status: "open" })
+    .eq("id", conversationId);
+
+  // Notify store owner
+  const { data: store } = await supabase
+    .from("stores")
+    .select("user_id")
+    .eq("id", storeId)
+    .single();
+
+  if (store) {
+    await supabase.from("notifications").insert({
+      user_id: store.user_id,
+      title: `Order ${order.order_number} cancelled`,
+      description: `${order.customer_name} cancelled their order.${args.reason ? ` Reason: ${args.reason}` : ""}`,
+      type: "order",
+    });
+  }
+
+  console.log(`Order cancelled: ${order.order_number}`);
+  return JSON.stringify({ success: true, order_number: order.order_number });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,

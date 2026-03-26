@@ -15,6 +15,7 @@ const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, i
 export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<Platform | 'all'>('all');
+  const [filterPageId, setFilterPageId] = useState<string>('all');
   const [replyText, setReplyText] = useState('');
   const [searchText, setSearchText] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -24,9 +25,16 @@ export default function InboxPage() {
   const { data: conversations = [], isLoading: loadingConvos } = useConversations();
   const { data: messages = [] } = useMessages(selectedId);
   const { data: orders = [] } = useOrders();
+  const { data: connections = [] } = usePlatformConnections();
   const sendMessage = useSendMessage();
   const updateStatus = useUpdateConversationStatus();
   const { upload, uploading } = useFileUpload();
+
+  // Connected pages for filter
+  const connectedPages = useMemo(() =>
+    connections.filter(c => c.status === 'connected' && c.page_name),
+    [connections]
+  );
 
   // Real-time subscriptions
   useRealtimeMessages(selectedId);

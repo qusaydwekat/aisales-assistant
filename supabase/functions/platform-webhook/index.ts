@@ -127,6 +127,22 @@ const ORDER_TOOL = {
   },
 };
 
+const CANCEL_ORDER_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "cancel_order",
+    description: "Cancel an existing order when the customer explicitly requests to cancel. Use the order number if provided, otherwise look up the most recent pending order for this conversation.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number (e.g. ORD-00001). Optional — if not provided, the most recent pending order for this conversation will be cancelled." },
+        reason: { type: "string", description: "Reason for cancellation if the customer provides one" },
+      },
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,
@@ -197,6 +213,73 @@ async function executeCreateOrder(
   });
 }
 
+async function executeCancelOrder(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+): Promise<string> {
+  let query = supabase.from("orders").select("*").eq("store_id", storeId);
+
+  if (args.order_number) {
+    query = query.eq("order_number", args.order_number);
+  } else {
+    query = query.eq("conversation_id", conversationId)
+      .in("status", ["pending", "confirmed", "processing"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+  }
+
+  const { data: orders, error: fetchErr } = await query;
+  if (fetchErr || !orders?.length) {
+    console.error("Cancel order lookup error:", fetchErr);
+    return JSON.stringify({ success: false, error: "No active order found to cancel." });
+  }
+
+  const order = orders[0];
+  if (order.status === "cancelled") {
+    return JSON.stringify({ success: false, error: `Order ${order.order_number} is already cancelled.` });
+  }
+  if (order.status === "delivered" || order.status === "shipped") {
+    return JSON.stringify({ success: false, error: `Order ${order.order_number} has already been ${order.status} and cannot be cancelled.` });
+  }
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ status: "cancelled" })
+    .eq("id", order.id);
+
+  if (updateErr) {
+    console.error("Cancel order update error:", updateErr);
+    return JSON.stringify({ success: false, error: updateErr.message });
+  }
+
+  // Update conversation status back to open
+  await supabase
+    .from("conversations")
+    .update({ status: "open" })
+    .eq("id", conversationId);
+
+  // Notify store owner
+  const { data: store } = await supabase
+    .from("stores")
+    .select("user_id")
+    .eq("id", storeId)
+    .single();
+
+  if (store) {
+    await supabase.from("notifications").insert({
+      user_id: store.user_id,
+      title: `Order ${order.order_number} cancelled`,
+      description: `${order.customer_name} cancelled their order.${args.reason ? ` Reason: ${args.reason}` : ""}`,
+      type: "order",
+    });
+  }
+
+  console.log(`Order cancelled: ${order.order_number}`);
+  return JSON.stringify({ success: true, order_number: order.order_number });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -256,6 +339,8 @@ Instructions:
 - When a customer wants to order, ask for: 1) which product(s) and quantity, 2) their full name, 3) phone number, 4) delivery address.
 - Once you have ALL required info (items, name, phone, address), use the create_order tool to place the order. Do NOT ask for confirmation again after collecting all details — just create it.
 - After creating an order, confirm the order number and details to the customer.
+- When a customer wants to cancel an order, use the cancel_order tool. If they mention an order number, pass it. Otherwise, the most recent active order for this conversation will be cancelled.
+- If cancellation fails (e.g. order already shipped/delivered), explain why it cannot be cancelled.
 - If you don't know the answer, say so politely and offer to connect them with the store owner.
 - Keep responses concise and helpful — this is a chat conversation.
 - Never make up product information. Only reference products from the catalog above.
@@ -280,7 +365,7 @@ Instructions:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: chatMessages,
-        tools: [ORDER_TOOL],
+        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL],
       }),
     });
 
@@ -304,18 +389,26 @@ Instructions:
       const toolResults: any[] = [];
 
       for (const tc of toolCalls) {
+        const args = typeof tc.function.arguments === "string"
+          ? JSON.parse(tc.function.arguments)
+          : tc.function.arguments;
+
+        let result: string;
         if (tc.function?.name === "create_order") {
-          const args = typeof tc.function.arguments === "string"
-            ? JSON.parse(tc.function.arguments)
-            : tc.function.arguments;
           console.log("AI triggered create_order:", JSON.stringify(args));
-          const result = await executeCreateOrder(supabase, storeId, conversationId, platform, args);
-          toolResults.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: result,
-          });
+          result = await executeCreateOrder(supabase, storeId, conversationId, platform, args);
+        } else if (tc.function?.name === "cancel_order") {
+          console.log("AI triggered cancel_order:", JSON.stringify(args));
+          result = await executeCancelOrder(supabase, storeId, conversationId, args);
+        } else {
+          result = JSON.stringify({ error: "Unknown tool" });
         }
+
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: result,
+        });
       }
 
       // Send tool results back to get final reply

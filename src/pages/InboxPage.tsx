@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect } from "react";
-import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter } from "lucide-react";
 import { motion } from "framer-motion";
-import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders } from "@/hooks/useSupabaseData";
+import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useRealtimeMessages, useRealtimeConversations } from "@/hooks/useRealtimeMessages";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/contexts/AuthContext";

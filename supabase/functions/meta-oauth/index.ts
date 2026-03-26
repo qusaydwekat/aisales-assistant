@@ -159,9 +159,17 @@ Deno.serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
+      // Clean up old pending_selection records for this store
+      await supabase
+        .from("platform_connections")
+        .delete()
+        .eq("store_id", storeId)
+        .eq("status", "pending_selection");
+
       // Store pages temporarily for user selection
       const sessionId = crypto.randomUUID();
-      await supabase.from("platform_connections").insert({
+      console.log(`[meta-oauth] Storing ${pages.length} pages for selection, session_id=${sessionId}, store_id=${storeId}`);
+      const { error: insertErr } = await supabase.from("platform_connections").insert({
         store_id: storeId,
         platform: platform as any,
         status: "pending_selection",
@@ -176,6 +184,9 @@ Deno.serve(async (req) => {
           })),
         },
       });
+      if (insertErr) {
+        console.error("[meta-oauth] Failed to insert pending record:", insertErr);
+      }
 
       const finalRedirect = redirectUrl || "/platforms";
       return new Response(null, {
@@ -196,6 +207,8 @@ Deno.serve(async (req) => {
   if (req.method === "POST" && path === "select-pages") {
     try {
       const { session_id, page_ids } = await req.json();
+      console.log(`[meta-oauth] select-pages called with session_id=${session_id}, page_ids=${JSON.stringify(page_ids)}`);
+
       if (!session_id || !page_ids || !Array.isArray(page_ids) || page_ids.length === 0) {
         return new Response(JSON.stringify({ error: "session_id and page_ids[] required" }), {
           status: 400,
@@ -205,16 +218,19 @@ Deno.serve(async (req) => {
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-      // Find the pending connection
-      const { data: pending } = await supabase
+      // Find ALL pending_selection records and match by session_id in credentials
+      const { data: pendingList } = await supabase
         .from("platform_connections")
         .select("*")
         .eq("status", "pending_selection")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order("created_at", { ascending: false });
 
-      if (!pending || (pending.credentials as any)?.session_id !== session_id) {
+      const pending = (pendingList || []).find(
+        (r: any) => (r.credentials as any)?.session_id === session_id
+      );
+
+      if (!pending) {
+        console.error(`[meta-oauth] No pending record found for session_id=${session_id}. Found ${pendingList?.length || 0} pending records.`);
         return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
           status: 404,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

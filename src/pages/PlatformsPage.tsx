@@ -40,7 +40,7 @@ export default function PlatformsPage() {
   const webhookBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/platform-webhook`;
   const oauthBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth`;
 
-  // Handle OAuth callback redirect
+  // Handle OAuth callback redirect — wait for store to be ready so RLS works
   useEffect(() => {
     const sid = searchParams.get("session_id");
     const platform = searchParams.get("platform") as Platform | null;
@@ -57,18 +57,19 @@ export default function PlatformsPage() {
       return;
     }
 
-    if (sid && platform) {
+    if (sid && platform && store?.id) {
       setSessionId(sid);
       setSelectPlatform(platform);
-      fetchPendingPages(sid);
+      fetchPendingPages(sid, store.id);
       setSearchParams({}, { replace: true });
     }
-  }, [searchParams]);
+  }, [searchParams, store?.id]);
 
-  const fetchPendingPages = async (sid: string) => {
+  const fetchPendingPages = async (sid: string, storeId: string) => {
     const { data } = await supabase
       .from("platform_connections")
       .select("credentials")
+      .eq("store_id", storeId)
       .eq("status", "pending_selection")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -78,7 +79,6 @@ export default function PlatformsPage() {
       const creds = data.credentials as any;
       if (creds?.session_id === sid && creds?.pages) {
         setPages(creds.pages);
-        // Pre-select all pages
         setSelectedPageIds(new Set(creds.pages.map((p: PageOption) => p.id)));
         setSelectingPage(true);
       }

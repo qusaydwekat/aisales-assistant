@@ -85,6 +85,7 @@ export type Database = {
           id: string
           last_message: string | null
           last_message_time: string | null
+          page_id: string | null
           platform: Database["public"]["Enums"]["platform_type"]
           platform_conversation_id: string | null
           status: Database["public"]["Enums"]["conversation_status"]
@@ -100,6 +101,7 @@ export type Database = {
           id?: string
           last_message?: string | null
           last_message_time?: string | null
+          page_id?: string | null
           platform: Database["public"]["Enums"]["platform_type"]
           platform_conversation_id?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
@@ -115,6 +117,7 @@ export type Database = {
           id?: string
           last_message?: string | null
           last_message_time?: string | null
+          page_id?: string | null
           platform?: Database["public"]["Enums"]["platform_type"]
           platform_conversation_id?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]

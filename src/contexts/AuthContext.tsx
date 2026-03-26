@@ -25,7 +25,7 @@ interface AuthContextType {
   store: Store | null;
   role: "admin" | "store_owner" | null;
   loading: boolean;
-  signUp: (email: string, password: string, fullName: string, phone: string, storeName: string) => Promise<{ error: any }>;
+  signUp: (email: string, password: string, fullName: string, phone: string, storeName: string) => Promise<{ error: any; user?: any }>;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
@@ -84,19 +84,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: fullName, phone, store_name: storeName },
         emailRedirectTo: window.location.origin,
       },
     });
 
-    if (!error && data.user) {
-      // Update profile with phone
-      await supabase.from("profiles").update({ phone }).eq("user_id", data.user.id);
-      // Create store
-      await supabase.from("stores").insert({ user_id: data.user.id, name: storeName });
-    }
-
-    return { error };
+    return { error, user: data?.user };
   };
 
   const signIn = async (email: string, password: string) => {

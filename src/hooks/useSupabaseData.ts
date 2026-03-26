@@ -407,7 +407,7 @@ export function useAdminStores() {
 export function useAdminUpdateUserStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ userId, status }: { userId: string; status: string }) => {
+    mutationFn: async ({ userId, status }: { userId: string; status: "pending" | "active" | "suspended" }) => {
       const { error } = await supabase.from("profiles").update({ status }).eq("user_id", userId);
       if (error) throw error;
     },

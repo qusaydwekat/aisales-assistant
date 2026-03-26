@@ -389,18 +389,26 @@ Instructions:
       const toolResults: any[] = [];
 
       for (const tc of toolCalls) {
+        const args = typeof tc.function.arguments === "string"
+          ? JSON.parse(tc.function.arguments)
+          : tc.function.arguments;
+
+        let result: string;
         if (tc.function?.name === "create_order") {
-          const args = typeof tc.function.arguments === "string"
-            ? JSON.parse(tc.function.arguments)
-            : tc.function.arguments;
           console.log("AI triggered create_order:", JSON.stringify(args));
-          const result = await executeCreateOrder(supabase, storeId, conversationId, platform, args);
-          toolResults.push({
-            role: "tool",
-            tool_call_id: tc.id,
-            content: result,
-          });
+          result = await executeCreateOrder(supabase, storeId, conversationId, platform, args);
+        } else if (tc.function?.name === "cancel_order") {
+          console.log("AI triggered cancel_order:", JSON.stringify(args));
+          result = await executeCancelOrder(supabase, storeId, conversationId, args);
+        } else {
+          result = JSON.stringify({ error: "Unknown tool" });
         }
+
+        toolResults.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: result,
+        });
       }
 
       // Send tool results back to get final reply

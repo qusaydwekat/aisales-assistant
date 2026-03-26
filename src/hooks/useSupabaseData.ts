@@ -192,7 +192,7 @@ export function useSendMessage() {
 export function useUpdateConversationStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+    mutationFn: async ({ id, status }: { id: string; status: "open" | "resolved" | "pending_order" }) => {
       const { error } = await supabase.from("conversations").update({ status }).eq("id", id);
       if (error) throw error;
     },

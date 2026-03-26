@@ -5,13 +5,39 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+async function subscribePageToWebhooks(pageId: string, pageAccessToken: string): Promise<boolean> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subscribed_fields: "messages,messaging_postbacks",
+          access_token: pageAccessToken,
+        }),
+      }
+    );
+    const data = await res.json();
+    if (data.success) {
+      console.log(`[meta-oauth] Page ${pageId} subscribed to webhooks`);
+      return true;
+    }
+    console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
+    return false;
+  } catch (err) {
+    console.error(`[meta-oauth] Error subscribing page ${pageId}:`, err);
+    return false;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   const url = new URL(req.url);
-  const path = url.pathname.split("/").pop(); // start, callback, or pages
+  const path = url.pathname.split("/").pop();
 
   const META_APP_ID = Deno.env.get("META_APP_ID");
   const META_APP_SECRET = Deno.env.get("META_APP_SECRET");
@@ -29,7 +55,7 @@ Deno.serve(async (req) => {
 
   // ─── START: Redirect user to Meta OAuth dialog ───
   if (path === "start") {
-    const platform = url.searchParams.get("platform") || "facebook"; // facebook | instagram | whatsapp
+    const platform = url.searchParams.get("platform") || "facebook";
     const storeId = url.searchParams.get("store_id");
     const redirectUrl = url.searchParams.get("redirect_url") || "";
 
@@ -40,7 +66,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build scopes based on platform
     let scopes = "pages_show_list,pages_messaging";
     if (platform === "instagram") {
       scopes += ",instagram_basic,instagram_manage_messages";
@@ -49,7 +74,6 @@ Deno.serve(async (req) => {
       scopes += ",whatsapp_business_management,whatsapp_business_messaging";
     }
 
-    // State encodes platform + store_id + redirect_url
     const state = btoa(JSON.stringify({ platform, storeId, redirectUrl }));
 
     const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
@@ -108,7 +132,7 @@ Deno.serve(async (req) => {
 
       const userToken = tokenData.access_token;
 
-      // Exchange for long-lived token
+      // Exchange for long-lived user token
       const longLivedRes = await fetch(
         `https://graph.facebook.com/v21.0/oauth/access_token?` +
         `grant_type=fb_exchange_token` +
@@ -119,7 +143,7 @@ Deno.serve(async (req) => {
       const longLivedData = await longLivedRes.json();
       const longLivedToken = longLivedData.access_token || userToken;
 
-      // Fetch user's pages
+      // Fetch user's pages (each page comes with its own page access token)
       const pagesRes = await fetch(
         `https://graph.facebook.com/v21.0/me/accounts?access_token=${longLivedToken}&fields=id,name,access_token,instagram_business_account`
       );
@@ -133,14 +157,10 @@ Deno.serve(async (req) => {
         });
       }
 
-      // Store pages temporarily for user selection
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
-      // Store the token + pages data in a temporary record
+      // Store pages temporarily for user selection
       const sessionId = crypto.randomUUID();
-      
-      // We'll store in platform_connections with status 'pending_selection'
-      // with all pages data in credentials
       await supabase.from("platform_connections").insert({
         store_id: storeId,
         platform: platform as any,
@@ -157,7 +177,6 @@ Deno.serve(async (req) => {
         },
       });
 
-      // Redirect back with session_id for page selection
       const finalRedirect = redirectUrl || "/platforms";
       return new Response(null, {
         status: 302,
@@ -173,12 +192,12 @@ Deno.serve(async (req) => {
     }
   }
 
-  // ─── SELECT PAGE: Finalize connection with selected page ───
-  if (req.method === "POST" && path === "select-page") {
+  // ─── SELECT PAGES: Connect multiple pages at once ───
+  if (req.method === "POST" && path === "select-pages") {
     try {
-      const { session_id, page_id } = await req.json();
-      if (!session_id || !page_id) {
-        return new Response(JSON.stringify({ error: "session_id and page_id required" }), {
+      const { session_id, page_ids } = await req.json();
+      if (!session_id || !page_ids || !Array.isArray(page_ids) || page_ids.length === 0) {
+        return new Response(JSON.stringify({ error: "session_id and page_ids[] required" }), {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -191,7 +210,9 @@ Deno.serve(async (req) => {
         .from("platform_connections")
         .select("*")
         .eq("status", "pending_selection")
-        .single();
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!pending || (pending.credentials as any)?.session_id !== session_id) {
         return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
@@ -201,43 +222,102 @@ Deno.serve(async (req) => {
       }
 
       const creds = pending.credentials as any;
-      const selectedPage = creds.pages?.find((p: any) => p.id === page_id);
+      const storeId = pending.store_id;
+      const platform = pending.platform;
+      const connectedPages: string[] = [];
+      const failedPages: string[] = [];
 
-      if (!selectedPage) {
-        return new Response(JSON.stringify({ error: "Page not found" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      // Determine the correct page_id for the platform
-      let finalPageId = selectedPage.id;
-      if (pending.platform === "instagram" && selectedPage.instagram_business_account) {
-        finalPageId = selectedPage.instagram_business_account;
-      }
-
-      // Update the connection to connected status
-      await supabase
+      // Get already connected page IDs for this store to avoid duplicates
+      const { data: existingConns } = await supabase
         .from("platform_connections")
-        .update({
+        .select("page_id")
+        .eq("store_id", storeId)
+        .eq("platform", platform)
+        .eq("status", "connected");
+      const existingPageIds = new Set((existingConns || []).map(c => c.page_id));
+
+      for (const pageId of page_ids) {
+        const page = creds.pages?.find((p: any) => p.id === pageId);
+        if (!page) {
+          failedPages.push(pageId);
+          continue;
+        }
+
+        let finalPageId = page.id;
+        if (platform === "instagram" && page.instagram_business_account) {
+          finalPageId = page.instagram_business_account;
+        }
+
+        // Skip if already connected
+        if (existingPageIds.has(finalPageId)) {
+          connectedPages.push(page.name);
+          continue;
+        }
+
+        // Subscribe page to app webhooks automatically
+        const subscribed = await subscribePageToWebhooks(page.id, page.access_token);
+        if (!subscribed) {
+          console.warn(`[meta-oauth] Could not subscribe page ${page.id}, connecting anyway`);
+        }
+
+        // Create a connection row for each page
+        await supabase.from("platform_connections").insert({
+          store_id: storeId,
+          platform: platform as any,
           status: "connected",
           page_id: finalPageId,
-          page_name: selectedPage.name,
+          page_name: page.name,
           credentials: {
-            page_access_token: selectedPage.access_token,
+            page_access_token: page.access_token,
             user_token: creds.user_token,
           },
           last_synced_at: new Date().toISOString(),
-        })
+        });
+
+        connectedPages.push(page.name);
+      }
+
+      // Delete the pending_selection record
+      await supabase
+        .from("platform_connections")
+        .delete()
         .eq("id", pending.id);
 
-      return new Response(JSON.stringify({ success: true, page_name: selectedPage.name }), {
+      return new Response(JSON.stringify({
+        success: true,
+        connected: connectedPages,
+        failed: failedPages,
+      }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
     } catch (err) {
-      console.error("Select page error:", err);
+      console.error("Select pages error:", err);
+      return new Response(JSON.stringify({ error: "Internal error" }), {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+  }
+
+  // ─── Legacy single page select (keep for backwards compat) ───
+  if (req.method === "POST" && path === "select-page") {
+    try {
+      const { session_id, page_id } = await req.json();
+      // Redirect to select-pages logic
+      const body = JSON.stringify({ session_id, page_ids: [page_id] });
+      const newReq = new Request(req.url.replace("select-page", "select-pages"), {
+        method: "POST",
+        headers: req.headers,
+        body,
+      });
+      // Just call select-pages inline
+      return new Response(JSON.stringify({ error: "Please use select-pages endpoint" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    } catch (err) {
       return new Response(JSON.stringify({ error: "Internal error" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

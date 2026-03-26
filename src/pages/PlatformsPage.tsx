@@ -1,4 +1,4 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink, Link2, Unlink } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink, Link2, Unlink, CheckSquare, Square } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -31,6 +31,7 @@ export default function PlatformsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [pages, setPages] = useState<PageOption[]>([]);
+  const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [selectingPage, setSelectingPage] = useState(false);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectPlatform, setSelectPlatform] = useState<Platform | null>(null);
@@ -59,7 +60,6 @@ export default function PlatformsPage() {
     if (sid && platform) {
       setSessionId(sid);
       setSelectPlatform(platform);
-      // Fetch pages from the pending connection
       fetchPendingPages(sid);
       setSearchParams({}, { replace: true });
     }
@@ -78,31 +78,52 @@ export default function PlatformsPage() {
       const creds = data.credentials as any;
       if (creds?.session_id === sid && creds?.pages) {
         setPages(creds.pages);
+        // Pre-select all pages
+        setSelectedPageIds(new Set(creds.pages.map((p: PageOption) => p.id)));
         setSelectingPage(true);
       }
     }
   };
 
-  const handleSelectPage = async (pageId: string) => {
-    if (!sessionId) return;
+  const togglePage = (pageId: string) => {
+    setSelectedPageIds(prev => {
+      const next = new Set(prev);
+      if (next.has(pageId)) next.delete(pageId);
+      else next.add(pageId);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedPageIds.size === pages.length) {
+      setSelectedPageIds(new Set());
+    } else {
+      setSelectedPageIds(new Set(pages.map(p => p.id)));
+    }
+  };
+
+  const handleConnectSelected = async () => {
+    if (!sessionId || selectedPageIds.size === 0) return;
     setSubmitting(true);
     try {
-      const res = await fetch(`${oauthBaseUrl}/select-page`, {
+      const res = await fetch(`${oauthBaseUrl}/select-pages`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_id: sessionId, page_id: pageId }),
+        body: JSON.stringify({ session_id: sessionId, page_ids: Array.from(selectedPageIds) }),
       });
       const result = await res.json();
-      if (!res.ok) throw new Error(result.error || "Failed to select page");
+      if (!res.ok) throw new Error(result.error || "Failed to connect pages");
 
-      toast.success(`Connected to ${result.page_name}!`);
+      const count = result.connected?.length || 0;
+      toast.success(`Connected ${count} page${count !== 1 ? "s" : ""} successfully!`);
       qc.invalidateQueries({ queryKey: ["platform_connections"] });
       setSelectingPage(false);
       setPages([]);
       setSessionId(null);
       setSelectPlatform(null);
+      setSelectedPageIds(new Set());
     } catch (err: any) {
-      toast.error(err.message || "Failed to connect page");
+      toast.error(err.message || "Failed to connect pages");
     } finally {
       setSubmitting(false);
     }
@@ -122,7 +143,7 @@ export default function PlatformsPage() {
     try {
       const { error } = await supabase
         .from("platform_connections")
-        .update({ status: "disconnected" })
+        .delete()
         .eq("id", connectionId);
       if (error) throw error;
       toast.success(`${name} disconnected`);
@@ -137,21 +158,12 @@ export default function PlatformsPage() {
     toast.success("Webhook URL copied!");
   };
 
-  const allPlatforms: Platform[] = ['facebook', 'instagram', 'whatsapp'];
-  const platformData = allPlatforms.map(p => {
-    const conn = connections.find(c => c.platform === p && c.status === 'connected');
-    return {
-      id: p,
-      name: platformLabels[p],
-      icon: platformIcons[p],
-      color: platformColors[p],
-      connected: !!conn,
-      connectionId: conn?.id,
-      pageName: conn?.page_name || '—',
-      lastSync: conn?.last_synced_at ? new Date(conn.last_synced_at).toLocaleString() : '—',
-      messagesThisWeek: conn?.message_count || 0,
-      webhookUrl: `${webhookBaseUrl}?platform=${p}`,
-    };
+  const allPlatforms: Platform[] = ["facebook", "instagram", "whatsapp"];
+
+  // Group connected pages by platform
+  const connectedByPlatform = allPlatforms.map(p => {
+    const conns = connections.filter(c => c.platform === p && c.status === "connected");
+    return { platform: p, connections: conns };
   });
 
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
@@ -163,104 +175,128 @@ export default function PlatformsPage() {
         <p className="text-sm text-muted-foreground mt-1">{t("manage_platforms")}</p>
       </div>
 
+      {/* Platform cards with connect button */}
       <div className="grid gap-4">
-        {platformData.map(p => (
-          <div key={p.id} className="glass rounded-xl p-6">
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: p.color + '20' }}>
-                  <p.icon className="h-6 w-6" style={{ color: p.color }} />
+        {allPlatforms.map(p => {
+          const Icon = platformIcons[p];
+          const color = platformColors[p];
+          const conns = connectedByPlatform.find(x => x.platform === p)?.connections || [];
+          const webhookUrl = `${webhookBaseUrl}?platform=${p}`;
+
+          return (
+            <div key={p} className="glass rounded-xl p-6 space-y-4">
+              {/* Header */}
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + "20" }}>
+                    <Icon className="h-6 w-6" style={{ color }} />
+                  </div>
+                  <div>
+                    <h3 className="font-heading font-semibold text-foreground">{platformLabels[p]}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {conns.length > 0 ? `${conns.length} page${conns.length !== 1 ? "s" : ""} connected` : "Not connected"}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-heading font-semibold text-foreground">{p.name}</h3>
-                  <p className="text-sm text-muted-foreground">{p.pageName}</p>
-                </div>
+                <Button size="sm" onClick={() => startOAuth(p)} className="gap-1.5" variant={conns.length > 0 ? "outline" : "default"}>
+                  <Link2 className="h-4 w-4" /> {conns.length > 0 ? "Add Pages" : "Connect"}
+                </Button>
               </div>
-              <div className="flex items-center gap-2">
-                {p.connected ? (
-                  <>
-                    <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-success/20 text-success">
-                      <Check className="h-3 w-3" /> {t("connected")}
-                    </span>
-                    <Button variant="ghost" size="sm" onClick={() => handleDisconnect(p.connectionId!, p.name)}
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                      <Unlink className="h-4 w-4" />
-                    </Button>
-                  </>
-                ) : (
-                  <Button size="sm" onClick={() => startOAuth(p.id)} className="gap-1.5">
-                    <Link2 className="h-4 w-4" /> Connect with Meta
-                  </Button>
-                )}
+
+              {/* Connected pages list */}
+              {conns.length > 0 && (
+                <div className="space-y-2 pt-2 border-t border-border/50">
+                  {conns.map(conn => (
+                    <div key={conn.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-muted/50">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-success/20 text-success shrink-0">
+                          <Check className="h-3 w-3" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{conn.page_name || "Unknown Page"}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {conn.message_count || 0} messages • Last sync: {conn.last_synced_at ? new Date(conn.last_synced_at).toLocaleDateString() : "—"}
+                          </p>
+                        </div>
+                      </div>
+                      <Button variant="ghost" size="sm" onClick={() => handleDisconnect(conn.id, conn.page_name || "Page")}
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0">
+                        <Unlink className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Webhook URL */}
+              <div className="pt-2 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-1.5">Webhook URL</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs bg-muted rounded-lg px-3 py-2 text-foreground/80 truncate font-mono">
+                    {webhookUrl}
+                  </code>
+                  <button onClick={() => copyWebhook(webhookUrl)}
+                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0">
+                    <Copy className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
-
-            {/* Webhook URL */}
-            <div className="mt-4 pt-4 border-t border-border/50">
-              <p className="text-xs text-muted-foreground mb-1.5">Webhook URL</p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 text-xs bg-muted rounded-lg px-3 py-2 text-foreground/80 truncate font-mono">
-                  {p.webhookUrl}
-                </code>
-                <button onClick={() => copyWebhook(p.webhookUrl)}
-                  className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                  <Copy className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-
-            {p.connected && (
-              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-border/50">
-                <div><p className="text-xs text-muted-foreground">{t("messages")}</p><p className="text-sm font-medium text-foreground">{p.messagesThisWeek}</p></div>
-                <div><p className="text-xs text-muted-foreground">{t("last_synced")}</p><p className="text-sm font-medium text-foreground">{p.lastSync}</p></div>
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
+      {/* Setup Guide */}
       <div className="glass rounded-xl p-6">
         <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
           <ExternalLink className="h-4 w-4 text-primary" /> Setup Guide
         </h3>
         <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>1. Click <strong>Connect with Meta</strong> — you'll be redirected to Facebook</p>
-          <p>2. Grant permissions and select the pages you want to connect</p>
-          <p>3. Choose which page to use from the selection dialog</p>
-          <p>4. Copy the webhook URL and paste it in your Meta Developer Dashboard</p>
-          <p>5. Set verify token to: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
-          <p>6. Messages will appear in your Inbox automatically</p>
+          <p>1. Click <strong>Connect</strong> — you'll be redirected to Facebook to grant permissions</p>
+          <p>2. Select the pages you want AI to manage — all selected pages will be connected</p>
+          <p>3. Pages are automatically subscribed to receive messages — no manual Meta App setup needed</p>
+          <p>4. AI will respond to messages on all connected pages using your store's products and settings</p>
+          <p>5. Copy the webhook URL and paste it in your Meta Developer Dashboard (one-time setup)</p>
+          <p>6. Verify token: <code className="bg-muted px-1.5 py-0.5 rounded text-xs text-foreground">aisales_verify_2024</code></p>
         </div>
       </div>
 
-      {/* Page Selection Dialog */}
-      <Dialog open={selectingPage} onOpenChange={(open) => { if (!open) { setSelectingPage(false); setPages([]); setSessionId(null); } }}>
+      {/* Multi-Page Selection Dialog */}
+      <Dialog open={selectingPage} onOpenChange={(open) => { if (!open) { setSelectingPage(false); setPages([]); setSessionId(null); setSelectedPageIds(new Set()); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectPlatform && (() => { const Icon = platformIcons[selectPlatform]; return <Icon className="h-5 w-5" style={{ color: platformColors[selectPlatform] }} />; })()}
-              Select a Page
+              Select Pages to Connect
             </DialogTitle>
             <DialogDescription>
-              Choose which page to connect for receiving messages
+              Choose which pages AI should manage. All selected pages will receive automatic replies.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-2 pt-2 max-h-80 overflow-y-auto">
+            {pages.length > 1 && (
+              <button onClick={toggleAll} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors text-start">
+                {selectedPageIds.size === pages.length
+                  ? <CheckSquare className="h-4 w-4 text-primary shrink-0" />
+                  : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
+                <span className="text-sm font-medium text-foreground">Select All ({pages.length} pages)</span>
+              </button>
+            )}
             {pages.map(page => (
               <button
                 key={page.id}
-                onClick={() => handleSelectPage(page.id)}
+                onClick={() => togglePage(page.id)}
                 disabled={submitting}
                 className="w-full flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors text-start disabled:opacity-50"
               >
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-                  <Facebook className="h-5 w-5 text-primary" />
-                </div>
+                {selectedPageIds.has(page.id)
+                  ? <CheckSquare className="h-5 w-5 text-primary shrink-0" />
+                  : <Square className="h-5 w-5 text-muted-foreground shrink-0" />}
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-foreground truncate">{page.name}</p>
                   <p className="text-xs text-muted-foreground">ID: {page.id}</p>
                 </div>
-                {submitting && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
               </button>
             ))}
             {pages.length === 0 && (
@@ -270,6 +306,15 @@ export default function PlatformsPage() {
               </div>
             )}
           </div>
+
+          {pages.length > 0 && (
+            <div className="pt-3 border-t border-border/50">
+              <Button onClick={handleConnectSelected} disabled={submitting || selectedPageIds.size === 0} className="w-full gap-2">
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+                Connect {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? "s" : ""}
+              </Button>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

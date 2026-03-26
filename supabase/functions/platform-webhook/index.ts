@@ -549,7 +549,7 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history);
+      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,

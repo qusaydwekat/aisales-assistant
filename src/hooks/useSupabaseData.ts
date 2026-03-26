@@ -423,20 +423,95 @@ export function useAdminStats() {
   return useQuery({
     queryKey: ["admin_stats"],
     queryFn: async () => {
-      const [users, orders, conversations, products] = await Promise.all([
+      const [users, orders, conversations, products, stores, connections] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact" }),
-        supabase.from("orders").select("id, total", { count: "exact" }),
-        supabase.from("conversations").select("id", { count: "exact" }),
+        supabase.from("orders").select("id, total, status, created_at", { count: "exact" }),
+        supabase.from("conversations").select("id, platform", { count: "exact" }),
         supabase.from("products").select("id", { count: "exact" }),
+        supabase.from("stores").select("id", { count: "exact" }),
+        supabase.from("platform_connections").select("id, status", { count: "exact" }),
       ]);
-      const totalRevenue = (orders.data || []).reduce((s, o) => s + Number(o.total), 0);
+      const allOrders = orders.data || [];
+      const totalRevenue = allOrders.reduce((s, o) => s + Number(o.total), 0);
+      const pendingOrders = allOrders.filter(o => o.status === 'pending').length;
+      const today = new Date(); today.setHours(0,0,0,0);
+      const todayOrders = allOrders.filter(o => new Date(o.created_at) >= today).length;
+      const activeConnections = (connections.data || []).filter((c: any) => c.status === 'connected').length;
       return {
         totalUsers: users.count || 0,
         totalOrders: orders.count || 0,
         totalConversations: conversations.count || 0,
         totalProducts: products.count || 0,
+        totalStores: stores.count || 0,
         totalRevenue,
+        pendingOrders,
+        todayOrders,
+        activeConnections,
+        totalConnections: connections.count || 0,
       };
+    },
+  });
+}
+
+// ============ ADMIN: ALL ORDERS ============
+export function useAdminOrders() {
+  return useQuery({
+    queryKey: ["admin_orders"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ============ ADMIN: ALL CONVERSATIONS ============
+export function useAdminConversations() {
+  return useQuery({
+    queryKey: ["admin_conversations"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*")
+        .order("last_message_time", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ============ ADMIN: ALL PRODUCTS ============
+export function useAdminProducts() {
+  return useQuery({
+    queryKey: ["admin_products"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("products")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+// ============ ADMIN: ALL PLATFORM CONNECTIONS ============
+export function useAdminConnections() {
+  return useQuery({
+    queryKey: ["admin_connections"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("platform_connections")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
     },
   });
 }

@@ -1,98 +1,84 @@
-import { MessageSquare, ShoppingCart, Clock, DollarSign, Facebook, Instagram, MessageCircle } from "lucide-react";
+import { MessageSquare, ShoppingCart, Clock, DollarSign, Facebook, Instagram, MessageCircle, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
-import { messagesOverTime, ordersPerDay, orders, conversations, notifications, platformColors } from "@/data/mock-data";
+import { useDashboardStats, useConversations, useOrders } from "@/hooks/useSupabaseData";
+import { useAuth } from "@/contexts/AuthContext";
+import { platformColors } from "@/data/mock-data";
 
-const metrics = [
-  { label: "Messages Today", value: "59", change: "+12%", icon: MessageSquare, color: "text-primary" },
-  { label: "New Orders", value: "8", change: "+23%", icon: ShoppingCart, color: "text-success" },
-  { label: "Pending Orders", value: "3", change: "-2", icon: Clock, color: "text-warning" },
-  { label: "Revenue (Month)", value: "$1,296", change: "+18%", icon: DollarSign, color: "text-accent" },
-];
+type Platform = "facebook" | "instagram" | "whatsapp";
+const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
 
-const platformStatus = [
-  { name: "Facebook", connected: true, icon: Facebook, color: platformColors.facebook },
-  { name: "Instagram", connected: true, icon: Instagram, color: platformColors.instagram },
-  { name: "WhatsApp", connected: true, icon: MessageCircle, color: platformColors.whatsapp },
-];
-
-const item = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0 },
-};
+const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export default function DashboardPage() {
+  const { profile } = useAuth();
+  const { data: stats, isLoading } = useDashboardStats();
+  const { data: conversations = [] } = useConversations();
+  const { data: orders = [] } = useOrders();
+
+  const metrics = [
+    { label: "Messages Today", value: String(stats?.messagesToday || 0), icon: MessageSquare, color: "text-primary" },
+    { label: "New Orders", value: String(stats?.newOrders || 0), icon: ShoppingCart, color: "text-success" },
+    { label: "Pending Orders", value: String(stats?.pendingOrders || 0), icon: Clock, color: "text-warning" },
+    { label: "Revenue (Month)", value: `$${(stats?.monthRevenue || 0).toLocaleString()}`, icon: DollarSign, color: "text-accent" },
+  ];
+
+  const platformStatus = (stats?.platforms || []).map((p: any) => ({
+    name: p.platform?.charAt(0).toUpperCase() + p.platform?.slice(1),
+    connected: p.status === 'connected',
+    icon: platformIcons[p.platform as Platform] || MessageCircle,
+    color: platformColors[p.platform as Platform] || '#888',
+  }));
+
+  // Build recent activity from real data
   const recentActivity = [
-    ...orders.slice(0, 4).map(o => ({ type: 'order' as const, text: `${o.customerName} placed order ${o.id}`, time: o.createdAt, platform: o.platform })),
-    ...conversations.filter(c => c.unread).map(c => ({ type: 'message' as const, text: `${c.customerName}: "${c.lastMessage}"`, time: c.lastMessageTime, platform: c.platform })),
+    ...orders.slice(0, 4).map(o => ({ type: 'order' as const, text: `${o.customer_name} placed order ${o.order_number}`, time: o.created_at, platform: o.platform as Platform })),
+    ...conversations.filter(c => c.unread).slice(0, 4).map(c => ({ type: 'message' as const, text: `${c.customer_name}: "${c.last_message}"`, time: c.last_message_time || c.created_at, platform: c.platform as Platform })),
   ].sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime()).slice(0, 6);
+
+  // Build chart data from orders
+  const ordersByDay: Record<string, number> = {};
+  orders.forEach(o => {
+    const d = new Date(o.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    ordersByDay[d] = (ordersByDay[d] || 0) + 1;
+  });
+  const ordersPerDay = Object.entries(ordersByDay).map(([date, count]) => ({ date, orders: count })).slice(-7);
+
+  if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
     <div className="p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-heading font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Welcome back, Youssef. Here's what's happening.</p>
+        <p className="text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
       </div>
 
-      {/* Metric Cards */}
-      <motion.div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
-        initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.08 } } }}
-      >
-        {metrics.map((m) => (
+      <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.08 } } }}>
+        {metrics.map(m => (
           <motion.div key={m.label} variants={item} className="glass rounded-xl p-5">
             <div className="flex items-center justify-between">
               <p className="text-sm text-muted-foreground">{m.label}</p>
               <m.icon className={`h-5 w-5 ${m.color}`} />
             </div>
             <p className="text-3xl font-heading font-bold text-foreground mt-2">{m.value}</p>
-            <p className="text-xs text-success mt-1">{m.change} from last period</p>
           </motion.div>
         ))}
       </motion.div>
 
-      {/* Platform Status */}
-      <div className="flex flex-wrap gap-3">
-        {platformStatus.map((p) => (
-          <div key={p.name} className="glass rounded-lg px-4 py-2.5 flex items-center gap-2">
-            <p.icon className="h-4 w-4" style={{ color: p.color }} />
-            <span className="text-sm text-foreground">{p.name}</span>
-            <span className="flex h-2 w-2 rounded-full bg-success" />
-          </div>
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="glass rounded-xl p-5">
-          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Messages Over Time</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={messagesOverTime}>
-              <defs>
-                <linearGradient id="colorFb" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={platformColors.facebook} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={platformColors.facebook} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorIg" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={platformColors.instagram} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={platformColors.instagram} stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="colorWa" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={platformColors.whatsapp} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={platformColors.whatsapp} stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 20% 16%)" />
-              <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 12 }} axisLine={false} />
-              <YAxis tick={{ fill: '#94A3B8', fontSize: 12 }} axisLine={false} />
-              <Tooltip contentStyle={{ background: 'hsl(222 41% 8%)', border: '1px solid hsl(222 20% 16%)', borderRadius: '8px', color: '#fff' }} />
-              <Area type="monotone" dataKey="whatsapp" stroke={platformColors.whatsapp} fillOpacity={1} fill="url(#colorWa)" />
-              <Area type="monotone" dataKey="instagram" stroke={platformColors.instagram} fillOpacity={1} fill="url(#colorIg)" />
-              <Area type="monotone" dataKey="facebook" stroke={platformColors.facebook} fillOpacity={1} fill="url(#colorFb)" />
-            </AreaChart>
-          </ResponsiveContainer>
+      {platformStatus.length > 0 && (
+        <div className="flex flex-wrap gap-3">
+          {platformStatus.map((p: any) => (
+            <div key={p.name} className="glass rounded-lg px-4 py-2.5 flex items-center gap-2">
+              <p.icon className="h-4 w-4" style={{ color: p.color }} />
+              <span className="text-sm text-foreground">{p.name}</span>
+              <span className={`flex h-2 w-2 rounded-full ${p.connected ? 'bg-success' : 'bg-muted-foreground'}`} />
+            </div>
+          ))}
         </div>
+      )}
 
+      {ordersPerDay.length > 0 && (
         <div className="glass rounded-xl p-5">
           <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Orders Per Day</h3>
           <ResponsiveContainer width="100%" height={240}>
@@ -105,26 +91,30 @@ export default function DashboardPage() {
             </BarChart>
           </ResponsiveContainer>
         </div>
-      </div>
+      )}
 
-      {/* Activity Feed */}
-      <div className="glass rounded-xl p-5">
-        <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Recent Activity</h3>
-        <div className="space-y-3">
-          {recentActivity.map((a, i) => (
-            <div key={i} className="flex items-start gap-3 text-sm">
-              <div
-                className="mt-1 h-2 w-2 rounded-full shrink-0"
-                style={{ backgroundColor: platformColors[a.platform] }}
-              />
-              <p className="text-muted-foreground flex-1">{a.text}</p>
-              <span className="text-xs text-muted-foreground/60 shrink-0">
-                {new Date(a.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-              </span>
-            </div>
-          ))}
+      {recentActivity.length > 0 && (
+        <div className="glass rounded-xl p-5">
+          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Recent Activity</h3>
+          <div className="space-y-3">
+            {recentActivity.map((a, i) => (
+              <div key={i} className="flex items-start gap-3 text-sm">
+                <div className="mt-1 h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: a.platform ? platformColors[a.platform] : '#888' }} />
+                <p className="text-muted-foreground flex-1">{a.text}</p>
+                <span className="text-xs text-muted-foreground/60 shrink-0">
+                  {new Date(a.time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
+
+      {recentActivity.length === 0 && orders.length === 0 && (
+        <div className="glass rounded-xl p-12 text-center text-muted-foreground">
+          No activity yet. Start by adding products and connecting your messaging platforms.
+        </div>
+      )}
     </div>
   );
 }

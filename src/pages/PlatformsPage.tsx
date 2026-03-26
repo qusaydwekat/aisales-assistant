@@ -1,22 +1,32 @@
-import { Facebook, Instagram, MessageCircle, Check, X, ExternalLink } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2 } from "lucide-react";
+import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { platformColors } from "@/data/mock-data";
 
-const platforms = [
-  {
-    id: 'facebook', name: 'Facebook Messenger', icon: Facebook, color: platformColors.facebook,
-    connected: true, pageName: 'Urban Style Co.', followers: '12.4K', lastSync: '2 mins ago', messagesThisWeek: 45,
-  },
-  {
-    id: 'instagram', name: 'Instagram Direct', icon: Instagram, color: platformColors.instagram,
-    connected: true, pageName: '@urbanstyleco', followers: '8.2K', lastSync: '5 mins ago', messagesThisWeek: 38,
-  },
-  {
-    id: 'whatsapp', name: 'WhatsApp Business', icon: MessageCircle, color: platformColors.whatsapp,
-    connected: true, pageName: '+20 101 234 5678', followers: null, lastSync: '1 min ago', messagesThisWeek: 72,
-  },
-];
+type Platform = "facebook" | "instagram" | "whatsapp";
+const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
+const platformLabels: Record<Platform, string> = { facebook: "Facebook Messenger", instagram: "Instagram Direct", whatsapp: "WhatsApp Business" };
 
 export default function PlatformsPage() {
+  const { data: connections = [], isLoading } = usePlatformConnections();
+
+  // Show all 3 platforms, merging with connection data
+  const allPlatforms: Platform[] = ['facebook', 'instagram', 'whatsapp'];
+  const platformData = allPlatforms.map(p => {
+    const conn = connections.find(c => c.platform === p);
+    return {
+      id: p,
+      name: platformLabels[p],
+      icon: platformIcons[p],
+      color: platformColors[p],
+      connected: conn?.status === 'connected',
+      pageName: conn?.page_name || '—',
+      lastSync: conn?.last_synced_at ? new Date(conn.last_synced_at).toLocaleString() : '—',
+      messagesThisWeek: conn?.message_count || 0,
+    };
+  });
+
+  if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+
   return (
     <div className="p-6 space-y-6 max-w-4xl">
       <div>
@@ -25,7 +35,7 @@ export default function PlatformsPage() {
       </div>
 
       <div className="grid gap-4">
-        {platforms.map(p => (
+        {platformData.map(p => (
           <div key={p.id} className="glass rounded-xl p-6">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-3">
@@ -38,21 +48,21 @@ export default function PlatformsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-success/20 text-success">
-                  <Check className="h-3 w-3" /> Connected
-                </span>
-                <button className="px-3 py-1.5 rounded-lg text-xs text-destructive hover:bg-destructive/10 transition-colors">
-                  Disconnect
-                </button>
+                {p.connected ? (
+                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-success/20 text-success">
+                    <Check className="h-3 w-3" /> Connected
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground">Not Connected</span>
+                )}
               </div>
             </div>
-            <div className="grid grid-cols-3 gap-4 mt-4 pt-4 border-t border-border/50">
-              {p.followers && (
-                <div><p className="text-xs text-muted-foreground">Followers</p><p className="text-sm font-medium text-foreground">{p.followers}</p></div>
-              )}
-              <div><p className="text-xs text-muted-foreground">Messages This Week</p><p className="text-sm font-medium text-foreground">{p.messagesThisWeek}</p></div>
-              <div><p className="text-xs text-muted-foreground">Last Synced</p><p className="text-sm font-medium text-foreground">{p.lastSync}</p></div>
-            </div>
+            {p.connected && (
+              <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-border/50">
+                <div><p className="text-xs text-muted-foreground">Messages</p><p className="text-sm font-medium text-foreground">{p.messagesThisWeek}</p></div>
+                <div><p className="text-xs text-muted-foreground">Last Synced</p><p className="text-sm font-medium text-foreground">{p.lastSync}</p></div>
+              </div>
+            )}
           </div>
         ))}
       </div>

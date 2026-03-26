@@ -17,6 +17,7 @@ import AISettingsPage from "@/pages/AISettingsPage";
 import NotificationsPage from "@/pages/NotificationsPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
+import AdminPage from "@/pages/AdminPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -42,6 +43,7 @@ const App = () => (
               <Route path="/reports" element={<ReportsPage />} />
               <Route path="/ai-settings" element={<AISettingsPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/admin" element={<AdminPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

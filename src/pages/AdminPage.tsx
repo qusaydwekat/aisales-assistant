@@ -222,7 +222,7 @@ export default function AdminPage() {
                     </tr></thead>
                     <tbody>
                       {users.map((u: any) => {
-                        const userRole = u.user_roles?.[0]?.role || u.user_roles?.role || '—';
+                        const userRole = u._role || '—';
                         return (
                           <tr key={u.id} className="border-b border-border/50 hover:bg-muted/20 transition-colors">
                             <td className="px-4 py-3">

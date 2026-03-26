@@ -6,6 +6,7 @@ import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useUnreadConversationCount, useUnreadNotificationCount } from "@/hooks/useSupabaseData";
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent,
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
@@ -30,6 +31,13 @@ export function AppSidebar() {
   const location = useLocation();
   const { store, profile, role } = useAuth();
   const { t, language, setLanguage } = useLanguage();
+  const { data: unreadInbox = 0 } = useUnreadConversationCount();
+  const { data: unreadNotifs = 0 } = useUnreadNotificationCount();
+
+  const badgeMap: Record<string, number> = {
+    inbox: unreadInbox,
+    notifications: unreadNotifs,
+  };
 
   const allNavKeys = [
     ...navKeys,
@@ -60,6 +68,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {allNavKeys.map((item) => {
                 const isActive = location.pathname === item.url;
+                const badge = badgeMap[item.key] || 0;
                 return (
                   <SidebarMenuItem key={item.key}>
                     <SidebarMenuButton asChild>
@@ -73,7 +82,14 @@ export function AppSidebar() {
                         }`}
                         activeClassName=""
                       >
-                        <item.icon className="h-4 w-4 shrink-0" />
+                        <div className="relative shrink-0">
+                          <item.icon className="h-4 w-4" />
+                          {badge > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold text-destructive-foreground">
+                              {badge > 99 ? '99+' : badge}
+                            </span>
+                          )}
+                        </div>
                         {!collapsed && <span>{t(item.key)}</span>}
                       </NavLink>
                     </SidebarMenuButton>
@@ -86,7 +102,6 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 space-y-2">
-        {/* Language Toggle */}
         {!collapsed && (
           <button
             onClick={() => setLanguage(language === "en" ? "ar" : "en")}

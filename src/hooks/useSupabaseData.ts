@@ -503,6 +503,43 @@ export function useAdminProducts() {
   });
 }
 
+// ============ UNREAD COUNTS ============
+export function useUnreadConversationCount() {
+  const { store } = useAuth();
+  return useQuery({
+    queryKey: ["unread_conversations_count", store?.id],
+    enabled: !!store?.id,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("conversations")
+        .select("id", { count: "exact", head: true })
+        .eq("store_id", store!.id)
+        .eq("unread", true);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+}
+
+export function useUnreadNotificationCount() {
+  const { user } = useAuth();
+  return useQuery({
+    queryKey: ["unread_notifications_count", user?.id],
+    enabled: !!user?.id,
+    refetchInterval: 15000,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user!.id)
+        .eq("read", false);
+      if (error) throw error;
+      return count || 0;
+    },
+  });
+}
+
 // ============ ADMIN: ALL PLATFORM CONNECTIONS ============
 export function useAdminConnections() {
   return useQuery({

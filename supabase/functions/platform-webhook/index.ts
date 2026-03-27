@@ -143,6 +143,38 @@ const CANCEL_ORDER_TOOL = {
   },
 };
 
+const UPDATE_ORDER_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "update_order",
+    description: "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something about their current order.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number to update (e.g. ORD-00001). If not provided, the most recent active order for this conversation will be updated." },
+        customer_name: { type: "string", description: "Updated customer name (only if changed)" },
+        phone: { type: "string", description: "Updated phone number (only if changed)" },
+        address: { type: "string", description: "Updated delivery address (only if changed)" },
+        items: {
+          type: "array",
+          description: "Updated full list of items (replaces existing items). Only provide if items changed.",
+          items: {
+            type: "object",
+            properties: {
+              product_name: { type: "string" },
+              quantity: { type: "number" },
+              price: { type: "number" },
+            },
+            required: ["product_name", "quantity", "price"],
+          },
+        },
+        notes: { type: "string", description: "Updated notes" },
+      },
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,

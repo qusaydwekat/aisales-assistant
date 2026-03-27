@@ -332,6 +332,43 @@ export function useMarkNotificationRead() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["unread_notifications_count"] });
+    },
+  });
+}
+
+export function useMarkAllNotificationsRead() {
+  const qc = useQueryClient();
+  const { user } = useAuth();
+  return useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read: true })
+        .eq("user_id", user!.id)
+        .eq("read", false);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["unread_notifications_count"] });
+    },
+  });
+}
+
+export function useMarkConversationRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (conversationId: string) => {
+      const { error } = await supabase
+        .from("conversations")
+        .update({ unread: false })
+        .eq("id", conversationId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      qc.invalidateQueries({ queryKey: ["unread_conversations_count"] });
     },
   });
 }

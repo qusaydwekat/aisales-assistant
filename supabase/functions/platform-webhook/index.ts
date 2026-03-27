@@ -175,6 +175,21 @@ const UPDATE_ORDER_TOOL = {
   },
 };
 
+const CHECK_ORDER_STATUS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "check_order_status",
+    description: "Look up the current status and details of an order from the database. Use this whenever the customer asks about their order status, delivery progress, or order details. You can search by order number or get the most recent order for this conversation.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number to look up (e.g. ORD-00001). If not provided, returns the most recent order for this conversation." },
+      },
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,

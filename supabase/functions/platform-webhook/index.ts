@@ -506,6 +506,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 
     const data = await response.json();
     const choice = data.choices?.[0];
+    console.log(`AI response - finish_reason: ${choice?.finish_reason}, tool_calls: ${choice?.message?.tool_calls?.length || 0}`);
 
     // Handle tool calls
     if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {

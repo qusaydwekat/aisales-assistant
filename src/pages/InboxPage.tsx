@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter } from "lucide-react";
 import { motion } from "framer-motion";
-import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections } from "@/hooks/useSupabaseData";
+import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections, useMarkConversationRead } from "@/hooks/useSupabaseData";
 import { useRealtimeMessages, useRealtimeConversations } from "@/hooks/useRealtimeMessages";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +28,18 @@ export default function InboxPage() {
   const { data: connections = [] } = usePlatformConnections();
   const sendMessage = useSendMessage();
   const updateStatus = useUpdateConversationStatus();
+  const markRead = useMarkConversationRead();
   const { upload, uploading } = useFileUpload();
+
+  // Mark conversation as read when selected
+  useEffect(() => {
+    if (selectedId) {
+      const convo = conversations.find(c => c.id === selectedId);
+      if (convo?.unread) {
+        markRead.mutate(selectedId);
+      }
+    }
+  }, [selectedId, conversations]);
 
   // Connected pages for filter
   const connectedPages = useMemo(() =>

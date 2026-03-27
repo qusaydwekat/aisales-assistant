@@ -610,7 +610,13 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.
 8. Use exact product prices from the catalog. Never make up product information.
 9. Keep responses concise and helpful.
-10. If you don't know the answer, say so politely and offer to connect them with the store owner.`;
+10. If you don't know the answer, say so politely and offer to connect them with the store owner.
+
+PRODUCT IMAGES RULES:
+- When discussing, recommending, or describing a product that has images in the catalog, ALWAYS call send_product_images to show the customer what the product looks like.
+- Use the exact image URLs from the product catalog above. NEVER make up image URLs.
+- Only send images for products that have image URLs listed (not "Images: none").
+- Include a caption with the product name and price.`;
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {

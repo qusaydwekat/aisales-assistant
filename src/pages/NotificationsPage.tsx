@@ -1,5 +1,5 @@
-import { ShoppingCart, MessageSquare, AlertTriangle, Link2, UserCheck, Loader2 } from "lucide-react";
-import { useNotifications, useMarkNotificationRead } from "@/hooks/useSupabaseData";
+import { ShoppingCart, MessageSquare, AlertTriangle, Link2, UserCheck, Loader2, CheckCheck } from "lucide-react";
+import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/useSupabaseData";
 
 const iconMap: Record<string, typeof MessageSquare> = {
   message: MessageSquare, order: ShoppingCart, escalation: AlertTriangle, platform: Link2, approval: UserCheck,
@@ -11,14 +11,28 @@ const colorMap: Record<string, string> = {
 export default function NotificationsPage() {
   const { data: notifications = [], isLoading } = useNotifications();
   const markRead = useMarkNotificationRead();
+  const markAllRead = useMarkAllNotificationsRead();
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
-      <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">Notifications</h1>
-        <p className="text-sm text-muted-foreground mt-1">{notifications.filter(n => !n.read).length} unread</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-heading font-bold text-foreground">Notifications</h1>
+          <p className="text-sm text-muted-foreground mt-1">{unreadCount} unread</p>
+        </div>
+        {unreadCount > 0 && (
+          <button
+            onClick={() => markAllRead.mutate()}
+            disabled={markAllRead.isPending}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
+          >
+            <CheckCheck className="h-3.5 w-3.5" />
+            Mark all as read
+          </button>
+        )}
       </div>
 
       {notifications.length === 0 ? (

@@ -456,16 +456,18 @@ Product Catalog:
 ${productList || "No products available yet."}
 ${ordersContext}
 
-CRITICAL ORDER RULES:
-1. **Check existing orders FIRST**: Before creating a new order, ALWAYS check the "Existing Orders" section above. If the customer already has an active order (pending/confirmed/processing), use update_order to modify it instead of creating a duplicate.
-2. **Create order**: Only use create_order when there is NO active order for this conversation, and the customer has provided: items, full name, phone, and address.
-3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order. Only pass the fields that changed. Use the order_number from the existing orders list.
-4. **Cancel order**: Use cancel_order when the customer explicitly wants to cancel. Reference the order_number if known.
-5. **Order identification**: Always reference orders by their order_number (e.g. ORD-00001) when communicating with the customer.
-6. After any order action, confirm the order number and updated details to the customer.
-7. If an order is already shipped/delivered, it cannot be updated or cancelled — explain this to the customer.
+CRITICAL ORDER RULES — READ CAREFULLY:
+**MOST IMPORTANT**: You MUST call the create_order / update_order / cancel_order tool to perform any order action. NEVER just say "your order has been created" without actually calling the tool. If you do not call the tool, the order DOES NOT EXIST in our system and the store owner will never see it.
+
+1. **Check existing orders FIRST**: Before creating a new order, check the "Existing Orders" section above. If there is an active order (pending/confirmed/processing), use update_order instead of creating a duplicate.
+2. **Create order**: Use create_order ONLY when there is NO active order AND the customer has provided: items, full name, phone, and address. YOU MUST CALL THE TOOL.
+3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order.
+4. **Cancel order**: Use cancel_order when the customer explicitly wants to cancel.
+5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
+6. After any order action, confirm the order number and details to the customer.
+7. If an order is already shipped/delivered, it cannot be updated or cancelled.
 8. Use exact product prices from the catalog. Never make up product information.
-9. Keep responses concise and helpful — this is a chat conversation.
+9. Keep responses concise and helpful.
 10. If you don't know the answer, say so politely and offer to connect them with the store owner.`;
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];

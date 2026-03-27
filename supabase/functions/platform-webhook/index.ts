@@ -312,6 +312,90 @@ async function executeCancelOrder(
   return JSON.stringify({ success: true, order_number: order.order_number });
 }
 
+async function executeUpdateOrder(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+): Promise<string> {
+  let query = supabase.from("orders").select("*").eq("store_id", storeId);
+
+  if (args.order_number) {
+    query = query.eq("order_number", args.order_number);
+  } else {
+    query = query.eq("conversation_id", conversationId)
+      .in("status", ["pending", "confirmed", "processing"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+  }
+
+  const { data: orders, error: fetchErr } = await query;
+  if (fetchErr || !orders?.length) {
+    console.error("Update order lookup error:", fetchErr);
+    return JSON.stringify({ success: false, error: "No active order found to update." });
+  }
+
+  const order = orders[0];
+  if (["cancelled", "delivered", "shipped"].includes(order.status)) {
+    return JSON.stringify({ success: false, error: `Order ${order.order_number} is ${order.status} and cannot be updated.` });
+  }
+
+  const updateData: any = {};
+  if (args.customer_name) updateData.customer_name = args.customer_name;
+  if (args.phone) updateData.phone = args.phone;
+  if (args.address) updateData.address = args.address;
+  if (args.notes !== undefined) updateData.notes = args.notes;
+  if (args.items && args.items.length > 0) {
+    updateData.items = args.items;
+    updateData.total = args.items.reduce(
+      (sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0
+    );
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return JSON.stringify({ success: false, error: "No fields to update." });
+  }
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update(updateData)
+    .eq("id", order.id);
+
+  if (updateErr) {
+    console.error("Update order error:", updateErr);
+    return JSON.stringify({ success: false, error: updateErr.message });
+  }
+
+  // Update conversation customer details if changed
+  const convoUpdate: any = {};
+  if (args.customer_name) convoUpdate.customer_name = args.customer_name;
+  if (args.phone) convoUpdate.customer_phone = args.phone;
+  if (args.address) convoUpdate.customer_address = args.address;
+  if (Object.keys(convoUpdate).length > 0) {
+    await supabase.from("conversations").update(convoUpdate).eq("id", conversationId);
+  }
+
+  // Notify store owner
+  const { data: store } = await supabase.from("stores").select("user_id").eq("id", storeId).single();
+  if (store) {
+    const changes = Object.keys(updateData).join(", ");
+    await supabase.from("notifications").insert({
+      user_id: store.user_id,
+      title: `Order ${order.order_number} updated`,
+      description: `${order.customer_name} updated their order. Changed: ${changes}`,
+      type: "order",
+    });
+  }
+
+  console.log(`Order updated: ${order.order_number}, fields: ${Object.keys(updateData).join(", ")}`);
+  return JSON.stringify({
+    success: true,
+    order_number: order.order_number,
+    updated_fields: Object.keys(updateData),
+    new_total: updateData.total ?? order.total,
+  });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -321,7 +405,8 @@ async function generateAIReply(
   supabase: any,
   storeId: string,
   conversationId: string,
-  platform: string
+  platform: string,
+  existingOrders: any[]
 ): Promise<string> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {

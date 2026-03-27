@@ -175,6 +175,21 @@ const UPDATE_ORDER_TOOL = {
   },
 };
 
+const CHECK_ORDER_STATUS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "check_order_status",
+    description: "Look up the current status and details of an order from the database. Use this whenever the customer asks about their order status, delivery progress, or order details. You can search by order number or get the most recent order for this conversation.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number to look up (e.g. ORD-00001). If not provided, returns the most recent order for this conversation." },
+      },
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,
@@ -396,6 +411,45 @@ async function executeUpdateOrder(
   });
 }
 
+async function executeCheckOrderStatus(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+): Promise<string> {
+  let query = supabase.from("orders").select("*").eq("store_id", storeId);
+
+  if (args.order_number) {
+    query = query.eq("order_number", args.order_number);
+  } else {
+    query = query.eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+  }
+
+  const { data: orders, error } = await query;
+  if (error || !orders?.length) {
+    console.error("Check order status error:", error);
+    return JSON.stringify({ success: false, error: "No orders found." });
+  }
+
+  const result = orders.map((o: any) => ({
+    order_number: o.order_number,
+    status: o.status,
+    customer_name: o.customer_name,
+    phone: o.phone,
+    address: o.address,
+    items: o.items,
+    total: o.total,
+    notes: o.notes,
+    created_at: o.created_at,
+    updated_at: o.updated_at,
+  }));
+
+  console.log(`Order status checked: ${result.map((o: any) => o.order_number).join(", ")}`);
+  return JSON.stringify({ success: true, orders: result });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -459,6 +513,8 @@ ${ordersContext}
 CRITICAL ORDER RULES — READ CAREFULLY:
 **MOST IMPORTANT**: You MUST call the create_order / update_order / cancel_order tool to perform any order action. NEVER just say "your order has been created" without actually calling the tool. If you do not call the tool, the order DOES NOT EXIST in our system and the store owner will never see it.
 
+**ORDER STATUS QUERIES**: When a customer asks about their order status, delivery progress, or any order details, you MUST call the check_order_status tool to get the real-time status from the database. NEVER guess or assume the order status from conversation history alone. Always use the tool to get the latest information.
+
 1. **Check existing orders FIRST**: Before creating a new order, check the "Existing Orders" section above. If there is an active order (pending/confirmed/processing), use update_order instead of creating a duplicate.
 2. **Create order**: Use create_order ONLY when there is NO active order AND the customer has provided: items, full name, phone, and address. YOU MUST CALL THE TOOL.
 3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order.
@@ -489,7 +545,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: chatMessages,
-        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL],
+        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL],
       }),
     });
 
@@ -528,6 +584,9 @@ CRITICAL ORDER RULES — READ CAREFULLY:
         } else if (tc.function?.name === "update_order") {
           console.log("AI triggered update_order:", JSON.stringify(args));
           result = await executeUpdateOrder(supabase, storeId, conversationId, args);
+        } else if (tc.function?.name === "check_order_status") {
+          console.log("AI triggered check_order_status:", JSON.stringify(args));
+          result = await executeCheckOrderStatus(supabase, storeId, conversationId, args);
         } else {
           result = JSON.stringify({ error: "Unknown tool" });
         }

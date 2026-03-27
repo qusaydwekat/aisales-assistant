@@ -937,24 +937,33 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
+      const aiResult = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,
         sender: "ai",
-        content: aiReply,
+        content: aiResult.text,
         platform_message_id: "ai_" + Date.now(),
       });
 
       await supabase.from("conversations").update({
-        last_message: aiReply,
+        last_message: aiResult.text,
         last_message_time: new Date().toISOString(),
       }).eq("id", conversation.id);
 
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
         console.log(`[${platform}] Sending reply to ${msg.sender} using stored page token`);
-        await sendMetaReply(msg.platform, msg.sender, aiReply, pageAccessToken, connectionPageId || msg.pageId || undefined);
+        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || undefined);
+
+        // Send product images if any
+        for (const img of aiResult.images) {
+          try {
+            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || undefined);
+          } catch (imgErr) {
+            console.error(`[${platform}] Failed to send image:`, imgErr);
+          }
+        }
       } else {
         console.warn(`[${platform}] No page access token found in platform_connections for page ${msg.pageId}, cannot send reply`);
       }

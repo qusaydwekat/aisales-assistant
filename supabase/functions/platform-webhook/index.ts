@@ -529,6 +529,11 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+interface AIReplyResult {
+  text: string;
+  images: { url: string; caption: string }[];
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -540,7 +545,8 @@ async function generateAIReply(
   conversationId: string,
   platform: string,
   existingOrders: any[]
-): Promise<string> {
+): Promise<AIReplyResult> {
+  const emptyResult = (text: string): AIReplyResult => ({ text, images: [] });
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.warn("LOVABLE_API_KEY not set, using fallback message");

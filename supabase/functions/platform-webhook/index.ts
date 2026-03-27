@@ -411,6 +411,45 @@ async function executeUpdateOrder(
   });
 }
 
+async function executeCheckOrderStatus(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+): Promise<string> {
+  let query = supabase.from("orders").select("*").eq("store_id", storeId);
+
+  if (args.order_number) {
+    query = query.eq("order_number", args.order_number);
+  } else {
+    query = query.eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
+      .limit(5);
+  }
+
+  const { data: orders, error } = await query;
+  if (error || !orders?.length) {
+    console.error("Check order status error:", error);
+    return JSON.stringify({ success: false, error: "No orders found." });
+  }
+
+  const result = orders.map((o: any) => ({
+    order_number: o.order_number,
+    status: o.status,
+    customer_name: o.customer_name,
+    phone: o.phone,
+    address: o.address,
+    items: o.items,
+    total: o.total,
+    notes: o.notes,
+    created_at: o.created_at,
+    updated_at: o.updated_at,
+  }));
+
+  console.log(`Order status checked: ${result.map((o: any) => o.order_number).join(", ")}`);
+  return JSON.stringify({ success: true, orders: result });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,

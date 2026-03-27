@@ -242,6 +242,33 @@ const CHECK_ORDER_STATUS_TOOL = {
   },
 };
 
+const SEND_PRODUCT_IMAGES_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "send_product_images",
+    description: "Send product images to the customer. Use this when the customer asks to see a product, asks what it looks like, or when recommending/discussing products. Always send images alongside your text description.",
+    parameters: {
+      type: "object",
+      properties: {
+        products: {
+          type: "array",
+          description: "List of products to send images for",
+          items: {
+            type: "object",
+            properties: {
+              product_name: { type: "string", description: "Name of the product" },
+              image_url: { type: "string", description: "The image URL from the product catalog" },
+              caption: { type: "string", description: "Short caption for the image (e.g. product name and price)" },
+            },
+            required: ["product_name", "image_url"],
+          },
+        },
+      },
+      required: ["products"],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,

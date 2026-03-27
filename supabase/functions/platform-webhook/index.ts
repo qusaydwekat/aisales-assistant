@@ -96,6 +96,58 @@ async function sendMetaReply(platform: string, recipientId: string, text: string
   }
 }
 
+async function sendMetaImage(platform: string, recipientId: string, imageUrl: string, caption: string, pageAccessToken: string, pageId?: string) {
+  if (platform === "facebook" || platform === "instagram") {
+    const url = `https://graph.facebook.com/v21.0/me/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: "image",
+            payload: { url: imageUrl, is_reusable: true },
+          },
+        },
+        messaging_type: "RESPONSE",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error(`[${platform}] Image send error:`, JSON.stringify(data));
+    } else {
+      console.log(`[${platform}] Image sent to ${recipientId}: ${imageUrl}`);
+    }
+    return data;
+  } else if (platform === "whatsapp") {
+    const url = `https://graph.facebook.com/v21.0/${pageId}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: recipientId,
+        type: "image",
+        image: { link: imageUrl, caption },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error(`[whatsapp] Image send error:`, JSON.stringify(data));
+    } else {
+      console.log(`[whatsapp] Image sent to ${recipientId}: ${imageUrl}`);
+    }
+    return data;
+  }
+}
+
 const ORDER_TOOL = {
   type: "function" as const,
   function: {
@@ -186,6 +238,33 @@ const CHECK_ORDER_STATUS_TOOL = {
         order_number: { type: "string", description: "The order number to look up (e.g. ORD-00001). If not provided, returns the most recent order for this conversation." },
       },
       required: [],
+    },
+  },
+};
+
+const SEND_PRODUCT_IMAGES_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "send_product_images",
+    description: "Send product images to the customer. Use this when the customer asks to see a product, asks what it looks like, or when recommending/discussing products. Always send images alongside your text description.",
+    parameters: {
+      type: "object",
+      properties: {
+        products: {
+          type: "array",
+          description: "List of products to send images for",
+          items: {
+            type: "object",
+            properties: {
+              product_name: { type: "string", description: "Name of the product" },
+              image_url: { type: "string", description: "The image URL from the product catalog" },
+              caption: { type: "string", description: "Short caption for the image (e.g. product name and price)" },
+            },
+            required: ["product_name", "image_url"],
+          },
+        },
+      },
+      required: ["products"],
     },
   },
 };
@@ -450,6 +529,11 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+interface AIReplyResult {
+  text: string;
+  images: { url: string; caption: string }[];
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -461,16 +545,18 @@ async function generateAIReply(
   conversationId: string,
   platform: string,
   existingOrders: any[]
-): Promise<string> {
+): Promise<AIReplyResult> {
+  const emptyResult = (text: string): AIReplyResult => ({ text, images: [] });
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.warn("LOVABLE_API_KEY not set, using fallback message");
-    return aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.";
+    return emptyResult(aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.");
   }
 
-  const productList = products.map(p =>
-    `- ${p.name}: ${p.description || "No description"} | Price: ${p.price} | Stock: ${p.stock} | Category: ${p.category || "General"}${p.variants ? ` | Variants: ${JSON.stringify(p.variants)}` : ""}`
-  ).join("\n");
+  const productList = products.map(p => {
+    const imageInfo = p.images?.length ? ` | Images: ${p.images.join(", ")}` : " | Images: none";
+    return `- ${p.name}: ${p.description || "No description"} | Price: ${p.price} | Stock: ${p.stock} | Category: ${p.category || "General"}${p.variants ? ` | Variants: ${JSON.stringify(p.variants)}` : ""}${imageInfo}`;
+  }).join("\n");
 
   const toneMap: Record<string, string> = {
     friendly: "warm, friendly, and conversational",
@@ -524,7 +610,13 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.
 8. Use exact product prices from the catalog. Never make up product information.
 9. Keep responses concise and helpful.
-10. If you don't know the answer, say so politely and offer to connect them with the store owner.`;
+10. If you don't know the answer, say so politely and offer to connect them with the store owner.
+
+PRODUCT IMAGES RULES:
+- When discussing, recommending, or describing a product that has images in the catalog, ALWAYS call send_product_images to show the customer what the product looks like.
+- Use the exact image URLs from the product catalog above. NEVER make up image URLs.
+- Only send images for products that have image URLs listed (not "Images: none").
+- Include a caption with the product name and price.`;
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
@@ -545,19 +637,19 @@ CRITICAL ORDER RULES — READ CAREFULLY:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: chatMessages,
-        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL],
+        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL],
       }),
     });
 
     if (response.status === 429 || response.status === 402) {
       console.warn("AI rate limited or credits exhausted, using fallback");
-      return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";
+      return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
     }
 
     if (!response.ok) {
       const errText = await response.text();
       console.error("AI gateway error:", response.status, errText);
-      return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";
+      return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
     }
 
     const data = await response.json();
@@ -568,6 +660,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
     if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {
       const toolCalls = choice.message.tool_calls || [];
       const toolResults: any[] = [];
+      const imagesToSend: { url: string; caption: string }[] = [];
 
       for (const tc of toolCalls) {
         const args = typeof tc.function.arguments === "string"
@@ -587,6 +680,14 @@ CRITICAL ORDER RULES — READ CAREFULLY:
         } else if (tc.function?.name === "check_order_status") {
           console.log("AI triggered check_order_status:", JSON.stringify(args));
           result = await executeCheckOrderStatus(supabase, storeId, conversationId, args);
+        } else if (tc.function?.name === "send_product_images") {
+          console.log("AI triggered send_product_images:", JSON.stringify(args));
+          for (const p of args.products || []) {
+            if (p.image_url) {
+              imagesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
+            }
+          }
+          result = JSON.stringify({ success: true, images_queued: imagesToSend.length });
         } else {
           result = JSON.stringify({ error: "Unknown tool" });
         }
@@ -617,15 +718,16 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 
       if (followUp.ok) {
         const followData = await followUp.json();
-        return followData.choices?.[0]?.message?.content || "Your order has been placed! ✅";
+        const text = followData.choices?.[0]?.message?.content || "Here you go! ✅";
+        return { text, images: imagesToSend };
       }
-      return "Your order has been placed successfully! ✅";
+      return { text: "Your order has been placed successfully! ✅", images: imagesToSend };
     }
 
-    return choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!";
+    return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
   } catch (err) {
     console.error("AI generation error:", err);
-    return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";
+    return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
   }
 }
 
@@ -835,24 +937,33 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
+      const aiResult = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,
         sender: "ai",
-        content: aiReply,
+        content: aiResult.text,
         platform_message_id: "ai_" + Date.now(),
       });
 
       await supabase.from("conversations").update({
-        last_message: aiReply,
+        last_message: aiResult.text,
         last_message_time: new Date().toISOString(),
       }).eq("id", conversation.id);
 
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
         console.log(`[${platform}] Sending reply to ${msg.sender} using stored page token`);
-        await sendMetaReply(msg.platform, msg.sender, aiReply, pageAccessToken, connectionPageId || msg.pageId || undefined);
+        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || undefined);
+
+        // Send product images if any
+        for (const img of aiResult.images) {
+          try {
+            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || undefined);
+          } catch (imgErr) {
+            console.error(`[${platform}] Failed to send image:`, imgErr);
+          }
+        }
       } else {
         console.warn(`[${platform}] No page access token found in platform_connections for page ${msg.pageId}, cannot send reply`);
       }

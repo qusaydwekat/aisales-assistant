@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Zap, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Navigate } from "react-router-dom";
+import { lovable } from "@/integrations/lovable/index";
 
 export default function LoginPage() {
   const { signIn, session, profile, loading: authLoading } = useAuth();
@@ -9,6 +10,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
 
   if (authLoading) return null;
@@ -25,6 +27,18 @@ export default function LoginPage() {
       navigate("/dashboard");
     }
     setLoading(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setGoogleLoading(true);
+    const { error } = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: window.location.origin,
+    });
+    if (error) {
+      setError(error.message);
+    }
+    setGoogleLoading(false);
   };
 
   const isPending = profile?.status === "pending";

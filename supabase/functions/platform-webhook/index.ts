@@ -660,6 +660,7 @@ PRODUCT IMAGES RULES:
     if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {
       const toolCalls = choice.message.tool_calls || [];
       const toolResults: any[] = [];
+      const imagesToSend: { url: string; caption: string }[] = [];
 
       for (const tc of toolCalls) {
         const args = typeof tc.function.arguments === "string"
@@ -679,6 +680,14 @@ PRODUCT IMAGES RULES:
         } else if (tc.function?.name === "check_order_status") {
           console.log("AI triggered check_order_status:", JSON.stringify(args));
           result = await executeCheckOrderStatus(supabase, storeId, conversationId, args);
+        } else if (tc.function?.name === "send_product_images") {
+          console.log("AI triggered send_product_images:", JSON.stringify(args));
+          for (const p of args.products || []) {
+            if (p.image_url) {
+              imagesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
+            }
+          }
+          result = JSON.stringify({ success: true, images_queued: imagesToSend.length });
         } else {
           result = JSON.stringify({ error: "Unknown tool" });
         }
@@ -709,12 +718,13 @@ PRODUCT IMAGES RULES:
 
       if (followUp.ok) {
         const followData = await followUp.json();
-        return followData.choices?.[0]?.message?.content || "Your order has been placed! ✅";
+        const text = followData.choices?.[0]?.message?.content || "Here you go! ✅";
+        return { text, images: imagesToSend };
       }
-      return "Your order has been placed successfully! ✅";
+      return { text: "Your order has been placed successfully! ✅", images: imagesToSend };
     }
 
-    return choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!";
+    return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
   } catch (err) {
     console.error("AI generation error:", err);
     return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";

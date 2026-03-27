@@ -20,6 +20,9 @@ import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import AdminPage from "@/pages/AdminPage";
 import StorefrontPage from "@/pages/StorefrontPage";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
+import TermsOfUsePage from "@/pages/TermsOfUsePage";
+import DisclaimerPage from "@/pages/DisclaimerPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();

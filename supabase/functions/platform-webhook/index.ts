@@ -582,6 +582,9 @@ CRITICAL ORDER RULES — READ CAREFULLY:
         } else if (tc.function?.name === "update_order") {
           console.log("AI triggered update_order:", JSON.stringify(args));
           result = await executeUpdateOrder(supabase, storeId, conversationId, args);
+        } else if (tc.function?.name === "check_order_status") {
+          console.log("AI triggered check_order_status:", JSON.stringify(args));
+          result = await executeCheckOrderStatus(supabase, storeId, conversationId, args);
         } else {
           result = JSON.stringify({ error: "Unknown tool" });
         }

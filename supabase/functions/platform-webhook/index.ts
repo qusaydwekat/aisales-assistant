@@ -143,6 +143,38 @@ const CANCEL_ORDER_TOOL = {
   },
 };
 
+const UPDATE_ORDER_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "update_order",
+    description: "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something about their current order.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number to update (e.g. ORD-00001). If not provided, the most recent active order for this conversation will be updated." },
+        customer_name: { type: "string", description: "Updated customer name (only if changed)" },
+        phone: { type: "string", description: "Updated phone number (only if changed)" },
+        address: { type: "string", description: "Updated delivery address (only if changed)" },
+        items: {
+          type: "array",
+          description: "Updated full list of items (replaces existing items). Only provide if items changed.",
+          items: {
+            type: "object",
+            properties: {
+              product_name: { type: "string" },
+              quantity: { type: "number" },
+              price: { type: "number" },
+            },
+            required: ["product_name", "quantity", "price"],
+          },
+        },
+        notes: { type: "string", description: "Updated notes" },
+      },
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,
@@ -280,6 +312,90 @@ async function executeCancelOrder(
   return JSON.stringify({ success: true, order_number: order.order_number });
 }
 
+async function executeUpdateOrder(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+): Promise<string> {
+  let query = supabase.from("orders").select("*").eq("store_id", storeId);
+
+  if (args.order_number) {
+    query = query.eq("order_number", args.order_number);
+  } else {
+    query = query.eq("conversation_id", conversationId)
+      .in("status", ["pending", "confirmed", "processing"])
+      .order("created_at", { ascending: false })
+      .limit(1);
+  }
+
+  const { data: orders, error: fetchErr } = await query;
+  if (fetchErr || !orders?.length) {
+    console.error("Update order lookup error:", fetchErr);
+    return JSON.stringify({ success: false, error: "No active order found to update." });
+  }
+
+  const order = orders[0];
+  if (["cancelled", "delivered", "shipped"].includes(order.status)) {
+    return JSON.stringify({ success: false, error: `Order ${order.order_number} is ${order.status} and cannot be updated.` });
+  }
+
+  const updateData: any = {};
+  if (args.customer_name) updateData.customer_name = args.customer_name;
+  if (args.phone) updateData.phone = args.phone;
+  if (args.address) updateData.address = args.address;
+  if (args.notes !== undefined) updateData.notes = args.notes;
+  if (args.items && args.items.length > 0) {
+    updateData.items = args.items;
+    updateData.total = args.items.reduce(
+      (sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0
+    );
+  }
+
+  if (Object.keys(updateData).length === 0) {
+    return JSON.stringify({ success: false, error: "No fields to update." });
+  }
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update(updateData)
+    .eq("id", order.id);
+
+  if (updateErr) {
+    console.error("Update order error:", updateErr);
+    return JSON.stringify({ success: false, error: updateErr.message });
+  }
+
+  // Update conversation customer details if changed
+  const convoUpdate: any = {};
+  if (args.customer_name) convoUpdate.customer_name = args.customer_name;
+  if (args.phone) convoUpdate.customer_phone = args.phone;
+  if (args.address) convoUpdate.customer_address = args.address;
+  if (Object.keys(convoUpdate).length > 0) {
+    await supabase.from("conversations").update(convoUpdate).eq("id", conversationId);
+  }
+
+  // Notify store owner
+  const { data: store } = await supabase.from("stores").select("user_id").eq("id", storeId).single();
+  if (store) {
+    const changes = Object.keys(updateData).join(", ");
+    await supabase.from("notifications").insert({
+      user_id: store.user_id,
+      title: `Order ${order.order_number} updated`,
+      description: `${order.customer_name} updated their order. Changed: ${changes}`,
+      type: "order",
+    });
+  }
+
+  console.log(`Order updated: ${order.order_number}, fields: ${Object.keys(updateData).join(", ")}`);
+  return JSON.stringify({
+    success: true,
+    order_number: order.order_number,
+    updated_fields: Object.keys(updateData),
+    new_total: updateData.total ?? order.total,
+  });
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -289,7 +405,8 @@ async function generateAIReply(
   supabase: any,
   storeId: string,
   conversationId: string,
-  platform: string
+  platform: string,
+  existingOrders: any[]
 ): Promise<string> {
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
@@ -317,6 +434,10 @@ async function generateAIReply(
   else if (language === "en") languageInstruction = "Always respond in English.";
   else languageInstruction = "Detect the customer's language and respond in the same language (Arabic or English).";
 
+  const ordersContext = existingOrders.length > 0
+    ? `\n\nExisting Orders for this conversation:\n${existingOrders.map(o => `- ${o.order_number} | Status: ${o.status} | Customer: ${o.customer_name} | Items: ${JSON.stringify(o.items)} | Total: ${o.total} | Phone: ${o.phone || "N/A"} | Address: ${o.address || "N/A"} | Notes: ${o.notes || "N/A"}`).join("\n")}`
+    : "\n\nNo existing orders for this conversation.";
+
   const systemPrompt = `You are ${personaName}, an AI sales assistant for "${storeInfo.name}".
 Your tone is ${toneDesc}. ${languageInstruction}
 
@@ -333,18 +454,19 @@ Store Information:
 
 Product Catalog:
 ${productList || "No products available yet."}
+${ordersContext}
 
-Instructions:
-- Help customers find products, answer questions about the store, and assist with orders.
-- When a customer wants to order, ask for: 1) which product(s) and quantity, 2) their full name, 3) phone number, 4) delivery address.
-- Once you have ALL required info (items, name, phone, address), use the create_order tool to place the order. Do NOT ask for confirmation again after collecting all details — just create it.
-- After creating an order, confirm the order number and details to the customer.
-- When a customer wants to cancel an order, use the cancel_order tool. If they mention an order number, pass it. Otherwise, the most recent active order for this conversation will be cancelled.
-- If cancellation fails (e.g. order already shipped/delivered), explain why it cannot be cancelled.
-- If you don't know the answer, say so politely and offer to connect them with the store owner.
-- Keep responses concise and helpful — this is a chat conversation.
-- Never make up product information. Only reference products from the catalog above.
-- Use the exact product prices from the catalog when creating orders.`;
+CRITICAL ORDER RULES:
+1. **Check existing orders FIRST**: Before creating a new order, ALWAYS check the "Existing Orders" section above. If the customer already has an active order (pending/confirmed/processing), use update_order to modify it instead of creating a duplicate.
+2. **Create order**: Only use create_order when there is NO active order for this conversation, and the customer has provided: items, full name, phone, and address.
+3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order. Only pass the fields that changed. Use the order_number from the existing orders list.
+4. **Cancel order**: Use cancel_order when the customer explicitly wants to cancel. Reference the order_number if known.
+5. **Order identification**: Always reference orders by their order_number (e.g. ORD-00001) when communicating with the customer.
+6. After any order action, confirm the order number and updated details to the customer.
+7. If an order is already shipped/delivered, it cannot be updated or cancelled — explain this to the customer.
+8. Use exact product prices from the catalog. Never make up product information.
+9. Keep responses concise and helpful — this is a chat conversation.
+10. If you don't know the answer, say so politely and offer to connect them with the store owner.`;
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
@@ -365,7 +487,7 @@ Instructions:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: chatMessages,
-        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL],
+        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL],
       }),
     });
 
@@ -400,6 +522,9 @@ Instructions:
         } else if (tc.function?.name === "cancel_order") {
           console.log("AI triggered cancel_order:", JSON.stringify(args));
           result = await executeCancelOrder(supabase, storeId, conversationId, args);
+        } else if (tc.function?.name === "update_order") {
+          console.log("AI triggered update_order:", JSON.stringify(args));
+          result = await executeUpdateOrder(supabase, storeId, conversationId, args);
         } else {
           result = JSON.stringify({ error: "Unknown tool" });
         }
@@ -619,7 +744,7 @@ Deno.serve(async (req) => {
       });
 
       // ─── AI Auto-Reply ───
-      const [storeRes, productsRes, aiSettingsRes, historyRes] = await Promise.all([
+      const [storeRes, productsRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
         supabase.from("stores").select("*").eq("id", storeId).single(),
         supabase.from("products").select("*").eq("store_id", storeId).eq("active", true),
         supabase.from("ai_settings").select("*").eq("store_id", storeId).maybeSingle(),
@@ -627,12 +752,18 @@ Deno.serve(async (req) => {
           .eq("conversation_id", conversation.id)
           .order("created_at", { ascending: true })
           .limit(20),
+        supabase.from("orders").select("order_number, status, customer_name, items, total, phone, address, notes")
+          .eq("conversation_id", conversation.id)
+          .in("status", ["pending", "confirmed", "processing"])
+          .order("created_at", { ascending: false })
+          .limit(5),
       ]);
 
       const storeInfo = storeRes.data;
       const products = productsRes.data || [];
       const aiSettings = aiSettingsRes.data;
       const history = historyRes.data || [];
+      const existingOrders = ordersRes.data || [];
 
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);
@@ -642,7 +773,7 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform);
+      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,

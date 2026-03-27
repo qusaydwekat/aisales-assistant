@@ -28,7 +28,18 @@ export default function InboxPage() {
   const { data: connections = [] } = usePlatformConnections();
   const sendMessage = useSendMessage();
   const updateStatus = useUpdateConversationStatus();
+  const markRead = useMarkConversationRead();
   const { upload, uploading } = useFileUpload();
+
+  // Mark conversation as read when selected
+  useEffect(() => {
+    if (selectedId) {
+      const convo = conversations.find(c => c.id === selectedId);
+      if (convo?.unread) {
+        markRead.mutate(selectedId);
+      }
+    }
+  }, [selectedId, conversations]);
 
   // Connected pages for filter
   const connectedPages = useMemo(() =>

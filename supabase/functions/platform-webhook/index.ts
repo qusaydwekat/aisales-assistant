@@ -649,7 +649,7 @@ PRODUCT IMAGES RULES:
     if (!response.ok) {
       const errText = await response.text();
       console.error("AI gateway error:", response.status, errText);
-      return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";
+      return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
     }
 
     const data = await response.json();

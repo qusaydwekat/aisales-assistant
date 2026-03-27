@@ -40,6 +40,9 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/shop" element={<StorefrontPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-use" element={<TermsOfUsePage />} />
+              <Route path="/disclaimer" element={<DisclaimerPage />} />
               <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/inbox" element={<InboxPage />} />

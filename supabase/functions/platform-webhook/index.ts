@@ -550,12 +550,13 @@ async function generateAIReply(
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.warn("LOVABLE_API_KEY not set, using fallback message");
-    return aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.";
+    return emptyResult(aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.");
   }
 
-  const productList = products.map(p =>
-    `- ${p.name}: ${p.description || "No description"} | Price: ${p.price} | Stock: ${p.stock} | Category: ${p.category || "General"}${p.variants ? ` | Variants: ${JSON.stringify(p.variants)}` : ""}`
-  ).join("\n");
+  const productList = products.map(p => {
+    const imageInfo = p.images?.length ? ` | Images: ${p.images.join(", ")}` : " | Images: none";
+    return `- ${p.name}: ${p.description || "No description"} | Price: ${p.price} | Stock: ${p.stock} | Category: ${p.category || "General"}${p.variants ? ` | Variants: ${JSON.stringify(p.variants)}` : ""}${imageInfo}`;
+  }).join("\n");
 
   const toneMap: Record<string, string> = {
     friendly: "warm, friendly, and conversational",

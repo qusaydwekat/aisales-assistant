@@ -20,6 +20,9 @@ import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import AdminPage from "@/pages/AdminPage";
 import StorefrontPage from "@/pages/StorefrontPage";
+import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
+import TermsOfUsePage from "@/pages/TermsOfUsePage";
+import DisclaimerPage from "@/pages/DisclaimerPage";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -37,6 +40,9 @@ const App = () => (
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/shop" element={<StorefrontPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/terms-of-use" element={<TermsOfUsePage />} />
+              <Route path="/disclaimer" element={<DisclaimerPage />} />
               <Route element={<ProtectedRoute><DashboardLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/inbox" element={<InboxPage />} />

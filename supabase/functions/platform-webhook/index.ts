@@ -727,7 +727,7 @@ PRODUCT IMAGES RULES:
     return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
   } catch (err) {
     console.error("AI generation error:", err);
-    return aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.";
+    return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
   }
 }
 

@@ -637,7 +637,7 @@ PRODUCT IMAGES RULES:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: chatMessages,
-        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL],
+        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL],
       }),
     });
 

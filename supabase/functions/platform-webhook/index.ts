@@ -543,7 +543,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
         messages: chatMessages,
-        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL],
+        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL],
       }),
     });
 

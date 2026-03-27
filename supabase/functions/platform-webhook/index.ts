@@ -96,6 +96,58 @@ async function sendMetaReply(platform: string, recipientId: string, text: string
   }
 }
 
+async function sendMetaImage(platform: string, recipientId: string, imageUrl: string, caption: string, pageAccessToken: string, pageId?: string) {
+  if (platform === "facebook" || platform === "instagram") {
+    const url = `https://graph.facebook.com/v21.0/me/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        message: {
+          attachment: {
+            type: "image",
+            payload: { url: imageUrl, is_reusable: true },
+          },
+        },
+        messaging_type: "RESPONSE",
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error(`[${platform}] Image send error:`, JSON.stringify(data));
+    } else {
+      console.log(`[${platform}] Image sent to ${recipientId}: ${imageUrl}`);
+    }
+    return data;
+  } else if (platform === "whatsapp") {
+    const url = `https://graph.facebook.com/v21.0/${pageId}/messages`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: recipientId,
+        type: "image",
+        image: { link: imageUrl, caption },
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      console.error(`[whatsapp] Image send error:`, JSON.stringify(data));
+    } else {
+      console.log(`[whatsapp] Image sent to ${recipientId}: ${imageUrl}`);
+    }
+    return data;
+  }
+}
+
 const ORDER_TOOL = {
   type: "function" as const,
   function: {

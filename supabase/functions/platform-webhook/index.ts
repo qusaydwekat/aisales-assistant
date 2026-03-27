@@ -744,7 +744,7 @@ Deno.serve(async (req) => {
       });
 
       // ─── AI Auto-Reply ───
-      const [storeRes, productsRes, aiSettingsRes, historyRes] = await Promise.all([
+      const [storeRes, productsRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
         supabase.from("stores").select("*").eq("id", storeId).single(),
         supabase.from("products").select("*").eq("store_id", storeId).eq("active", true),
         supabase.from("ai_settings").select("*").eq("store_id", storeId).maybeSingle(),
@@ -752,12 +752,18 @@ Deno.serve(async (req) => {
           .eq("conversation_id", conversation.id)
           .order("created_at", { ascending: true })
           .limit(20),
+        supabase.from("orders").select("order_number, status, customer_name, items, total, phone, address, notes")
+          .eq("conversation_id", conversation.id)
+          .in("status", ["pending", "confirmed", "processing"])
+          .order("created_at", { ascending: false })
+          .limit(5),
       ]);
 
       const storeInfo = storeRes.data;
       const products = productsRes.data || [];
       const aiSettings = aiSettingsRes.data;
       const history = historyRes.data || [];
+      const existingOrders = ordersRes.data || [];
 
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);
@@ -767,7 +773,7 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform);
+      const aiReply = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,

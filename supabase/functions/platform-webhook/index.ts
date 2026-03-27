@@ -513,6 +513,8 @@ ${ordersContext}
 CRITICAL ORDER RULES — READ CAREFULLY:
 **MOST IMPORTANT**: You MUST call the create_order / update_order / cancel_order tool to perform any order action. NEVER just say "your order has been created" without actually calling the tool. If you do not call the tool, the order DOES NOT EXIST in our system and the store owner will never see it.
 
+**ORDER STATUS QUERIES**: When a customer asks about their order status, delivery progress, or any order details, you MUST call the check_order_status tool to get the real-time status from the database. NEVER guess or assume the order status from conversation history alone. Always use the tool to get the latest information.
+
 1. **Check existing orders FIRST**: Before creating a new order, check the "Existing Orders" section above. If there is an active order (pending/confirmed/processing), use update_order instead of creating a duplicate.
 2. **Create order**: Use create_order ONLY when there is NO active order AND the customer has provided: items, full name, phone, and address. YOU MUST CALL THE TOOL.
 3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order.

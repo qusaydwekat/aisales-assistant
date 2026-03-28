@@ -47,21 +47,21 @@ export default function DashboardPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">Dashboard</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
       </div>
 
-      <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+      <motion.div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
         initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.08 } } }}>
         {metrics.map(m => (
-          <motion.div key={m.label} variants={item} className="glass rounded-xl p-5">
+          <motion.div key={m.label} variants={item} className="glass rounded-xl p-3 md:p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{m.label}</p>
-              <m.icon className={`h-5 w-5 ${m.color}`} />
+              <p className="text-xs md:text-sm text-muted-foreground">{m.label}</p>
+              <m.icon className={`h-4 w-4 md:h-5 md:w-5 ${m.color}`} />
             </div>
-            <p className="text-3xl font-heading font-bold text-foreground mt-2">{m.value}</p>
+            <p className="text-xl md:text-3xl font-heading font-bold text-foreground mt-1 md:mt-2">{m.value}</p>
           </motion.div>
         ))}
       </motion.div>

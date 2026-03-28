@@ -57,10 +57,10 @@ export default function StoreSettingsPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl" dir={dir}>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-3xl pb-20 md:pb-6" dir={dir}>
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">{t("store_settings")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your store information</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("store_settings")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your store information</p>
       </div>
 
       {/* Logo & Cover */}
@@ -119,12 +119,12 @@ export default function StoreSettingsPage() {
           {days.map(day => {
             const h = hours[day] || { open: true, from: '09:00', to: '18:00' };
             return (
-              <div key={day} className="flex items-center gap-3">
-                <label className="w-28 text-sm text-foreground">{day}</label>
-                <input type="checkbox" checked={h.open} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, open: e.target.checked } }))} className="accent-primary" />
-                <input type="time" value={h.from} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, from: e.target.value } }))} disabled={!h.open} className="rounded bg-muted px-2 py-1 text-sm text-foreground outline-none disabled:opacity-40" />
-                <span className="text-muted-foreground text-sm">to</span>
-                <input type="time" value={h.to} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, to: e.target.value } }))} disabled={!h.open} className="rounded bg-muted px-2 py-1 text-sm text-foreground outline-none disabled:opacity-40" />
+              <div key={day} className="flex items-center gap-2 md:gap-3 flex-wrap sm:flex-nowrap">
+                <label className="w-20 md:w-28 text-xs md:text-sm text-foreground shrink-0">{day}</label>
+                <input type="checkbox" checked={h.open} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, open: e.target.checked } }))} className="accent-primary shrink-0" />
+                <input type="time" value={h.from} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, from: e.target.value } }))} disabled={!h.open} className="rounded bg-muted px-2 py-1 text-xs md:text-sm text-foreground outline-none disabled:opacity-40 w-[5.5rem] md:w-auto" />
+                <span className="text-muted-foreground text-xs md:text-sm">to</span>
+                <input type="time" value={h.to} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, to: e.target.value } }))} disabled={!h.open} className="rounded bg-muted px-2 py-1 text-xs md:text-sm text-foreground outline-none disabled:opacity-40 w-[5.5rem] md:w-auto" />
               </div>
             );
           })}

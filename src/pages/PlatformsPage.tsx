@@ -169,10 +169,10 @@ export default function PlatformsPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl" dir={dir}>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl pb-20 md:pb-6" dir={dir}>
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">{t("connected_platforms")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">{t("manage_platforms")}</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("connected_platforms")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">{t("manage_platforms")}</p>
       </div>
 
       {/* Platform cards with connect button */}
@@ -184,12 +184,12 @@ export default function PlatformsPage() {
           const webhookUrl = `${webhookBaseUrl}?platform=${p}`;
 
           return (
-            <div key={p} className="glass rounded-xl p-6 space-y-4">
+            <div key={p} className="glass rounded-xl p-4 md:p-6 space-y-3 md:space-y-4">
               {/* Header */}
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="h-12 w-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: color + "20" }}>
-                    <Icon className="h-6 w-6" style={{ color }} />
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 md:gap-3">
+                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + "20" }}>
+                    <Icon className="h-5 w-5 md:h-6 md:w-6" style={{ color }} />
                   </div>
                   <div>
                     <h3 className="font-heading font-semibold text-foreground">{platformLabels[p]}</h3>

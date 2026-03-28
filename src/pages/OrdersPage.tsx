@@ -45,18 +45,18 @@ export default function OrdersPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">Orders</h1>
-          <p className="text-sm text-muted-foreground mt-1">{orders.length} total orders</p>
+          <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">Orders</h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">{orders.length} total orders</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={handleExport} className="glass-hover rounded-lg px-3 py-2 text-sm text-muted-foreground flex items-center gap-1.5">
-            <Download className="h-4 w-4" /> Export CSV
+          <button onClick={handleExport} className="glass-hover rounded-lg px-3 py-2 text-xs md:text-sm text-muted-foreground flex items-center gap-1.5">
+            <Download className="h-4 w-4" /> <span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span>
           </button>
-          <button onClick={() => setShowCreate(true)} className="rounded-lg px-3 py-2 text-sm bg-primary text-primary-foreground font-medium flex items-center gap-1.5 hover:bg-primary/90 transition-colors">
-            <Plus className="h-4 w-4" /> Create Order
+          <button onClick={() => setShowCreate(true)} className="rounded-lg px-3 py-2 text-xs md:text-sm bg-primary text-primary-foreground font-medium flex items-center gap-1.5 hover:bg-primary/90 transition-colors">
+            <Plus className="h-4 w-4" /> <span className="hidden sm:inline">Create Order</span><span className="sm:hidden">Create</span>
           </button>
         </div>
       </div>

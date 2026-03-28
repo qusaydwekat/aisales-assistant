@@ -56,12 +56,12 @@ export default function DashboardPage() {
       <motion.div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
         initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.08 } } }}>
         {metrics.map(m => (
-          <motion.div key={m.label} variants={item} className="glass rounded-xl p-5">
+          <motion.div key={m.label} variants={item} className="glass rounded-xl p-3 md:p-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">{m.label}</p>
-              <m.icon className={`h-5 w-5 ${m.color}`} />
+              <p className="text-xs md:text-sm text-muted-foreground">{m.label}</p>
+              <m.icon className={`h-4 w-4 md:h-5 md:w-5 ${m.color}`} />
             </div>
-            <p className="text-3xl font-heading font-bold text-foreground mt-2">{m.value}</p>
+            <p className="text-xl md:text-3xl font-heading font-bold text-foreground mt-1 md:mt-2">{m.value}</p>
           </motion.div>
         ))}
       </motion.div>

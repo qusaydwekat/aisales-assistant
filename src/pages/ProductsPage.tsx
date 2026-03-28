@@ -75,8 +75,8 @@ export default function ProductsPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 flex-1 max-w-sm">
+      <div className="flex flex-wrap items-center gap-2 md:gap-3">
+        <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5 w-full sm:flex-1 sm:max-w-sm">
           <Search className="h-4 w-4 text-muted-foreground" />
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder={t("search")} className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none flex-1" />
         </div>

@@ -7,10 +7,9 @@ const corsHeaders = {
 
 async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, platform: string = "facebook"): Promise<boolean> {
   try {
-    // Instagram DM webhooks are configured at the App level in Meta Dashboard,
-    // NOT via Page subscribed_apps. So for Instagram we still subscribe the
-    // parent Facebook Page to standard messaging fields only.
-    const fields = "messages,messaging_postbacks,feed";
+    // Keep page subscription minimal to avoid requiring extra scopes like pages_manage_metadata.
+    // Instagram DMs still require app-level webhook subscription in Meta App config.
+    const fields = "messages,messaging_postbacks";
 
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
@@ -29,8 +28,8 @@ async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, 
       return true;
     }
     console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
-    // Retry with minimal fields
-    const retryFields = "messages,messaging_postbacks";
+    // Retry with messages only
+    const retryFields = "messages";
     const retryRes = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
       {
@@ -52,6 +51,26 @@ async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, 
   } catch (err) {
     console.error(`[meta-oauth] Error subscribing page ${pageId}:`, err);
     return false;
+  }
+}
+
+async function fetchInstagramBusinessAccountId(pageId: string, pageAccessToken: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account{id,username}&access_token=${encodeURIComponent(pageAccessToken)}`
+    );
+    const data = await res.json();
+
+    const igbaId = data?.instagram_business_account?.id || null;
+    if (igbaId) {
+      console.log(`[meta-oauth] Resolved IG business account for page ${pageId}: ${igbaId}`);
+    } else {
+      console.warn(`[meta-oauth] No IG business account linked to page ${pageId}`);
+    }
+    return igbaId;
+  } catch (err) {
+    console.error(`[meta-oauth] Failed to resolve IG business account for page ${pageId}:`, err);
+    return null;
   }
 }
 
@@ -172,7 +191,20 @@ Deno.serve(async (req) => {
         `https://graph.facebook.com/v21.0/me/accounts?access_token=${longLivedToken}&fields=id,name,access_token,instagram_business_account`
       );
       const pagesData = await pagesRes.json();
-      const pages = pagesData.data || [];
+      let pages = pagesData.data || [];
+
+      // For Instagram, ensure each page has IG business account id resolved.
+      if (platform === "instagram") {
+        pages = await Promise.all(
+          pages.map(async (p: any) => {
+            const igbaId = p.instagram_business_account?.id || await fetchInstagramBusinessAccountId(p.id, p.access_token);
+            return {
+              ...p,
+              instagram_business_account: igbaId ? { id: igbaId } : null,
+            };
+          })
+        );
+      }
 
       if (pages.length === 0) {
         return new Response(null, {
@@ -268,14 +300,13 @@ Deno.serve(async (req) => {
       const connectedPages: string[] = [];
       const failedPages: string[] = [];
 
-      // Get already connected page IDs for this store to avoid duplicates
+      // Get existing connected rows for this store/platform to avoid duplicates and keep tokens fresh
       const { data: existingConns } = await supabase
         .from("platform_connections")
-        .select("page_id")
+        .select("id, page_id, credentials")
         .eq("store_id", storeId)
         .eq("platform", platform)
         .eq("status", "connected");
-      const existingPageIds = new Set((existingConns || []).map(c => c.page_id));
 
       for (const pageId of page_ids) {
         const page = creds.pages?.find((p: any) => p.id === pageId);
@@ -284,16 +315,25 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        let finalPageId = page.id;
-        if (platform === "instagram" && page.instagram_business_account) {
-          finalPageId = page.instagram_business_account;
+        let instagramBusinessAccountId: string | null = page.instagram_business_account || null;
+        if (platform === "instagram" && !instagramBusinessAccountId) {
+          instagramBusinessAccountId = await fetchInstagramBusinessAccountId(page.id, page.access_token);
         }
 
-        // Skip if already connected
-        if (existingPageIds.has(finalPageId)) {
-          connectedPages.push(page.name);
-          continue;
+        let finalPageId = page.id;
+        if (platform === "instagram" && instagramBusinessAccountId) {
+          finalPageId = instagramBusinessAccountId;
         }
+
+        const existingConn = (existingConns || []).find((c: any) => {
+          const cCreds = c.credentials as any;
+          return (
+            c.page_id === finalPageId ||
+            c.page_id === page.id ||
+            cCreds?.facebook_page_id === page.id ||
+            (instagramBusinessAccountId && cCreds?.instagram_business_account_id === instagramBusinessAccountId)
+          );
+        });
 
         // Subscribe page to app webhooks automatically (pass platform for correct fields)
         const subscribed = await subscribePageToWebhooks(page.id, page.access_token, platform);
@@ -309,20 +349,35 @@ Deno.serve(async (req) => {
         // For Instagram, always store the Facebook page ID for fallback webhook lookup
         if (platform === "instagram") {
           connectionCredentials.facebook_page_id = page.id;
-          if (page.instagram_business_account) {
-            connectionCredentials.instagram_business_account_id = page.instagram_business_account;
+          if (instagramBusinessAccountId) {
+            connectionCredentials.instagram_business_account_id = instagramBusinessAccountId;
           }
         }
 
-        await supabase.from("platform_connections").insert({
-          store_id: storeId,
-          platform: platform as any,
-          status: "connected",
-          page_id: finalPageId,
-          page_name: page.name + (platform === "instagram" ? " (IG)" : ""),
-          credentials: connectionCredentials,
-          last_synced_at: new Date().toISOString(),
-        });
+        if (existingConn?.id) {
+          await supabase
+            .from("platform_connections")
+            .update({
+              status: "connected",
+              page_id: finalPageId,
+              page_name: page.name + (platform === "instagram" ? " (IG)" : ""),
+              credentials: connectionCredentials,
+              last_synced_at: new Date().toISOString(),
+            })
+            .eq("id", existingConn.id);
+          console.log(`[meta-oauth] Updated existing ${platform} connection for page ${page.id} -> ${finalPageId}`);
+        } else {
+          await supabase.from("platform_connections").insert({
+            store_id: storeId,
+            platform: platform as any,
+            status: "connected",
+            page_id: finalPageId,
+            page_name: page.name + (platform === "instagram" ? " (IG)" : ""),
+            credentials: connectionCredentials,
+            last_synced_at: new Date().toISOString(),
+          });
+          console.log(`[meta-oauth] Inserted new ${platform} connection for page ${page.id} -> ${finalPageId}`);
+        }
 
         connectedPages.push(page.name);
       }

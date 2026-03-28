@@ -895,17 +895,19 @@ Deno.serve(async (req) => {
       let storeId: string | null = null;
       let pageAccessToken: string | null = null;
       let connectionPageId: string | null = null;
+      let connectionId: string | null = null;
 
       if (msg.pageId) {
         // Look for connection by page_id — for Instagram, this is the IGBA ID
         const { data: conn } = await supabase
           .from("platform_connections")
-          .select("store_id, credentials, page_id, platform")
+          .select("id, store_id, credentials, page_id, platform")
           .eq("page_id", msg.pageId)
           .eq("status", "connected")
           .maybeSingle();
 
         if (conn) {
+          connectionId = conn.id;
           storeId = conn.store_id;
           pageAccessToken = (conn.credentials as any)?.page_access_token || null;
           connectionPageId = conn.page_id;
@@ -916,7 +918,7 @@ Deno.serve(async (req) => {
           // or via credentials.facebook_page_id or credentials.instagram_business_account_id
           const { data: igConns } = await supabase
             .from("platform_connections")
-            .select("store_id, credentials, page_id, platform")
+            .select("id, store_id, credentials, page_id, platform")
             .eq("platform", "instagram")
             .eq("status", "connected");
 
@@ -929,6 +931,7 @@ Deno.serve(async (req) => {
           });
 
           if (igConn) {
+            connectionId = igConn.id;
             storeId = igConn.store_id;
             pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
             connectionPageId = igConn.page_id;
@@ -1066,22 +1069,46 @@ Deno.serve(async (req) => {
       }
 
       // Update message count and last_synced_at
-      if (msg.pageId) {
+      if (connectionId || connectionPageId || msg.pageId) {
         try {
-          await supabase
-            .from("platform_connections")
-            .update({
-              message_count: (await supabase
-                .from("platform_connections")
-                .select("message_count")
-                .eq("page_id", msg.pageId)
-                .eq("status", "connected")
-                .single()
-                .then(r => r.data?.message_count || 0)) + 1,
-              last_synced_at: new Date().toISOString(),
-            })
-            .eq("page_id", msg.pageId)
-            .eq("status", "connected");
+          let currentCount = 0;
+
+          if (connectionId) {
+            currentCount = await supabase
+              .from("platform_connections")
+              .select("message_count")
+              .eq("id", connectionId)
+              .eq("status", "connected")
+              .single()
+              .then(r => r.data?.message_count || 0);
+
+            await supabase
+              .from("platform_connections")
+              .update({
+                message_count: currentCount + 1,
+                last_synced_at: new Date().toISOString(),
+              })
+              .eq("id", connectionId)
+              .eq("status", "connected");
+          } else {
+            const lookupPageId = connectionPageId || msg.pageId;
+            currentCount = await supabase
+              .from("platform_connections")
+              .select("message_count")
+              .eq("page_id", lookupPageId)
+              .eq("status", "connected")
+              .single()
+              .then(r => r.data?.message_count || 0);
+
+            await supabase
+              .from("platform_connections")
+              .update({
+                message_count: currentCount + 1,
+                last_synced_at: new Date().toISOString(),
+              })
+              .eq("page_id", lookupPageId)
+              .eq("status", "connected");
+          }
         } catch {}
       }
     }

@@ -891,13 +891,13 @@ Deno.serve(async (req) => {
 
     // Process each incoming message
     for (const msg of messages) {
-      // Find store + connection by page_id — try multiple platforms since Instagram pages map to FB page IDs
+      // Find store + connection by page_id
       let storeId: string | null = null;
       let pageAccessToken: string | null = null;
       let connectionPageId: string | null = null;
 
       if (msg.pageId) {
-        // Look for connection by page_id across all platform types
+        // Look for connection by page_id — for Instagram, this is the IGBA ID
         const { data: conn } = await supabase
           .from("platform_connections")
           .select("store_id, credentials, page_id, platform")
@@ -909,7 +909,30 @@ Deno.serve(async (req) => {
           storeId = conn.store_id;
           pageAccessToken = (conn.credentials as any)?.page_access_token || null;
           connectionPageId = conn.page_id;
-          console.log(`[${platform}] Found connection for page ${msg.pageId}, store: ${storeId}`);
+          console.log(`[${platform}] Found connection for page ${msg.pageId} (platform: ${conn.platform}), store: ${storeId}`);
+        } else if (platform === "instagram") {
+          // Fallback: Instagram webhooks may use the FB page ID instead of IGBA ID in some cases
+          // Try looking up Instagram connections where the IGBA was stored
+          const { data: igConns } = await supabase
+            .from("platform_connections")
+            .select("store_id, credentials, page_id, platform")
+            .eq("platform", "instagram")
+            .eq("status", "connected");
+
+          const igConn = (igConns || []).find(c => {
+            // Check if this connection's credentials reference this page
+            const creds = c.credentials as any;
+            return creds?.facebook_page_id === msg.pageId;
+          });
+
+          if (igConn) {
+            storeId = igConn.store_id;
+            pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
+            connectionPageId = igConn.page_id;
+            console.log(`[${platform}] Found Instagram connection via FB page fallback, store: ${storeId}`);
+          } else {
+            console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
+          }
         } else {
           console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
         }

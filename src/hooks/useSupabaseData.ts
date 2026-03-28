@@ -100,10 +100,19 @@ export function useUpdateOrderStatus() {
     mutationFn: async ({ id, status }: { id: string; status: "pending" | "confirmed" | "processing" | "shipped" | "delivered" | "cancelled" }) => {
       const { error } = await supabase.from("orders").update({ status }).eq("id", id);
       if (error) throw error;
+      // Notify customer via their platform about the status change
+      try {
+        await supabase.functions.invoke("order-status-notify", {
+          body: { order_id: id, new_status: status },
+        });
+      } catch (notifyErr) {
+        console.error("Failed to send status notification:", notifyErr);
+        // Don't fail the status update if notification fails
+      }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["orders"] });
-      toast.success("Order status updated");
+      toast.success("Order status updated & customer notified");
     },
     onError: (e: any) => toast.error(e.message),
   });

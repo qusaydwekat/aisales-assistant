@@ -47,10 +47,10 @@ export default function DashboardPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">Dashboard</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
       </div>
 
       <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"

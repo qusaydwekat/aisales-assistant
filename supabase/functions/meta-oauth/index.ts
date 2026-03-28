@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     let scopes = "pages_show_list,pages_messaging";
     if (platform === "instagram") {
-      scopes += ",instagram_basic,instagram_manage_messages";
+      scopes += ",instagram_manage_messages";
     }
     if (platform === "whatsapp") {
       scopes += ",whatsapp_business_management,whatsapp_business_messaging";

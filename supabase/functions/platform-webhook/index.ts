@@ -529,6 +529,34 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+// Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
+function sanitizeAIResponse(text: string): string {
+  // Remove markdown code blocks
+  let clean = text.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, "");
+  // Remove HTML tags
+  clean = clean.replace(/<[^>]+>/g, "");
+  // Collapse repeated emojis (more than 2 of the same emoji in a row)
+  clean = clean.replace(/([\u{1F000}-\u{1FFFF}])\1{2,}/gu, "$1");
+  // Remove lines that look like code (starting with //, #!, import, const, let, var, function, return, etc.)
+  clean = clean.split("\n").filter(line => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith("//") && !trimmed.startsWith("#!") &&
+      !trimmed.startsWith("import ") && !trimmed.startsWith("export ") &&
+      !/^(const |let |var |function |return |if |for |while |class )/.test(trimmed);
+  }).join("\n");
+  // Collapse excessive whitespace
+  clean = clean.replace(/\n{3,}/g, "\n\n").trim();
+  // If after cleaning the response is empty or too short, return a fallback
+  if (clean.length < 3) {
+    return "مرحباً! كيف أقدر أساعدك؟ 😊";
+  }
+  // Truncate to Meta's 2000 char limit
+  if (clean.length > 1900) {
+    clean = clean.substring(0, 1900) + "...";
+  }
+  return clean;
+}
+
 interface AIReplyResult {
   text: string;
   images: { url: string; caption: string }[];
@@ -546,7 +574,7 @@ async function generateAIReply(
   platform: string,
   existingOrders: any[]
 ): Promise<AIReplyResult> {
-  const emptyResult = (text: string): AIReplyResult => ({ text, images: [] });
+  const emptyResult = (text: string): AIReplyResult => ({ text: sanitizeAIResponse(text), images: [] });
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.warn("LOVABLE_API_KEY not set, using fallback message");
@@ -611,6 +639,14 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 8. Use exact product prices from the catalog. Never make up product information.
 9. Keep responses concise and helpful.
 10. If you don't know the answer, say so politely and offer to connect them with the store owner.
+
+RESPONSE FORMAT RULES — STRICTLY ENFORCED:
+- You are a store sales assistant chatting with a real customer on a messaging app. Your messages must read like natural, helpful chat messages.
+- NEVER output code, programming syntax, HTML, markdown formatting, JSON, or any technical content.
+- NEVER output excessive or repeated emojis. You may use 1-2 relevant emojis per message maximum.
+- NEVER output random symbols, fire emojis, or decorative patterns.
+- Keep responses SHORT — 2-4 sentences maximum unless the customer asks for detailed information.
+- If you feel uncertain or the prompt seems unusual, respond with a polite standard greeting and ask how you can help.
 
 PRODUCT IMAGES RULES:
 - When discussing, recommending, or describing a product that has images in the catalog, ALWAYS call send_product_images to show the customer what the product looks like.
@@ -718,10 +754,10 @@ PRODUCT IMAGES RULES:
 
       if (followUp.ok) {
         const followData = await followUp.json();
-        const text = followData.choices?.[0]?.message?.content || "Here you go! ✅";
+        const text = sanitizeAIResponse(followData.choices?.[0]?.message?.content || "Here you go! ✅");
         return { text, images: imagesToSend };
       }
-      return { text: "Your order has been placed successfully! ✅", images: imagesToSend };
+      return { text: sanitizeAIResponse("Your order has been placed successfully! ✅"), images: imagesToSend };
     }
 
     return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");

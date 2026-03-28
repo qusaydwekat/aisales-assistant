@@ -7,11 +7,10 @@ const corsHeaders = {
 
 async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, platform: string = "facebook"): Promise<boolean> {
   try {
-    // For Instagram, we need instagram_messaging field in addition to regular messaging fields
-    let fields = "messages,messaging_postbacks,feed";
-    if (platform === "instagram") {
-      fields = "messages,messaging_postbacks,instagram_messaging";
-    }
+    // Instagram DM webhooks are configured at the App level in Meta Dashboard,
+    // NOT via Page subscribed_apps. So for Instagram we still subscribe the
+    // parent Facebook Page to standard messaging fields only.
+    const fields = "messages,messaging_postbacks,feed";
 
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
@@ -31,7 +30,7 @@ async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, 
     }
     console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
     // Retry with minimal fields
-    const retryFields = platform === "instagram" ? "messages,instagram_messaging" : "messages,messaging_postbacks";
+    const retryFields = "messages,messaging_postbacks";
     const retryRes = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
       {

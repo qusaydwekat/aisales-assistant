@@ -5,41 +5,47 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-async function subscribePageToWebhooks(pageId: string, pageAccessToken: string): Promise<boolean> {
+async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, platform: string = "facebook"): Promise<boolean> {
   try {
-    // Subscribe page to app webhooks — this replaces manual page addition in Meta Developer Dashboard
+    // For Instagram, we need instagram_messaging field in addition to regular messaging fields
+    let fields = "messages,messaging_postbacks,feed";
+    if (platform === "instagram") {
+      fields = "messages,messaging_postbacks,instagram_messaging";
+    }
+
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subscribed_fields: "messages,messaging_postbacks,feed",
+          subscribed_fields: fields,
           access_token: pageAccessToken,
         }),
       }
     );
     const data = await res.json();
     if (data.success) {
-      console.log(`[meta-oauth] Page ${pageId} subscribed to webhooks successfully`);
+      console.log(`[meta-oauth] Page ${pageId} subscribed to webhooks (${fields})`);
       return true;
     }
     console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
-    // If subscription fails, try without 'feed' field (some pages don't support it)
+    // Retry with minimal fields
+    const retryFields = platform === "instagram" ? "messages,instagram_messaging" : "messages,messaging_postbacks";
     const retryRes = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          subscribed_fields: "messages,messaging_postbacks",
+          subscribed_fields: retryFields,
           access_token: pageAccessToken,
         }),
       }
     );
     const retryData = await retryRes.json();
     if (retryData.success) {
-      console.log(`[meta-oauth] Page ${pageId} subscribed (retry without feed)`);
+      console.log(`[meta-oauth] Page ${pageId} subscribed (retry with ${retryFields})`);
       return true;
     }
     console.error(`[meta-oauth] Retry also failed for page ${pageId}:`, JSON.stringify(retryData));
@@ -290,8 +296,8 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Subscribe page to app webhooks automatically
-        const subscribed = await subscribePageToWebhooks(page.id, page.access_token);
+        // Subscribe page to app webhooks automatically (pass platform for correct fields)
+        const subscribed = await subscribePageToWebhooks(page.id, page.access_token, platform);
         if (!subscribed) {
           console.warn(`[meta-oauth] Could not subscribe page ${page.id}, connecting anyway`);
         }
@@ -301,9 +307,12 @@ Deno.serve(async (req) => {
           page_access_token: page.access_token,
           user_token: creds.user_token,
         };
-        // For Instagram, store the Facebook page ID for fallback webhook lookup
-        if (platform === "instagram" && page.instagram_business_account) {
+        // For Instagram, always store the Facebook page ID for fallback webhook lookup
+        if (platform === "instagram") {
           connectionCredentials.facebook_page_id = page.id;
+          if (page.instagram_business_account) {
+            connectionCredentials.instagram_business_account_id = page.instagram_business_account;
+          }
         }
 
         await supabase.from("platform_connections").insert({

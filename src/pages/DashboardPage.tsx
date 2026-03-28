@@ -53,7 +53,7 @@ export default function DashboardPage() {
         <p className="text-xs md:text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
       </div>
 
-      <motion.div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+      <motion.div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
         initial="hidden" animate="show" variants={{ show: { transition: { staggerChildren: 0.08 } } }}>
         {metrics.map(m => (
           <motion.div key={m.label} variants={item} className="glass rounded-xl p-5">

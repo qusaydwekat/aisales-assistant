@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter } from "lucide-react";
-import { motion } from "framer-motion";
+import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections, useMarkConversationRead } from "@/hooks/useSupabaseData";
 import { useRealtimeMessages, useRealtimeConversations } from "@/hooks/useRealtimeMessages";
 import { useFileUpload } from "@/hooks/useFileUpload";
@@ -11,6 +11,7 @@ import type { Tables } from "@/integrations/supabase/types";
 
 type Platform = "facebook" | "instagram" | "whatsapp";
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
+const platformLabels: Record<Platform, string> = { facebook: "Messenger", instagram: "Instagram", whatsapp: "WhatsApp" };
 
 export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -41,11 +42,49 @@ export default function InboxPage() {
     }
   }, [selectedId, conversations]);
 
-  // Connected pages for filter
-  const connectedPages = useMemo(() =>
-    connections.filter(c => c.status === 'connected' && c.page_name),
-    [connections]
-  );
+  // Connected pages grouped by platform
+  const pagesByPlatform = useMemo(() => {
+    const grouped: Record<Platform, typeof connections> = {
+      facebook: [],
+      instagram: [],
+      whatsapp: [],
+    };
+    connections.filter(c => c.status === 'connected' && c.page_name).forEach(c => {
+      if (grouped[c.platform as Platform]) {
+        grouped[c.platform as Platform].push(c);
+      }
+    });
+    return grouped;
+  }, [connections]);
+
+  // Pages available for current platform filter
+  const filteredPages = useMemo(() => {
+    if (filterPlatform === 'all') {
+      return connections.filter(c => c.status === 'connected' && c.page_name);
+    }
+    return pagesByPlatform[filterPlatform] || [];
+  }, [filterPlatform, pagesByPlatform, connections]);
+
+  // Count conversations per platform
+  const platformCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: conversations.length };
+    conversations.forEach(c => {
+      counts[c.platform] = (counts[c.platform] || 0) + 1;
+    });
+    return counts;
+  }, [conversations]);
+
+  // Count unread per platform
+  const unreadCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: 0 };
+    conversations.forEach(c => {
+      if (c.unread) {
+        counts.all = (counts.all || 0) + 1;
+        counts[c.platform] = (counts[c.platform] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [conversations]);
 
   // Real-time subscriptions
   useRealtimeMessages(selectedId);
@@ -56,12 +95,23 @@ export default function InboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Reset page filter when platform changes
+  useEffect(() => {
+    setFilterPageId('all');
+  }, [filterPlatform]);
+
   const filtered = conversations.filter(c =>
     (filterPlatform === 'all' || c.platform === filterPlatform) &&
-    (filterPageId === 'all' || (c as any).page_id === filterPageId) &&
+    (filterPageId === 'all' || c.page_id === filterPageId) &&
     (searchText === '' || c.customer_name.toLowerCase().includes(searchText.toLowerCase()))
   );
   const selected = conversations.find(c => c.id === selectedId);
+
+  // Find page name for a conversation
+  const getPageName = (convo: typeof conversations[0]) => {
+    const conn = connections.find(c => c.page_id === convo.page_id && c.status === 'connected');
+    return conn?.page_name || null;
+  };
 
   const handleSend = async () => {
     if (!replyText.trim() || !selectedId) return;
@@ -85,48 +135,112 @@ export default function InboxPage() {
       {/* Left: Conversation List */}
       <div className="w-80 border-e border-border flex flex-col shrink-0">
         <div className="p-3 space-y-2 border-b border-border">
+          {/* Search */}
           <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-1.5">
             <Search className="h-4 w-4 text-muted-foreground" />
             <input value={searchText} onChange={e => setSearchText(e.target.value)} placeholder={t("search")} className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none flex-1" />
           </div>
-          <div className="flex gap-1">
-            {(['all', 'facebook', 'instagram', 'whatsapp'] as const).map(p => (
-              <button key={p} onClick={() => setFilterPlatform(p)}
-                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${filterPlatform === p ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:bg-muted'}`}>
-                {p === 'all' ? t('all') : p.charAt(0).toUpperCase() + p.slice(1)}
-              </button>
-            ))}
+
+          {/* Platform tabs */}
+          <div className="flex gap-0.5 bg-muted/50 rounded-lg p-0.5">
+            {(['all', 'facebook', 'instagram', 'whatsapp'] as const).map(p => {
+              const Icon = p !== 'all' ? platformIcons[p] : null;
+              const count = unreadCounts[p] || 0;
+              const isActive = filterPlatform === p;
+              return (
+                <button key={p} onClick={() => setFilterPlatform(p)}
+                  className={`flex-1 flex items-center justify-center gap-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
+                    isActive
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}>
+                  {Icon ? (
+                    <Icon className="h-3.5 w-3.5" style={isActive ? { color: platformColors[p as Platform] } : undefined} />
+                  ) : (
+                    <span>{t('all')}</span>
+                  )}
+                  {p !== 'all' && <span className="hidden sm:inline">{platformLabels[p as Platform]}</span>}
+                  {count > 0 && (
+                    <span className={`min-w-[16px] h-4 flex items-center justify-center rounded-full text-[10px] font-bold px-1 ${
+                      isActive ? 'bg-primary text-primary-foreground' : 'bg-muted-foreground/20 text-muted-foreground'
+                    }`}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
-          {connectedPages.length > 1 && (
-            <select
-              value={filterPageId}
-              onChange={e => setFilterPageId(e.target.value)}
-              className="w-full text-xs bg-muted rounded-md px-2 py-1.5 text-foreground border-none outline-none"
-            >
-              <option value="all">All Pages</option>
-              {connectedPages.map(p => (
-                <option key={p.id} value={p.page_id || ''}>{p.page_name}</option>
-              ))}
-            </select>
+
+          {/* Page filter (only show when there are pages for the selected platform) */}
+          {filteredPages.length > 1 && (
+            <div className="flex items-center gap-1.5">
+              <Filter className="h-3 w-3 text-muted-foreground shrink-0" />
+              <select
+                value={filterPageId}
+                onChange={e => setFilterPageId(e.target.value)}
+                className="flex-1 text-xs bg-muted rounded-md px-2 py-1.5 text-foreground border-none outline-none"
+              >
+                <option value="all">All Pages ({filteredPages.length})</option>
+                {filteredPages.map(p => {
+                  const Icon = platformIcons[p.platform as Platform];
+                  return (
+                    <option key={p.id} value={p.page_id || ''}>
+                      {p.platform === 'instagram' ? '📸 ' : p.platform === 'facebook' ? '💬 ' : '📱 '}{p.page_name}
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
           )}
         </div>
+
+        {/* Conversations list */}
         <div className="flex-1 overflow-y-auto">
-          {filtered.length === 0 && <p className="p-4 text-sm text-muted-foreground text-center">{t("no_conversations")}</p>}
+          {filtered.length === 0 && (
+            <div className="p-6 text-center">
+              <p className="text-sm text-muted-foreground">{t("no_conversations")}</p>
+              {filterPlatform !== 'all' && (
+                <p className="text-xs text-muted-foreground/60 mt-1">
+                  No {platformLabels[filterPlatform]} conversations yet
+                </p>
+              )}
+            </div>
+          )}
           {filtered.map(c => {
             const Icon = platformIcons[c.platform as Platform];
+            const pageName = getPageName(c);
             return (
               <button key={c.id} onClick={() => setSelectedId(c.id)}
                 className={`w-full text-start px-3 py-3 border-b border-border/50 transition-colors ${c.id === selectedId ? 'bg-muted/60' : 'hover:bg-muted/30'} ${c.unread ? 'border-s-2 border-s-primary' : ''}`}>
                 <div className="flex items-center gap-2">
-                  {Icon && <Icon className="h-4 w-4 shrink-0" style={{ color: platformColors[c.platform as Platform] }} />}
-                  <span className="text-sm font-medium text-foreground truncate flex-1">{c.customer_name}</span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {c.last_message_time && new Date(c.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  <div className="relative shrink-0">
+                    <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center">
+                      <User className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                    {/* Platform badge on avatar */}
+                    <div className="absolute -bottom-0.5 -end-0.5 h-4 w-4 rounded-full flex items-center justify-center border-2 border-background"
+                      style={{ backgroundColor: platformColors[c.platform as Platform] }}>
+                      {Icon && <Icon className="h-2.5 w-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-sm font-medium text-foreground truncate">{c.customer_name}</span>
+                      <span className="text-[10px] text-muted-foreground shrink-0">
+                        {c.last_message_time && new Date(c.last_message_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    {pageName && (
+                      <span className="text-[10px] text-muted-foreground/70 truncate block">
+                        {pageName}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1 truncate ps-6">{c.last_message}</p>
+                <p className="text-xs text-muted-foreground mt-1 truncate ps-10">{c.last_message}</p>
                 {c.status !== 'open' && (
-                  <div className="ps-6 mt-1.5">
+                  <div className="ps-10 mt-1">
                     <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === 'pending_order' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>
                       {c.status === 'pending_order' ? 'Pending Order' : 'Resolved'}
                     </span>
@@ -143,10 +257,31 @@ export default function InboxPage() {
         {selected ? (
           <>
             <div className="h-14 px-4 flex items-center justify-between border-b border-border shrink-0">
-              <div className="flex items-center gap-2">
-                {(() => { const Icon = platformIcons[selected.platform as Platform]; return Icon ? <Icon className="h-4 w-4" style={{ color: platformColors[selected.platform as Platform] }} /> : null; })()}
-                <span className="font-medium text-foreground">{selected.customer_name}</span>
-                <span className="flex h-2 w-2 rounded-full bg-success animate-pulse" title="Real-time" />
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <div className="absolute -bottom-0.5 -end-0.5 h-4 w-4 rounded-full flex items-center justify-center border-2 border-background"
+                    style={{ backgroundColor: platformColors[selected.platform as Platform] }}>
+                    {(() => { const Icon = platformIcons[selected.platform as Platform]; return Icon ? <Icon className="h-2.5 w-2.5 text-white" /> : null; })()}
+                  </div>
+                </div>
+                <div>
+                  <span className="font-medium text-foreground block text-sm">{selected.customer_name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full" style={{
+                      backgroundColor: platformColors[selected.platform as Platform] + '20',
+                      color: platformColors[selected.platform as Platform],
+                    }}>
+                      {platformLabels[selected.platform as Platform]}
+                    </span>
+                    {getPageName(selected) && (
+                      <span className="text-[10px] text-muted-foreground">• {getPageName(selected)}</span>
+                    )}
+                    <span className="flex h-2 w-2 rounded-full bg-success animate-pulse" title="Real-time" />
+                  </div>
+                </div>
               </div>
               {selected.status !== 'resolved' && (
                 <button onClick={() => updateStatus.mutate({ id: selected.id, status: 'resolved' })}
@@ -207,12 +342,31 @@ export default function InboxPage() {
       {selected && (
         <div className="w-72 border-s border-border p-4 space-y-4 hidden xl:block overflow-y-auto">
           <div className="text-center">
-            <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mx-auto">
-              <User className="h-6 w-6 text-muted-foreground" />
+            <div className="relative inline-block">
+              <div className="h-14 w-14 rounded-full bg-muted flex items-center justify-center mx-auto">
+                <User className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div className="absolute -bottom-1 -end-1 h-5 w-5 rounded-full flex items-center justify-center border-2 border-background"
+                style={{ backgroundColor: platformColors[selected.platform as Platform] }}>
+                {(() => { const Icon = platformIcons[selected.platform as Platform]; return Icon ? <Icon className="h-3 w-3 text-white" /> : null; })()}
+              </div>
             </div>
             <h3 className="font-heading font-semibold text-foreground mt-2">{selected.customer_name}</h3>
             <p className="text-xs text-muted-foreground">{selected.customer_phone}</p>
             {selected.customer_address && <p className="text-xs text-muted-foreground mt-1">{selected.customer_address}</p>}
+            <div className="mt-2 flex items-center justify-center gap-1.5">
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full" style={{
+                backgroundColor: platformColors[selected.platform as Platform] + '20',
+                color: platformColors[selected.platform as Platform],
+              }}>
+                {platformLabels[selected.platform as Platform]}
+              </span>
+              {getPageName(selected) && (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                  {getPageName(selected)}
+                </span>
+              )}
+            </div>
           </div>
           <div>
             <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Past Orders</h4>

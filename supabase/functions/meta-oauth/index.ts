@@ -296,8 +296,8 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Subscribe page to app webhooks automatically
-        const subscribed = await subscribePageToWebhooks(page.id, page.access_token);
+        // Subscribe page to app webhooks automatically (pass platform for correct fields)
+        const subscribed = await subscribePageToWebhooks(page.id, page.access_token, platform);
         if (!subscribed) {
           console.warn(`[meta-oauth] Could not subscribe page ${page.id}, connecting anyway`);
         }
@@ -307,9 +307,12 @@ Deno.serve(async (req) => {
           page_access_token: page.access_token,
           user_token: creds.user_token,
         };
-        // For Instagram, store the Facebook page ID for fallback webhook lookup
-        if (platform === "instagram" && page.instagram_business_account) {
+        // For Instagram, always store the Facebook page ID for fallback webhook lookup
+        if (platform === "instagram") {
           connectionCredentials.facebook_page_id = page.id;
+          if (page.instagram_business_account) {
+            connectionCredentials.instagram_business_account_id = page.instagram_business_account;
+          }
         }
 
         await supabase.from("platform_connections").insert({

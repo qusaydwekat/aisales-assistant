@@ -574,7 +574,7 @@ async function generateAIReply(
   platform: string,
   existingOrders: any[]
 ): Promise<AIReplyResult> {
-  const emptyResult = (text: string): AIReplyResult => ({ text, images: [] });
+  const emptyResult = (text: string): AIReplyResult => ({ text: sanitizeAIResponse(text), images: [] });
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.warn("LOVABLE_API_KEY not set, using fallback message");

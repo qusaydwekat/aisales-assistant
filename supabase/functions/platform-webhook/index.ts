@@ -529,6 +529,34 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+// Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
+function sanitizeAIResponse(text: string): string {
+  // Remove markdown code blocks
+  let clean = text.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, "");
+  // Remove HTML tags
+  clean = clean.replace(/<[^>]+>/g, "");
+  // Collapse repeated emojis (more than 2 of the same emoji in a row)
+  clean = clean.replace(/([\u{1F000}-\u{1FFFF}])\1{2,}/gu, "$1");
+  // Remove lines that look like code (starting with //, #!, import, const, let, var, function, return, etc.)
+  clean = clean.split("\n").filter(line => {
+    const trimmed = line.trim();
+    return !trimmed.startsWith("//") && !trimmed.startsWith("#!") &&
+      !trimmed.startsWith("import ") && !trimmed.startsWith("export ") &&
+      !/^(const |let |var |function |return |if |for |while |class )/.test(trimmed);
+  }).join("\n");
+  // Collapse excessive whitespace
+  clean = clean.replace(/\n{3,}/g, "\n\n").trim();
+  // If after cleaning the response is empty or too short, return a fallback
+  if (clean.length < 3) {
+    return "مرحباً! كيف أقدر أساعدك؟ 😊";
+  }
+  // Truncate to Meta's 2000 char limit
+  if (clean.length > 1900) {
+    clean = clean.substring(0, 1900) + "...";
+  }
+  return clean;
+}
+
 interface AIReplyResult {
   text: string;
   images: { url: string; caption: string }[];

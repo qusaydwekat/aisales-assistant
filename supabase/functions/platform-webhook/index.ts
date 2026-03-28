@@ -813,20 +813,55 @@ Deno.serve(async (req) => {
 
     let messages: { platform: string; sender: string; text: string; platformId: string; timestamp: string; pageId?: string }[] = [];
 
-    if (platform === "facebook" || platform === "instagram") {
+    if (platform === "facebook") {
       for (const entry of body.entry || []) {
         const pageId = entry.id;
         for (const messaging of entry.messaging || []) {
           if (messaging.message?.is_echo) continue;
           if (messaging.message?.text) {
             messages.push({
-              platform,
+              platform: "facebook",
               sender: messaging.sender?.id || "unknown",
               text: messaging.message.text,
               platformId: messaging.sender?.id || "",
               timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
               pageId,
             });
+          }
+        }
+      }
+    } else if (platform === "instagram") {
+      // Instagram DMs: entry.id is the Instagram Business Account ID (IGBA)
+      // Messages arrive via entry.messaging[] similar to Facebook
+      for (const entry of body.entry || []) {
+        const igbaId = entry.id; // Instagram Business Account ID — matches stored page_id
+        for (const messaging of entry.messaging || []) {
+          if (messaging.message?.is_echo) continue;
+          if (messaging.message?.text) {
+            messages.push({
+              platform: "instagram",
+              sender: messaging.sender?.id || "unknown",
+              text: messaging.message.text,
+              platformId: messaging.sender?.id || "",
+              timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+              pageId: igbaId,
+            });
+          }
+        }
+        // Also handle Instagram changes-based format (some API versions)
+        for (const change of entry.changes || []) {
+          if (change.field === "messages" && change.value?.message) {
+            const val = change.value;
+            if (val.message?.text) {
+              messages.push({
+                platform: "instagram",
+                sender: val.sender?.id || "unknown",
+                text: val.message.text,
+                platformId: val.sender?.id || "",
+                timestamp: new Date(val.timestamp || Date.now()).toISOString(),
+                pageId: igbaId,
+              });
+            }
           }
         }
       }

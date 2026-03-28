@@ -297,16 +297,22 @@ Deno.serve(async (req) => {
         }
 
         // Create a connection row for each page
+        const connectionCredentials: any = {
+          page_access_token: page.access_token,
+          user_token: creds.user_token,
+        };
+        // For Instagram, store the Facebook page ID for fallback webhook lookup
+        if (platform === "instagram" && page.instagram_business_account) {
+          connectionCredentials.facebook_page_id = page.id;
+        }
+
         await supabase.from("platform_connections").insert({
           store_id: storeId,
           platform: platform as any,
           status: "connected",
           page_id: finalPageId,
-          page_name: page.name,
-          credentials: {
-            page_access_token: page.access_token,
-            user_token: creds.user_token,
-          },
+          page_name: page.name + (platform === "instagram" ? " (IG)" : ""),
+          credentials: connectionCredentials,
           last_synced_at: new Date().toISOString(),
         });
 

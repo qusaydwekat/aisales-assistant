@@ -57,10 +57,10 @@ export default function StoreSettingsPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6 max-w-3xl" dir={dir}>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-3xl pb-20 md:pb-6" dir={dir}>
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">{t("store_settings")}</h1>
-        <p className="text-sm text-muted-foreground mt-1">Manage your store information</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("store_settings")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your store information</p>
       </div>
 
       {/* Logo & Cover */}

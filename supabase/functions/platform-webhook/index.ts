@@ -754,10 +754,10 @@ PRODUCT IMAGES RULES:
 
       if (followUp.ok) {
         const followData = await followUp.json();
-        const text = followData.choices?.[0]?.message?.content || "Here you go! ✅";
+        const text = sanitizeAIResponse(followData.choices?.[0]?.message?.content || "Here you go! ✅");
         return { text, images: imagesToSend };
       }
-      return { text: "Your order has been placed successfully! ✅", images: imagesToSend };
+      return { text: sanitizeAIResponse("Your order has been placed successfully! ✅"), images: imagesToSend };
     }
 
     return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");

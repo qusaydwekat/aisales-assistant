@@ -911,8 +911,9 @@ Deno.serve(async (req) => {
           connectionPageId = conn.page_id;
           console.log(`[${platform}] Found connection for page ${msg.pageId} (platform: ${conn.platform}), store: ${storeId}`);
         } else if (platform === "instagram") {
-          // Fallback: Instagram webhooks may use the FB page ID instead of IGBA ID in some cases
-          // Try looking up Instagram connections where the IGBA was stored
+          // Fallback 1: Instagram webhooks may use different IDs
+          // Try matching by page_id directly (FB page ID stored as page_id when no IGBA)
+          // or via credentials.facebook_page_id or credentials.instagram_business_account_id
           const { data: igConns } = await supabase
             .from("platform_connections")
             .select("store_id, credentials, page_id, platform")
@@ -920,16 +921,18 @@ Deno.serve(async (req) => {
             .eq("status", "connected");
 
           const igConn = (igConns || []).find(c => {
-            // Check if this connection's credentials reference this page
             const creds = c.credentials as any;
-            return creds?.facebook_page_id === msg.pageId;
+            // Match by: stored facebook_page_id, stored IGBA ID, or direct page_id
+            return creds?.facebook_page_id === msg.pageId ||
+              creds?.instagram_business_account_id === msg.pageId ||
+              c.page_id === msg.pageId;
           });
 
           if (igConn) {
             storeId = igConn.store_id;
             pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
             connectionPageId = igConn.page_id;
-            console.log(`[${platform}] Found Instagram connection via FB page fallback, store: ${storeId}`);
+            console.log(`[${platform}] Found Instagram connection via fallback lookup, store: ${storeId}`);
           } else {
             console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
           }

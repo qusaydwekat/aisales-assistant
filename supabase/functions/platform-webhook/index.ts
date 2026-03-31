@@ -560,6 +560,104 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+async function executeSearchProducts(
+  supabase: any,
+  storeId: string,
+  args: any
+): Promise<string> {
+  let query = supabase
+    .from("products")
+    .select("name, description, price, compare_price, stock, category, images, variants, sku")
+    .eq("store_id", storeId)
+    .eq("active", true);
+
+  if (args.category) {
+    query = query.ilike("category", `%${args.category}%`);
+  }
+  if (args.min_price !== undefined) {
+    query = query.gte("price", args.min_price);
+  }
+  if (args.max_price !== undefined) {
+    query = query.lte("price", args.max_price);
+  }
+
+  // If there's a text query, we fetch more and filter client-side (Supabase doesn't support OR ilike easily)
+  const limit = args.query ? 100 : 10;
+  query = query.limit(limit);
+
+  const { data: products, error } = await query;
+  if (error) {
+    console.error("Search products error:", error);
+    return JSON.stringify({ success: false, error: "Failed to search products." });
+  }
+
+  let results = products || [];
+
+  // Client-side keyword filter on name + description
+  if (args.query) {
+    const q = args.query.toLowerCase();
+    results = results.filter((p: any) =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.description || "").toLowerCase().includes(q)
+    );
+  }
+
+  // Limit final results to 10
+  results = results.slice(0, 10);
+
+  const formatted = results.map((p: any) => ({
+    name: p.name,
+    description: p.description || "",
+    price: p.price,
+    compare_price: p.compare_price,
+    stock: p.stock,
+    category: p.category || "General",
+    images: p.images || [],
+    variants: p.variants || [],
+    sku: p.sku || "",
+  }));
+
+  console.log(`Search products: query="${args.query || ""}", category="${args.category || ""}", found ${formatted.length} results`);
+  return JSON.stringify({ success: true, products: formatted, total_results: formatted.length });
+}
+
+async function executeListCategories(
+  supabase: any,
+  storeId: string
+): Promise<string> {
+  const { data: products, error } = await supabase
+    .from("products")
+    .select("category, price")
+    .eq("store_id", storeId)
+    .eq("active", true);
+
+  if (error) {
+    console.error("List categories error:", error);
+    return JSON.stringify({ success: false, error: "Failed to list categories." });
+  }
+
+  const categoryMap: Record<string, { count: number; min_price: number; max_price: number }> = {};
+  for (const p of (products || [])) {
+    const cat = p.category || "General";
+    if (!categoryMap[cat]) {
+      categoryMap[cat] = { count: 0, min_price: p.price, max_price: p.price };
+    }
+    categoryMap[cat].count++;
+    categoryMap[cat].min_price = Math.min(categoryMap[cat].min_price, p.price);
+    categoryMap[cat].max_price = Math.max(categoryMap[cat].max_price, p.price);
+  }
+
+  const categories = Object.entries(categoryMap).map(([name, info]) => ({
+    category: name,
+    product_count: info.count,
+    price_range: `${info.min_price} - ${info.max_price}`,
+  }));
+
+  const totalProducts = (products || []).length;
+  console.log(`List categories: ${categories.length} categories, ${totalProducts} total products`);
+  return JSON.stringify({ success: true, categories, total_products: totalProducts });
+}
+
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
 function sanitizeAIResponse(text: string): string {
   // Remove markdown code blocks

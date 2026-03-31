@@ -340,12 +340,15 @@ export default function InboxPage() {
           <p className="text-xs text-muted-foreground">No orders found</p>
         )}
         {orders.filter(o => o.phone === selected.customer_phone).map(o => (
-          <div key={o.id} className="glass rounded-lg p-2.5 mb-2 text-xs">
+          <div key={o.id} className="glass rounded-lg p-2.5 mb-2 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => navigate(`/orders?order=${o.id}`)}>
             <div className="flex justify-between">
               <span className="text-foreground font-medium">{o.order_number}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] ${
                 o.status === 'delivered' ? 'bg-success/20 text-success' :
                 o.status === 'shipped' ? 'bg-accent/20 text-accent' :
+                o.status === 'cancelled' ? 'bg-destructive/20 text-destructive' :
+                o.status === 'confirmed' ? 'bg-success/20 text-success' :
                 'bg-warning/20 text-warning'
               }`}>{o.status}</span>
             </div>

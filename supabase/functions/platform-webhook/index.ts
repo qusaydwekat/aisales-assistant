@@ -840,7 +840,6 @@ PRODUCT IMAGES RULES:
       // Process tool calls
       const toolCalls = choice.message.tool_calls;
       const toolResults: any[] = [];
-      const imagesToSend: { url: string; caption: string }[] = [];
 
       for (const tc of toolCalls) {
         const args = typeof tc.function.arguments === "string"

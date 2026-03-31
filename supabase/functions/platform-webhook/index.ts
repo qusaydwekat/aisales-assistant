@@ -1163,9 +1163,9 @@ Deno.serve(async (req) => {
       });
 
       // ─── AI Auto-Reply ───
-      const [storeRes, productsRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
+      const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
         supabase.from("stores").select("*").eq("id", storeId).single(),
-        supabase.from("products").select("*").eq("store_id", storeId).eq("active", true),
+        supabase.from("products").select("category, price").eq("store_id", storeId).eq("active", true),
         supabase.from("ai_settings").select("*").eq("store_id", storeId).maybeSingle(),
         supabase.from("messages").select("sender, content, created_at")
           .eq("conversation_id", conversation.id)
@@ -1179,10 +1179,23 @@ Deno.serve(async (req) => {
       ]);
 
       const storeInfo = storeRes.data;
-      const products = productsRes.data || [];
       const aiSettings = aiSettingsRes.data;
       const history = historyRes.data || [];
       const existingOrders = ordersRes.data || [];
+
+      // Build lightweight catalog summary (categories + counts) instead of full product list
+      const catalogProducts = catalogRes.data || [];
+      const catMap: Record<string, { count: number; min: number; max: number }> = {};
+      for (const p of catalogProducts) {
+        const cat = p.category || "General";
+        if (!catMap[cat]) catMap[cat] = { count: 0, min: p.price, max: p.price };
+        catMap[cat].count++;
+        catMap[cat].min = Math.min(catMap[cat].min, p.price);
+        catMap[cat].max = Math.max(catMap[cat].max, p.price);
+      }
+      const catalogSummary = catalogProducts.length === 0
+        ? "No products available yet."
+        : `Total products: ${catalogProducts.length}\nCategories:\n${Object.entries(catMap).map(([cat, info]) => `- ${cat}: ${info.count} products (${info.min} - ${info.max})`).join("\n")}\n\nIMPORTANT: Use search_products tool to get specific product details. Do NOT guess product names or prices.`;
 
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);
@@ -1192,7 +1205,7 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiResult = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
+      const aiResult = await generateAIReply(msg.text, storeInfo, catalogSummary, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,

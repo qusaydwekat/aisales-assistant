@@ -799,6 +799,7 @@ PRODUCT IMAGES RULES:
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
   let currentMessages = [...chatMessages];
   const maxRounds = 3;
+  const allImageesToSend: { url: string; caption: string }[] = [];
 
   try {
     for (let round = 0; round < maxRounds; round++) {

@@ -891,28 +891,8 @@ PRODUCT IMAGES RULES:
         ...toolResults,
       ];
 
-      // If we got images in this round AND it's not the last round, continue to let AI compose a response
-      // On last round, we'll get the final response
-      if (imagesToSend.length > 0 && round === maxRounds - 1) {
-        // Final round with images — get one more response
-        const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: currentMessages,
-          }),
-        });
-        if (finalResp.ok) {
-          const finalData = await finalResp.json();
-          const text = sanitizeAIResponse(finalData.choices?.[0]?.message?.content || "Here you go! ✅");
-          return { text, images: imagesToSend };
-        }
-        return { text: sanitizeAIResponse("Here are some products for you! ✅"), images: imagesToSend };
-      }
+      // Images are accumulated in allImageesToSend across rounds
+      // Continue to next round to let AI compose a text response
     }
 
     // If we exhausted all rounds, return last content

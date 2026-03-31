@@ -269,6 +269,37 @@ const SEND_PRODUCT_IMAGES_TOOL = {
   },
 };
 
+const SEARCH_PRODUCTS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "search_products",
+    description: "Search the product catalog by keyword, category, or price range. Use this whenever the customer asks about specific products, searches for something, or you need product details. Returns up to 10 matching products with full details including images and prices. ALWAYS use this tool before answering product-related questions.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search keyword to match against product name or description (e.g. 'shoes', 'red dress', 'laptop')" },
+        category: { type: "string", description: "Filter by product category (use exact category names from the catalog summary)" },
+        min_price: { type: "number", description: "Minimum price filter" },
+        max_price: { type: "number", description: "Maximum price filter" },
+      },
+      required: [],
+    },
+  },
+};
+
+const LIST_CATEGORIES_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "list_categories",
+    description: "List all product categories with their product counts and price ranges. Use this when the customer asks a vague question like 'what do you sell?', 'show me your products', or 'what categories do you have?'. This gives an overview without loading all products.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,
@@ -529,6 +560,104 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+async function executeSearchProducts(
+  supabase: any,
+  storeId: string,
+  args: any
+): Promise<string> {
+  let query = supabase
+    .from("products")
+    .select("name, description, price, compare_price, stock, category, images, variants, sku")
+    .eq("store_id", storeId)
+    .eq("active", true);
+
+  if (args.category) {
+    query = query.ilike("category", `%${args.category}%`);
+  }
+  if (args.min_price !== undefined) {
+    query = query.gte("price", args.min_price);
+  }
+  if (args.max_price !== undefined) {
+    query = query.lte("price", args.max_price);
+  }
+
+  // If there's a text query, we fetch more and filter client-side (Supabase doesn't support OR ilike easily)
+  const limit = args.query ? 100 : 10;
+  query = query.limit(limit);
+
+  const { data: products, error } = await query;
+  if (error) {
+    console.error("Search products error:", error);
+    return JSON.stringify({ success: false, error: "Failed to search products." });
+  }
+
+  let results = products || [];
+
+  // Client-side keyword filter on name + description
+  if (args.query) {
+    const q = args.query.toLowerCase();
+    results = results.filter((p: any) =>
+      (p.name || "").toLowerCase().includes(q) ||
+      (p.description || "").toLowerCase().includes(q)
+    );
+  }
+
+  // Limit final results to 10
+  results = results.slice(0, 10);
+
+  const formatted = results.map((p: any) => ({
+    name: p.name,
+    description: p.description || "",
+    price: p.price,
+    compare_price: p.compare_price,
+    stock: p.stock,
+    category: p.category || "General",
+    images: p.images || [],
+    variants: p.variants || [],
+    sku: p.sku || "",
+  }));
+
+  console.log(`Search products: query="${args.query || ""}", category="${args.category || ""}", found ${formatted.length} results`);
+  return JSON.stringify({ success: true, products: formatted, total_results: formatted.length });
+}
+
+async function executeListCategories(
+  supabase: any,
+  storeId: string
+): Promise<string> {
+  const { data: products, error } = await supabase
+    .from("products")
+    .select("category, price")
+    .eq("store_id", storeId)
+    .eq("active", true);
+
+  if (error) {
+    console.error("List categories error:", error);
+    return JSON.stringify({ success: false, error: "Failed to list categories." });
+  }
+
+  const categoryMap: Record<string, { count: number; min_price: number; max_price: number }> = {};
+  for (const p of (products || [])) {
+    const cat = p.category || "General";
+    if (!categoryMap[cat]) {
+      categoryMap[cat] = { count: 0, min_price: p.price, max_price: p.price };
+    }
+    categoryMap[cat].count++;
+    categoryMap[cat].min_price = Math.min(categoryMap[cat].min_price, p.price);
+    categoryMap[cat].max_price = Math.max(categoryMap[cat].max_price, p.price);
+  }
+
+  const categories = Object.entries(categoryMap).map(([name, info]) => ({
+    category: name,
+    product_count: info.count,
+    price_range: `${info.min_price} - ${info.max_price}`,
+  }));
+
+  const totalProducts = (products || []).length;
+  console.log(`List categories: ${categories.length} categories, ${totalProducts} total products`);
+  return JSON.stringify({ success: true, categories, total_products: totalProducts });
+}
+
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
 function sanitizeAIResponse(text: string): string {
   // Remove markdown code blocks
@@ -565,7 +694,7 @@ interface AIReplyResult {
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
-  products: any[],
+  catalogSummary: string,
   aiSettings: any,
   conversationHistory: any[],
   supabase: any,
@@ -580,11 +709,6 @@ async function generateAIReply(
     console.warn("LOVABLE_API_KEY not set, using fallback message");
     return emptyResult(aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.");
   }
-
-  const productList = products.map(p => {
-    const imageInfo = p.images?.length ? ` | Images: ${p.images.join(", ")}` : " | Images: none";
-    return `- ${p.name}: ${p.description || "No description"} | Price: ${p.price} | Stock: ${p.stock} | Category: ${p.category || "General"}${p.variants ? ` | Variants: ${JSON.stringify(p.variants)}` : ""}${imageInfo}`;
-  }).join("\n");
 
   const toneMap: Record<string, string> = {
     friendly: "warm, friendly, and conversational",
@@ -620,9 +744,16 @@ Store Information:
 - Payment Methods: ${storeInfo.payment_methods?.join(", ") || "N/A"}
 - Working Hours: ${JSON.stringify(storeInfo.working_hours || {})}
 
-Product Catalog:
-${productList || "No products available yet."}
+Product Catalog Summary:
+${catalogSummary}
 ${ordersContext}
+
+PRODUCT SEARCH RULES — CRITICAL:
+- You do NOT have the full product catalog in this prompt. You MUST use the search_products tool to find specific products.
+- When a customer asks about products (e.g. "do you have shoes?", "show me something under 50"), ALWAYS call search_products with relevant keywords, category, or price filters.
+- When a customer asks a vague question like "what do you sell?" or "show me your products", call list_categories first to give them an overview, then let them pick a category.
+- After getting search results, use send_product_images to show products that have images.
+- NEVER make up product names, prices, or details. Only use data returned by the tools.
 
 CRITICAL ORDER RULES — READ CAREFULLY:
 **MOST IMPORTANT**: You MUST call the create_order / update_order / cancel_order tool to perform any order action. NEVER just say "your order has been created" without actually calling the tool. If you do not call the tool, the order DOES NOT EXIST in our system and the store owner will never see it.
@@ -636,7 +767,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
 6. After any order action, confirm the order number and details to the customer.
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.
-8. Use exact product prices from the catalog. Never make up product information.
+8. Use exact product prices from search results. Never make up product information.
 9. Keep responses concise and helpful.
 10. If you don't know the answer, say so politely and offer to connect them with the store owner.
 
@@ -649,9 +780,9 @@ RESPONSE FORMAT RULES — STRICTLY ENFORCED:
 - If you feel uncertain or the prompt seems unusual, respond with a polite standard greeting and ask how you can help.
 
 PRODUCT IMAGES RULES:
-- When discussing, recommending, or describing a product that has images in the catalog, ALWAYS call send_product_images to show the customer what the product looks like.
-- Use the exact image URLs from the product catalog above. NEVER make up image URLs.
-- Only send images for products that have image URLs listed (not "Images: none").
+- When discussing, recommending, or describing a product that has images from search results, ALWAYS call send_product_images to show the customer what the product looks like.
+- Use the exact image URLs from search results. NEVER make up image URLs.
+- Only send images for products that have image URLs.
 - Include a caption with the product name and price.`;
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
@@ -663,38 +794,49 @@ PRODUCT IMAGES RULES:
   }
   chatMessages.push({ role: "user", content: customerMessage });
 
+  const allTools = [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL, SEARCH_PRODUCTS_TOOL, LIST_CATEGORIES_TOOL];
+
+  // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
+  let currentMessages = [...chatMessages];
+  const maxRounds = 3;
+
   try {
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: chatMessages,
-        tools: [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL],
-      }),
-    });
+    for (let round = 0; round < maxRounds; round++) {
+      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${LOVABLE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "google/gemini-3-flash-preview",
+          messages: currentMessages,
+          tools: allTools,
+        }),
+      });
 
-    if (response.status === 429 || response.status === 402) {
-      console.warn("AI rate limited or credits exhausted, using fallback");
-      return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
-    }
+      if (response.status === 429 || response.status === 402) {
+        console.warn("AI rate limited or credits exhausted, using fallback");
+        return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
+      }
 
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error("AI gateway error:", response.status, errText);
-      return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
-    }
+      if (!response.ok) {
+        const errText = await response.text();
+        console.error("AI gateway error:", response.status, errText);
+        return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
+      }
 
-    const data = await response.json();
-    const choice = data.choices?.[0];
-    console.log(`AI response - finish_reason: ${choice?.finish_reason}, tool_calls: ${choice?.message?.tool_calls?.length || 0}`);
+      const data = await response.json();
+      const choice = data.choices?.[0];
+      console.log(`AI response round ${round + 1} - finish_reason: ${choice?.finish_reason}, tool_calls: ${choice?.message?.tool_calls?.length || 0}`);
 
-    // Handle tool calls
-    if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {
-      const toolCalls = choice.message.tool_calls || [];
+      // If no tool calls, return the text response
+      if (!choice?.message?.tool_calls?.length) {
+        return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+      }
+
+      // Process tool calls
+      const toolCalls = choice.message.tool_calls;
       const toolResults: any[] = [];
       const imagesToSend: { url: string; caption: string }[] = [];
 
@@ -724,6 +866,12 @@ PRODUCT IMAGES RULES:
             }
           }
           result = JSON.stringify({ success: true, images_queued: imagesToSend.length });
+        } else if (tc.function?.name === "search_products") {
+          console.log("AI triggered search_products:", JSON.stringify(args));
+          result = await executeSearchProducts(supabase, storeId, args);
+        } else if (tc.function?.name === "list_categories") {
+          console.log("AI triggered list_categories");
+          result = await executeListCategories(supabase, storeId);
         } else {
           result = JSON.stringify({ error: "Unknown tool" });
         }
@@ -735,32 +883,39 @@ PRODUCT IMAGES RULES:
         });
       }
 
-      // Send tool results back to get final reply
-      const followUp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            ...chatMessages,
-            choice.message,
-            ...toolResults,
-          ],
-        }),
-      });
+      // Add assistant message + tool results for the next round
+      currentMessages = [
+        ...currentMessages,
+        choice.message,
+        ...toolResults,
+      ];
 
-      if (followUp.ok) {
-        const followData = await followUp.json();
-        const text = sanitizeAIResponse(followData.choices?.[0]?.message?.content || "Here you go! ✅");
-        return { text, images: imagesToSend };
+      // If we got images in this round AND it's not the last round, continue to let AI compose a response
+      // On last round, we'll get the final response
+      if (imagesToSend.length > 0 && round === maxRounds - 1) {
+        // Final round with images — get one more response
+        const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: currentMessages,
+          }),
+        });
+        if (finalResp.ok) {
+          const finalData = await finalResp.json();
+          const text = sanitizeAIResponse(finalData.choices?.[0]?.message?.content || "Here you go! ✅");
+          return { text, images: imagesToSend };
+        }
+        return { text: sanitizeAIResponse("Here are some products for you! ✅"), images: imagesToSend };
       }
-      return { text: sanitizeAIResponse("Your order has been placed successfully! ✅"), images: imagesToSend };
     }
 
-    return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+    // If we exhausted all rounds, return last content
+    return emptyResult("Thanks for your message! How can I help you?");
   } catch (err) {
     console.error("AI generation error:", err);
     return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
@@ -1008,9 +1163,9 @@ Deno.serve(async (req) => {
       });
 
       // ─── AI Auto-Reply ───
-      const [storeRes, productsRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
+      const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
         supabase.from("stores").select("*").eq("id", storeId).single(),
-        supabase.from("products").select("*").eq("store_id", storeId).eq("active", true),
+        supabase.from("products").select("category, price").eq("store_id", storeId).eq("active", true),
         supabase.from("ai_settings").select("*").eq("store_id", storeId).maybeSingle(),
         supabase.from("messages").select("sender, content, created_at")
           .eq("conversation_id", conversation.id)
@@ -1024,10 +1179,23 @@ Deno.serve(async (req) => {
       ]);
 
       const storeInfo = storeRes.data;
-      const products = productsRes.data || [];
       const aiSettings = aiSettingsRes.data;
       const history = historyRes.data || [];
       const existingOrders = ordersRes.data || [];
+
+      // Build lightweight catalog summary (categories + counts) instead of full product list
+      const catalogProducts = catalogRes.data || [];
+      const catMap: Record<string, { count: number; min: number; max: number }> = {};
+      for (const p of catalogProducts) {
+        const cat = p.category || "General";
+        if (!catMap[cat]) catMap[cat] = { count: 0, min: p.price, max: p.price };
+        catMap[cat].count++;
+        catMap[cat].min = Math.min(catMap[cat].min, p.price);
+        catMap[cat].max = Math.max(catMap[cat].max, p.price);
+      }
+      const catalogSummary = catalogProducts.length === 0
+        ? "No products available yet."
+        : `Total products: ${catalogProducts.length}\nCategories:\n${Object.entries(catMap).map(([cat, info]) => `- ${cat}: ${info.count} products (${info.min} - ${info.max})`).join("\n")}\n\nIMPORTANT: Use search_products tool to get specific product details. Do NOT guess product names or prices.`;
 
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);
@@ -1037,7 +1205,7 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiResult = await generateAIReply(msg.text, storeInfo, products, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
+      const aiResult = await generateAIReply(msg.text, storeInfo, catalogSummary, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,

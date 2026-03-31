@@ -600,3 +600,69 @@ export function useAdminConnections() {
     },
   });
 }
+
+// ============ ADMIN: SUBSCRIPTION PAYMENTS ============
+export function useAdminSubscriptionPayments() {
+  return useQuery({
+    queryKey: ["admin_subscription_payments"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subscription_payments")
+        .select("*")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useConfirmPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ userId, amount, months, notes }: { userId: string; amount: number; months: number; notes?: string }) => {
+      const now = new Date();
+      
+      // Get current paid_until or use now as base
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("paid_until, status")
+        .eq("user_id", userId)
+        .single();
+      
+      const baseDate = profile?.paid_until && new Date(profile.paid_until) > now 
+        ? new Date(profile.paid_until) 
+        : now;
+      
+      const expiresAt = new Date(baseDate);
+      expiresAt.setMonth(expiresAt.getMonth() + months);
+
+      // Insert payment record
+      const { error: paymentError } = await supabase
+        .from("subscription_payments")
+        .insert({
+          user_id: userId,
+          amount,
+          expires_at: expiresAt.toISOString(),
+          notes: notes || '',
+        });
+      if (paymentError) throw paymentError;
+
+      // Update profile: set paid_until and activate if suspended
+      const updates: any = { paid_until: expiresAt.toISOString() };
+      if (profile?.status === 'suspended') {
+        updates.status = 'active';
+      }
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("user_id", userId);
+      if (profileError) throw profileError;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["admin_users"] });
+      qc.invalidateQueries({ queryKey: ["admin_subscription_payments"] });
+      toast.success("Payment confirmed & subscription extended");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}

@@ -382,6 +382,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          paid_until: string | null
           phone: string | null
           status: Database["public"]["Enums"]["user_status"]
           updated_at: string
@@ -393,6 +394,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          paid_until?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
@@ -404,6 +406,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          paid_until?: string | null
           phone?: string | null
           status?: Database["public"]["Enums"]["user_status"]
           updated_at?: string
@@ -465,6 +468,39 @@ export type Database = {
           updated_at?: string
           user_id?: string
           working_hours?: Json | null
+        }
+        Relationships: []
+      }
+      subscription_payments: {
+        Row: {
+          amount: number
+          confirmed_by: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          notes: string | null
+          paid_at: string
+          user_id: string
+        }
+        Insert: {
+          amount?: number
+          confirmed_by?: string | null
+          created_at?: string
+          expires_at: string
+          id?: string
+          notes?: string | null
+          paid_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          confirmed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          notes?: string | null
+          paid_at?: string
+          user_id?: string
         }
         Relationships: []
       }

@@ -863,10 +863,10 @@ PRODUCT IMAGES RULES:
           console.log("AI triggered send_product_images:", JSON.stringify(args));
           for (const p of args.products || []) {
             if (p.image_url) {
-              imagesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
+              allImageesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
             }
           }
-          result = JSON.stringify({ success: true, images_queued: imagesToSend.length });
+          result = JSON.stringify({ success: true, images_queued: allImageesToSend.length });
         } else if (tc.function?.name === "search_products") {
           console.log("AI triggered search_products:", JSON.stringify(args));
           result = await executeSearchProducts(supabase, storeId, args);

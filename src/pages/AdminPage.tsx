@@ -318,7 +318,156 @@ export default function AdminPage() {
           </motion.div>
         )}
 
-        {/* ═══════════ STORES ═══════════ */}
+        {/* ═══════════ SUBSCRIPTIONS ═══════════ */}
+        {tab === 'subscriptions' && (
+          <motion.div key="subscriptions" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="space-y-4">
+            {/* Payment confirmation modal */}
+            {paymentModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPaymentModal(null)}>
+                <div className="glass rounded-xl p-6 w-full max-w-md mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+                  <h3 className="font-heading font-semibold text-foreground text-lg">Confirm Payment</h3>
+                  <p className="text-sm text-muted-foreground">For: <span className="text-foreground font-medium">{paymentModal.name}</span></p>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Amount ($)</label>
+                      <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
+                        placeholder="0.00" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Duration (months)</label>
+                      <select value={paymentMonths} onChange={e => setPaymentMonths(e.target.value)}
+                        className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
+                        <option value="1">1 Month</option>
+                        <option value="3">3 Months</option>
+                        <option value="6">6 Months</option>
+                        <option value="12">12 Months</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Notes (optional)</label>
+                      <input type="text" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)}
+                        placeholder="e.g. Bank transfer #123" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
+                    </div>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={() => setPaymentModal(null)}
+                      className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+                    <button 
+                      disabled={!paymentAmount || confirmPayment.isPending}
+                      onClick={() => {
+                        confirmPayment.mutate({
+                          userId: paymentModal.userId,
+                          amount: Number(paymentAmount),
+                          months: Number(paymentMonths),
+                          notes: paymentNotes,
+                        }, {
+                          onSuccess: () => {
+                            setPaymentModal(null);
+                            setPaymentAmount('');
+                            setPaymentMonths('1');
+                            setPaymentNotes('');
+                          }
+                        });
+                      }}
+                      className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2 transition-colors">
+                      {confirmPayment.isPending && <Loader2 className="h-3 w-3 animate-spin" />}
+                      Confirm Payment
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Users subscription table */}
+            <div className="glass rounded-xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead><tr className="border-b border-border text-left">
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">User</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Store</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Paid Until</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Days Left</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Actions</th>
+                  </tr></thead>
+                  <tbody>
+                    {users.filter((u: any) => u._role !== 'admin').map((u: any) => {
+                      const paidUntil = u.paid_until ? new Date(u.paid_until) : null;
+                      const now = new Date();
+                      const daysLeft = paidUntil ? Math.ceil((paidUntil.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                      const isExpired = daysLeft !== null && daysLeft <= 0;
+                      const isExpiringSoon = daysLeft !== null && daysLeft > 0 && daysLeft <= 7;
+                      
+                      return (
+                        <tr key={u.id} className={`border-b border-border/50 hover:bg-muted/20 transition-colors ${isExpired ? 'bg-destructive/5' : isExpiringSoon ? 'bg-warning/5' : ''}`}>
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-foreground">{u.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{u.email}</p>
+                          </td>
+                          <td className="px-4 py-3 text-muted-foreground text-xs hidden sm:table-cell">{getStoreName(u.user_id)}</td>
+                          <td className="px-4 py-3"><StatusBadge status={u.status} /></td>
+                          <td className="px-4 py-3 text-xs">
+                            {paidUntil ? (
+                              <span className={isExpired ? 'text-destructive font-medium' : isExpiringSoon ? 'text-warning font-medium' : 'text-foreground'}>
+                                {format(paidUntil, 'MMM d, yyyy')}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">Not set</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-xs hidden md:table-cell">
+                            {daysLeft !== null ? (
+                              <span className={`px-2 py-0.5 rounded-full font-medium ${
+                                isExpired ? 'bg-destructive/20 text-destructive' : 
+                                isExpiringSoon ? 'bg-warning/20 text-warning' : 
+                                'bg-success/20 text-success'
+                              }`}>
+                                {isExpired ? `Expired ${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button onClick={() => setPaymentModal({ userId: u.user_id, name: u.full_name })}
+                              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/20 text-primary hover:bg-primary/30 flex items-center gap-1 transition-colors">
+                              <CalendarCheck className="h-3 w-3" /> Confirm Payment
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Recent payments history */}
+            {payments.length > 0 && (
+              <div className="glass rounded-xl p-5">
+                <h3 className="text-sm font-heading font-semibold text-foreground mb-3">Payment History</h3>
+                <div className="space-y-2">
+                  {payments.slice(0, 10).map((p: any) => {
+                    const pUser = users.find((u: any) => u.user_id === p.user_id);
+                    return (
+                      <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">{pUser?.full_name || 'Unknown'}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Paid ${Number(p.amount).toFixed(2)} · Expires {format(new Date(p.expires_at), 'MMM d, yyyy')}
+                            {p.notes && ` · ${p.notes}`}
+                          </p>
+                        </div>
+                        <span className="text-xs text-muted-foreground shrink-0">{format(new Date(p.created_at), 'MMM d, HH:mm')}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {tab === 'stores' && (
           <motion.div key="stores" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             {stores.length === 0 ? (

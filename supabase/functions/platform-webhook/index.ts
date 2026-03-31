@@ -833,7 +833,8 @@ PRODUCT IMAGES RULES:
 
       // If no tool calls, return the text response
       if (!choice?.message?.tool_calls?.length) {
-        return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+        const text = sanitizeAIResponse(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+        return { text, images: allImageesToSend };
       }
 
       // Process tool calls

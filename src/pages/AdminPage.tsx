@@ -14,12 +14,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { format } from "date-fns";
 
-type Tab = 'overview' | 'users' | 'pending' | 'stores' | 'orders' | 'conversations';
+type Tab = 'overview' | 'users' | 'pending' | 'subscriptions' | 'stores' | 'orders' | 'conversations';
 
 const tabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'overview', label: 'Overview', icon: BarChart3 },
   { key: 'users', label: 'Users', icon: Users },
   { key: 'pending', label: 'Pending', icon: AlertCircle },
+  { key: 'subscriptions', label: 'Subscriptions', icon: CreditCard },
   { key: 'stores', label: 'Stores', icon: Store },
   { key: 'orders', label: 'Orders', icon: ShoppingCart },
   { key: 'conversations', label: 'Conversations', icon: MessageSquare },

@@ -269,6 +269,37 @@ const SEND_PRODUCT_IMAGES_TOOL = {
   },
 };
 
+const SEARCH_PRODUCTS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "search_products",
+    description: "Search the product catalog by keyword, category, or price range. Use this whenever the customer asks about specific products, searches for something, or you need product details. Returns up to 10 matching products with full details including images and prices. ALWAYS use this tool before answering product-related questions.",
+    parameters: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Search keyword to match against product name or description (e.g. 'shoes', 'red dress', 'laptop')" },
+        category: { type: "string", description: "Filter by product category (use exact category names from the catalog summary)" },
+        min_price: { type: "number", description: "Minimum price filter" },
+        max_price: { type: "number", description: "Maximum price filter" },
+      },
+      required: [],
+    },
+  },
+};
+
+const LIST_CATEGORIES_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "list_categories",
+    description: "List all product categories with their product counts and price ranges. Use this when the customer asks a vague question like 'what do you sell?', 'show me your products', or 'what categories do you have?'. This gives an overview without loading all products.",
+    parameters: {
+      type: "object",
+      properties: {},
+      required: [],
+    },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,

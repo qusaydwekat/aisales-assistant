@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter, ArrowLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections, useMarkConversationRead } from "@/hooks/useSupabaseData";
-import { useRealtimeMessages, useRealtimeConversations } from "@/hooks/useRealtimeMessages";
+import { useRealtimeMessages, useRealtimeConversations, useRealtimeOrders } from "@/hooks/useRealtimeMessages";
+import { useNavigate } from "react-router-dom";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -22,6 +23,7 @@ export default function InboxPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { store } = useAuth();
   const { t, dir } = useLanguage();
+  const navigate = useNavigate();
 
   const { data: conversations = [], isLoading: loadingConvos } = useConversations();
   const { data: messages = [] } = useMessages(selectedId);
@@ -67,6 +69,7 @@ export default function InboxPage() {
 
   useRealtimeMessages(selectedId);
   useRealtimeConversations(store?.id);
+  useRealtimeOrders(store?.id);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -337,12 +340,15 @@ export default function InboxPage() {
           <p className="text-xs text-muted-foreground">No orders found</p>
         )}
         {orders.filter(o => o.phone === selected.customer_phone).map(o => (
-          <div key={o.id} className="glass rounded-lg p-2.5 mb-2 text-xs">
+          <div key={o.id} className="glass rounded-lg p-2.5 mb-2 text-xs cursor-pointer hover:bg-muted/50 transition-colors"
+            onClick={() => navigate(`/orders?order=${o.id}`)}>
             <div className="flex justify-between">
               <span className="text-foreground font-medium">{o.order_number}</span>
               <span className={`px-1.5 py-0.5 rounded text-[10px] ${
                 o.status === 'delivered' ? 'bg-success/20 text-success' :
                 o.status === 'shipped' ? 'bg-accent/20 text-accent' :
+                o.status === 'cancelled' ? 'bg-destructive/20 text-destructive' :
+                o.status === 'confirmed' ? 'bg-success/20 text-success' :
                 'bg-warning/20 text-warning'
               }`}>{o.status}</span>
             </div>

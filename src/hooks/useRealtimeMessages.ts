@@ -57,3 +57,31 @@ export function useRealtimeConversations(storeId: string | undefined) {
     };
   }, [storeId, qc]);
 }
+
+export function useRealtimeOrders(storeId: string | undefined) {
+  const qc = useQueryClient();
+
+  useEffect(() => {
+    if (!storeId) return;
+
+    const channel = supabase
+      .channel(`orders-${storeId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "orders",
+          filter: `store_id=eq.${storeId}`,
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["orders"] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [storeId, qc]);
+}

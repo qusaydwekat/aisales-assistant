@@ -116,6 +116,16 @@ export default function AdminPage() {
             {key === 'pending' && pendingUsers.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-warning/20 text-warning">{pendingUsers.length}</span>
             )}
+            {key === 'subscriptions' && (() => {
+              const expiredCount = users.filter((u: any) => {
+                if (u._role === 'admin') return false;
+                if (!u.paid_until) return u.status === 'active';
+                return new Date(u.paid_until) < new Date();
+              }).length;
+              return expiredCount > 0 ? (
+                <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-destructive/20 text-destructive">{expiredCount}</span>
+              ) : null;
+            })()}
           </button>
         ))}
       </div>

@@ -72,7 +72,13 @@ export default function AdminPage() {
   const { data: conversations = [] } = useAdminConversations();
   const { data: products = [] } = useAdminProducts();
   const { data: connections = [] } = useAdminConnections();
+  const { data: payments = [] } = useAdminSubscriptionPayments();
   const updateStatus = useAdminUpdateUserStatus();
+  const confirmPayment = useConfirmPayment();
+  const [paymentModal, setPaymentModal] = useState<{ userId: string; name: string } | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMonths, setPaymentMonths] = useState('1');
+  const [paymentNotes, setPaymentNotes] = useState('');
 
   if (loading) return <div className="p-6 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
   if (role !== 'admin') return <Navigate to="/dashboard" replace />;

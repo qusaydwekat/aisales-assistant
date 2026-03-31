@@ -69,6 +69,7 @@ export default function InboxPage() {
 
   useRealtimeMessages(selectedId);
   useRealtimeConversations(store?.id);
+  useRealtimeOrders(store?.id);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });

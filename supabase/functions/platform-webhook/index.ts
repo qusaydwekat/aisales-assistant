@@ -896,7 +896,7 @@ PRODUCT IMAGES RULES:
     }
 
     // If we exhausted all rounds, return last content
-    return emptyResult("Thanks for your message! How can I help you?");
+    return { text: sanitizeAIResponse("Thanks for your message! How can I help you?"), images: allImageesToSend };
   } catch (err) {
     console.error("AI generation error:", err);
     return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");

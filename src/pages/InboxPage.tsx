@@ -23,6 +23,7 @@ export default function InboxPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { store } = useAuth();
   const { t, dir } = useLanguage();
+  const navigate = useNavigate();
 
   const { data: conversations = [], isLoading: loadingConvos } = useConversations();
   const { data: messages = [] } = useMessages(selectedId);

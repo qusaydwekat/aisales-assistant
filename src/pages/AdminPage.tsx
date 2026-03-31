@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   useAdminUsers, useAdminStats, useAdminUpdateUserStatus, 
   useAdminStores, useAdminOrders, useAdminConversations,
-  useAdminProducts, useAdminConnections 
+  useAdminProducts, useAdminConnections, useAdminSubscriptionPayments, useConfirmPayment
 } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { 
   Users, ShoppingCart, MessageSquare, Package, Check, X as XIcon, 
   Loader2, Shield, BarChart3, Store, Link2, Eye, TrendingUp,
-  ArrowUpRight, Clock, AlertCircle
+  ArrowUpRight, Clock, AlertCircle, CreditCard, CalendarCheck
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 

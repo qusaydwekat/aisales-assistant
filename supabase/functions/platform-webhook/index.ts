@@ -799,6 +799,7 @@ PRODUCT IMAGES RULES:
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
   let currentMessages = [...chatMessages];
   const maxRounds = 3;
+  const allImageesToSend: { url: string; caption: string }[] = [];
 
   try {
     for (let round = 0; round < maxRounds; round++) {
@@ -832,13 +833,13 @@ PRODUCT IMAGES RULES:
 
       // If no tool calls, return the text response
       if (!choice?.message?.tool_calls?.length) {
-        return emptyResult(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+        const text = sanitizeAIResponse(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+        return { text, images: allImageesToSend };
       }
 
       // Process tool calls
       const toolCalls = choice.message.tool_calls;
       const toolResults: any[] = [];
-      const imagesToSend: { url: string; caption: string }[] = [];
 
       for (const tc of toolCalls) {
         const args = typeof tc.function.arguments === "string"
@@ -862,10 +863,10 @@ PRODUCT IMAGES RULES:
           console.log("AI triggered send_product_images:", JSON.stringify(args));
           for (const p of args.products || []) {
             if (p.image_url) {
-              imagesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
+              allImageesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
             }
           }
-          result = JSON.stringify({ success: true, images_queued: imagesToSend.length });
+          result = JSON.stringify({ success: true, images_queued: allImageesToSend.length });
         } else if (tc.function?.name === "search_products") {
           console.log("AI triggered search_products:", JSON.stringify(args));
           result = await executeSearchProducts(supabase, storeId, args);
@@ -890,32 +891,12 @@ PRODUCT IMAGES RULES:
         ...toolResults,
       ];
 
-      // If we got images in this round AND it's not the last round, continue to let AI compose a response
-      // On last round, we'll get the final response
-      if (imagesToSend.length > 0 && round === maxRounds - 1) {
-        // Final round with images — get one more response
-        const finalResp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: currentMessages,
-          }),
-        });
-        if (finalResp.ok) {
-          const finalData = await finalResp.json();
-          const text = sanitizeAIResponse(finalData.choices?.[0]?.message?.content || "Here you go! ✅");
-          return { text, images: imagesToSend };
-        }
-        return { text: sanitizeAIResponse("Here are some products for you! ✅"), images: imagesToSend };
-      }
+      // Images are accumulated in allImageesToSend across rounds
+      // Continue to next round to let AI compose a text response
     }
 
     // If we exhausted all rounds, return last content
-    return emptyResult("Thanks for your message! How can I help you?");
+    return { text: sanitizeAIResponse("Thanks for your message! How can I help you?"), images: allImageesToSend };
   } catch (err) {
     console.error("AI generation error:", err);
     return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");

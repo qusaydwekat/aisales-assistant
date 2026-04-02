@@ -49,6 +49,7 @@ export default function PlatformsPage() {
     if (error) {
       const errorMessages: Record<string, string> = {
         no_pages_found: "No Facebook pages found. Make sure you have a Facebook Page.",
+        no_whatsapp_numbers_found: "No WhatsApp Business phone numbers found. Make sure you have a WhatsApp Business Account with a registered phone number.",
         token_exchange_failed: "Failed to authenticate with Meta. Please try again.",
         callback_failed: "Connection failed. Please try again.",
       };

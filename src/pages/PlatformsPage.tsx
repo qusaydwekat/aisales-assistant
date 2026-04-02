@@ -247,16 +247,52 @@ export default function PlatformsPage() {
       </div>
 
       {/* Setup Guide */}
-      <div className="glass rounded-xl p-6">
+      <div className="glass rounded-xl p-6 space-y-4">
         <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
           <ExternalLink className="h-4 w-4 text-primary" /> Setup Guide
         </h3>
-        <div className="mt-3 space-y-2 text-sm text-muted-foreground">
-          <p>1. Click <strong>Connect</strong> — you'll be redirected to Facebook to grant permissions</p>
-          <p>2. Select the pages you want AI to manage — all selected pages will be connected</p>
-          <p>3. Pages are automatically subscribed to receive messages — no manual Meta App setup needed</p>
-          <p>4. AI will respond to messages on all connected pages using your store's products and settings</p>
-          <p>5. All conversations appear in your Inbox with filters by platform and page</p>
+
+        {/* Facebook Messenger */}
+        <div>
+          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1">
+            <Facebook className="h-4 w-4" style={{ color: platformColors.facebook }} /> Facebook Messenger
+          </h4>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>1. Click <strong>Connect</strong> → grant Facebook permissions</p>
+            <p>2. Select pages → they're automatically subscribed to receive messages</p>
+            <p>3. AI replies to Messenger conversations instantly ✅</p>
+          </div>
+        </div>
+
+        {/* Instagram */}
+        <div>
+          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1">
+            <Instagram className="h-4 w-4" style={{ color: platformColors.instagram }} /> Instagram Direct
+          </h4>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>1. Click <strong>Connect</strong> → grant Instagram messaging permissions</p>
+            <p>2. Select the Facebook Page linked to your Instagram Business account</p>
+            <p>3. <strong>Important:</strong> In Meta Developer Portal → Webhooks, subscribe to <code className="bg-muted px-1 rounded">instagram</code> object → <code className="bg-muted px-1 rounded">messages</code> field</p>
+            <p>4. Use the Webhook URL shown above and Verify Token: <code className="bg-muted px-1 rounded">aisales_verify_2024</code></p>
+          </div>
+        </div>
+
+        {/* WhatsApp */}
+        <div>
+          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1">
+            <MessageCircle className="h-4 w-4" style={{ color: platformColors.whatsapp }} /> WhatsApp Business
+          </h4>
+          <div className="space-y-1 text-sm text-muted-foreground">
+            <p>1. Click <strong>Connect</strong> → grant WhatsApp Business permissions</p>
+            <p>2. Select phone numbers to manage from your WhatsApp Business Account</p>
+            <p>3. <strong>Important:</strong> In Meta Developer Portal → WhatsApp → Configuration, set the Webhook URL and Verify Token: <code className="bg-muted px-1 rounded">aisales_verify_2024</code></p>
+            <p>4. Subscribe to <code className="bg-muted px-1 rounded">messages</code> webhook field</p>
+          </div>
+        </div>
+
+        <div className="pt-2 border-t border-border/50 text-xs text-muted-foreground">
+          <p>💡 All conversations from all platforms appear in your <strong>Inbox</strong> with filters by platform and page.</p>
+          <p>💡 You can connect multiple pages/numbers from each platform.</p>
         </div>
       </div>
 

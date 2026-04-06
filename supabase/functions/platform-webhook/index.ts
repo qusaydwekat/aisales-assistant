@@ -161,10 +161,11 @@ const ORDER_TOOL = {
         address: { type: "string", description: "Customer's delivery address" },
         items: {
           type: "array",
-          description: "List of ordered items",
+          description: "List of ordered items. IMPORTANT: Always include product_id from search results for accurate stock tracking.",
           items: {
             type: "object",
             properties: {
+              product_id: { type: "string", description: "The product UUID from search results. MUST be included for stock tracking." },
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
@@ -567,7 +568,7 @@ async function executeSearchProducts(
 ): Promise<string> {
   let query = supabase
     .from("products")
-    .select("name, description, price, compare_price, stock, category, images, variants, sku")
+    .select("id, name, description, price, compare_price, stock, category, images, variants, sku")
     .eq("store_id", storeId)
     .eq("active", true);
 
@@ -606,6 +607,7 @@ async function executeSearchProducts(
   results = results.slice(0, 10);
 
   const formatted = results.map((p: any) => ({
+    id: p.id,
     name: p.name,
     description: p.description || "",
     price: p.price,
@@ -730,9 +732,11 @@ async function generateAIReply(
     ? `\n\nExisting Orders for this conversation:\n${existingOrders.map(o => `- ${o.order_number} | Status: ${o.status} | Customer: ${o.customer_name} | Items: ${JSON.stringify(o.items)} | Total: ${o.total} | Phone: ${o.phone || "N/A"} | Address: ${o.address || "N/A"} | Notes: ${o.notes || "N/A"}`).join("\n")}`
     : "\n\nNo existing orders for this conversation.";
 
+  const customInstructions = aiSettings?.ai_instructions || "";
+
   const systemPrompt = `You are ${personaName}, an AI sales assistant for "${storeInfo.name}".
 Your tone is ${toneDesc}. ${languageInstruction}
-
+${customInstructions ? `\nCustom Store Instructions:\n${customInstructions}\n` : ""}
 Store Information:
 - Name: ${storeInfo.name}
 - Category: ${storeInfo.category || "General"}
@@ -768,8 +772,9 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 6. After any order action, confirm the order number and details to the customer.
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.
 8. Use exact product prices from search results. Never make up product information.
-9. Keep responses concise and helpful.
-10. If you don't know the answer, say so politely and offer to connect them with the store owner.
+9. **CRITICAL**: When creating or updating orders, ALWAYS include the product "id" field from search results as "product_id" in each order item. This is required for automatic stock tracking.
+10. Keep responses concise and helpful.
+11. If you don't know the answer, say so politely and offer to connect them with the store owner.
 
 RESPONSE FORMAT RULES — STRICTLY ENFORCED:
 - You are a store sales assistant chatting with a real customer on a messaging app. Your messages must read like natural, helpful chat messages.
@@ -1231,12 +1236,12 @@ Deno.serve(async (req) => {
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
         console.log(`[${platform}] Sending reply to ${msg.sender} using stored page token`);
-        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || undefined);
+        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || "");
 
         // Send product images if any
         for (const img of aiResult.images) {
           try {
-            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || undefined);
+            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || "");
           } catch (imgErr) {
             console.error(`[${platform}] Failed to send image:`, imgErr);
           }

@@ -2,11 +2,64 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, platform: string = "facebook"): Promise<boolean> {
+async function subscribeAppToInstagramWebhook(
+  appId: string,
+  appSecret: string,
+  webhookCallbackUrl: string,
+  verifyToken: string
+): Promise<void> {
   try {
+    const appToken = `${appId}|${appSecret}`;
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${appId}/subscriptions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          object: "instagram",
+          callback_url: webhookCallbackUrl,
+          fields: "messages,messaging_postbacks",
+          verify_token: verifyToken,
+          access_token: appToken,
+        }),
+      }
+    );
+    const data = await res.json();
+    if (data.success) {
+      console.log(
+        "[meta-oauth] App successfully subscribed to Instagram webhook object"
+      );
+    } else {
+      console.error(
+        "[meta-oauth] Failed to subscribe app to Instagram webhook object:",
+        JSON.stringify(data)
+      );
+    }
+  } catch (err) {
+    console.error(
+      "[meta-oauth] Error subscribing app to Instagram webhook:",
+      err
+    );
+  }
+}
+
+async function subscribePageToWebhooks(
+  pageId: string,
+  pageAccessToken: string,
+  platform: string = "facebook",
+  appId?: string,
+  appSecret?: string,
+  webhookCallbackUrl?: string,
+  verifyToken?: string
+): Promise<boolean> {
+  try {
+    // Per Meta docs, /{page-id}/subscribed_apps does NOT support Instagram webhook fields.
+    // Instagram DM webhooks are subscribed at the app level via /{app-id}/subscriptions.
+    // For both Facebook and Instagram, the page subscription uses the same messaging fields.
     const fields = "messages,messaging_postbacks";
 
     const res = await fetch(
@@ -22,72 +75,126 @@ async function subscribePageToWebhooks(pageId: string, pageAccessToken: string, 
     );
     const data = await res.json();
     if (data.success) {
-      console.log(`[meta-oauth] Page ${pageId} subscribed to webhooks (${fields})`);
-      return true;
-    }
-    console.error(`[meta-oauth] Failed to subscribe page ${pageId}:`, JSON.stringify(data));
-    // Retry with messages only
-    const retryRes = await fetch(
-      `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          subscribed_fields: "messages",
-          access_token: pageAccessToken,
-        }),
+      console.log(
+        `[meta-oauth] Page ${pageId} subscribed to webhooks (${fields})`
+      );
+    } else {
+      console.error(
+        `[meta-oauth] Failed to subscribe page ${pageId}:`,
+        JSON.stringify(data)
+      );
+      // Retry with messages only as fallback
+      const retryRes = await fetch(
+        `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            subscribed_fields: "messages",
+            access_token: pageAccessToken,
+          }),
+        }
+      );
+      const retryData = await retryRes.json();
+      if (retryData.success) {
+        console.log(
+          `[meta-oauth] Page ${pageId} subscribed (retry with messages only)`
+        );
+      } else {
+        console.error(
+          `[meta-oauth] Retry also failed for page ${pageId}:`,
+          JSON.stringify(retryData)
+        );
+        return false;
       }
-    );
-    const retryData = await retryRes.json();
-    if (retryData.success) {
-      console.log(`[meta-oauth] Page ${pageId} subscribed (retry with messages)`);
-      return true;
     }
-    console.error(`[meta-oauth] Retry also failed for page ${pageId}:`, JSON.stringify(retryData));
-    return false;
+
+    // For Instagram: also subscribe the app to the instagram webhook object at the app level
+    if (platform === "instagram" && appId && appSecret && webhookCallbackUrl) {
+      await subscribeAppToInstagramWebhook(
+        appId,
+        appSecret,
+        webhookCallbackUrl,
+        verifyToken || "aisales_verify_2024"
+      );
+    }
+
+    return true;
   } catch (err) {
     console.error(`[meta-oauth] Error subscribing page ${pageId}:`, err);
     return false;
   }
 }
 
-async function fetchInstagramBusinessAccountId(pageId: string, pageAccessToken: string): Promise<string | null> {
+async function fetchInstagramBusinessAccountId(
+  pageId: string,
+  pageAccessToken: string
+): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account{id,username}&access_token=${encodeURIComponent(pageAccessToken)}`
+      `https://graph.facebook.com/v21.0/${pageId}?fields=instagram_business_account{id,username}&access_token=${encodeURIComponent(
+        pageAccessToken
+      )}`
     );
     const data = await res.json();
 
     const igbaId = data?.instagram_business_account?.id || null;
     if (igbaId) {
-      console.log(`[meta-oauth] Resolved IG business account for page ${pageId}: ${igbaId}`);
+      console.log(
+        `[meta-oauth] Resolved IG business account for page ${pageId}: ${igbaId}`
+      );
     } else {
-      console.warn(`[meta-oauth] No IG business account linked to page ${pageId}`);
+      console.warn(
+        `[meta-oauth] No IG business account linked to page ${pageId}`
+      );
     }
     return igbaId;
   } catch (err) {
-    console.error(`[meta-oauth] Failed to resolve IG business account for page ${pageId}:`, err);
+    console.error(
+      `[meta-oauth] Failed to resolve IG business account for page ${pageId}:`,
+      err
+    );
     return null;
   }
 }
 
 // Fetch WhatsApp Business phone numbers from the user's businesses
-async function fetchWhatsAppPhoneNumbers(userToken: string): Promise<Array<{ id: string; name: string; display_phone_number: string; waba_id: string }>> {
-  const phones: Array<{ id: string; name: string; display_phone_number: string; waba_id: string }> = [];
+async function fetchWhatsAppPhoneNumbers(userToken: string): Promise<
+  Array<{
+    id: string;
+    name: string;
+    display_phone_number: string;
+    waba_id: string;
+  }>
+> {
+  const phones: Array<{
+    id: string;
+    name: string;
+    display_phone_number: string;
+    waba_id: string;
+  }> = [];
 
   try {
     // Step 1: Get user's businesses
     const bizRes = await fetch(
-      `https://graph.facebook.com/v21.0/me/businesses?access_token=${encodeURIComponent(userToken)}`
+      `https://graph.facebook.com/v21.0/me/businesses?access_token=${encodeURIComponent(
+        userToken
+      )}`
     );
     const bizData = await bizRes.json();
     const businesses = bizData.data || [];
-    console.log(`[meta-oauth] Found ${businesses.length} businesses for WhatsApp`);
+    console.log(
+      `[meta-oauth] Found ${businesses.length} businesses for WhatsApp`
+    );
 
     for (const biz of businesses) {
       // Step 2: Get WABAs for each business
       const wabaRes = await fetch(
-        `https://graph.facebook.com/v21.0/${biz.id}/owned_whatsapp_business_accounts?access_token=${encodeURIComponent(userToken)}`
+        `https://graph.facebook.com/v21.0/${
+          biz.id
+        }/owned_whatsapp_business_accounts?access_token=${encodeURIComponent(
+          userToken
+        )}`
       );
       const wabaData = await wabaRes.json();
       const wabas = wabaData.data || [];
@@ -96,16 +203,23 @@ async function fetchWhatsAppPhoneNumbers(userToken: string): Promise<Array<{ id:
       for (const waba of wabas) {
         // Step 3: Get phone numbers for each WABA
         const phoneRes = await fetch(
-          `https://graph.facebook.com/v21.0/${waba.id}/phone_numbers?access_token=${encodeURIComponent(userToken)}`
+          `https://graph.facebook.com/v21.0/${
+            waba.id
+          }/phone_numbers?access_token=${encodeURIComponent(userToken)}`
         );
         const phoneData = await phoneRes.json();
         const phoneNumbers = phoneData.data || [];
-        console.log(`[meta-oauth] WABA ${waba.id} has ${phoneNumbers.length} phone numbers`);
+        console.log(
+          `[meta-oauth] WABA ${waba.id} has ${phoneNumbers.length} phone numbers`
+        );
 
         for (const phone of phoneNumbers) {
           phones.push({
             id: phone.id, // This is the phone_number_id used for API calls
-            name: phone.verified_name || phone.display_phone_number || `WhatsApp ${phone.id}`,
+            name:
+              phone.verified_name ||
+              phone.display_phone_number ||
+              `WhatsApp ${phone.id}`,
             display_phone_number: phone.display_phone_number || "",
             waba_id: waba.id,
           });
@@ -133,10 +247,13 @@ Deno.serve(async (req) => {
   const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
   if (!META_APP_ID || !META_APP_SECRET) {
-    return new Response(JSON.stringify({ error: "Meta App credentials not configured" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Meta App credentials not configured" }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 
   const callbackUrl = `${SUPABASE_URL}/functions/v1/meta-oauth/callback`;
@@ -155,17 +272,20 @@ Deno.serve(async (req) => {
     }
 
     // Build scopes based on platform
-    let scopes = "pages_show_list,pages_messaging";
+    // pages_manage_metadata is required for /{page-id}/subscribed_apps to succeed (all platforms)
+    let scopes = "pages_show_list,pages_messaging,pages_manage_metadata";
     if (platform === "instagram") {
       scopes += ",instagram_manage_messages";
     }
     if (platform === "whatsapp") {
-      scopes = "business_management,whatsapp_business_management,whatsapp_business_messaging";
+      scopes =
+        "business_management,whatsapp_business_management,whatsapp_business_messaging";
     }
 
     const state = btoa(JSON.stringify({ platform, storeId, redirectUrl }));
 
-    const authUrl = `https://www.facebook.com/v21.0/dialog/oauth?` +
+    const authUrl =
+      `https://www.facebook.com/v21.0/dialog/oauth?` +
       `client_id=${META_APP_ID}` +
       `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
       `&scope=${encodeURIComponent(scopes)}` +
@@ -190,12 +310,17 @@ Deno.serve(async (req) => {
         const redirectUrl = stateData.redirectUrl || "/platforms";
         return new Response(null, {
           status: 302,
-          headers: { Location: `${redirectUrl}?error=${encodeURIComponent(errorParam)}` },
+          headers: {
+            Location: `${redirectUrl}?error=${encodeURIComponent(errorParam)}`,
+          },
         });
       }
 
       if (!code || !stateParam) {
-        return new Response("Missing code or state", { status: 400, headers: corsHeaders });
+        return new Response("Missing code or state", {
+          status: 400,
+          headers: corsHeaders,
+        });
       }
 
       const stateData = JSON.parse(atob(stateParam));
@@ -204,10 +329,10 @@ Deno.serve(async (req) => {
       // Exchange code for user access token
       const tokenRes = await fetch(
         `https://graph.facebook.com/v21.0/oauth/access_token?` +
-        `client_id=${META_APP_ID}` +
-        `&client_secret=${META_APP_SECRET}` +
-        `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
-        `&code=${code}`
+          `client_id=${META_APP_ID}` +
+          `&client_secret=${META_APP_SECRET}` +
+          `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
+          `&code=${code}`
       );
       const tokenData = await tokenRes.json();
 
@@ -215,7 +340,11 @@ Deno.serve(async (req) => {
         console.error("Token exchange failed:", tokenData);
         return new Response(null, {
           status: 302,
-          headers: { Location: `${redirectUrl || "/platforms"}?error=token_exchange_failed` },
+          headers: {
+            Location: `${
+              redirectUrl || "/platforms"
+            }?error=token_exchange_failed`,
+          },
         });
       }
 
@@ -224,10 +353,10 @@ Deno.serve(async (req) => {
       // Exchange for long-lived user token
       const longLivedRes = await fetch(
         `https://graph.facebook.com/v21.0/oauth/access_token?` +
-        `grant_type=fb_exchange_token` +
-        `&client_id=${META_APP_ID}` +
-        `&client_secret=${META_APP_SECRET}` +
-        `&fb_exchange_token=${userToken}`
+          `grant_type=fb_exchange_token` +
+          `&client_id=${META_APP_ID}` +
+          `&client_secret=${META_APP_SECRET}` +
+          `&fb_exchange_token=${userToken}`
       );
       const longLivedData = await longLivedRes.json();
       const longLivedToken = longLivedData.access_token || userToken;
@@ -242,7 +371,12 @@ Deno.serve(async (req) => {
         .eq("platform", platform)
         .in("status", ["pending_selection", "disconnected"]);
 
-      let pages: Array<{ id: string; name: string; access_token?: string; instagram_business_account?: string | null }> = [];
+      let pages: Array<{
+        id: string;
+        name: string;
+        access_token?: string;
+        instagram_business_account?: string | null;
+      }> = [];
 
       if (platform === "whatsapp") {
         // ─── WhatsApp: Fetch phone numbers from WABAs ───
@@ -252,12 +386,16 @@ Deno.serve(async (req) => {
           console.error("[meta-oauth] No WhatsApp phone numbers found");
           return new Response(null, {
             status: 302,
-            headers: { Location: `${redirectUrl || "/platforms"}?error=no_whatsapp_numbers_found` },
+            headers: {
+              Location: `${
+                redirectUrl || "/platforms"
+              }?error=no_whatsapp_numbers_found`,
+            },
           });
         }
 
         // Map phone numbers to the "pages" format for selection UI
-        pages = phoneNumbers.map(phone => ({
+        pages = phoneNumbers.map((phone) => ({
           id: phone.id, // phone_number_id
           name: `${phone.name} (${phone.display_phone_number})`,
           access_token: longLivedToken, // WhatsApp uses the user/system token
@@ -275,7 +413,9 @@ Deno.serve(async (req) => {
         if (platform === "instagram") {
           fetchedPages = await Promise.all(
             fetchedPages.map(async (p: any) => {
-              const igbaId = p.instagram_business_account?.id || await fetchInstagramBusinessAccountId(p.id, p.access_token);
+              const igbaId =
+                p.instagram_business_account?.id ||
+                (await fetchInstagramBusinessAccountId(p.id, p.access_token));
               return {
                 ...p,
                 instagram_business_account: igbaId ? { id: igbaId } : null,
@@ -287,7 +427,9 @@ Deno.serve(async (req) => {
         if (fetchedPages.length === 0) {
           return new Response(null, {
             status: 302,
-            headers: { Location: `${redirectUrl || "/platforms"}?error=no_pages_found` },
+            headers: {
+              Location: `${redirectUrl || "/platforms"}?error=no_pages_found`,
+            },
           });
         }
 
@@ -301,27 +443,35 @@ Deno.serve(async (req) => {
 
       // Store pages/phones temporarily for user selection
       const sessionId = crypto.randomUUID();
-      console.log(`[meta-oauth] Storing ${pages.length} options for selection, session_id=${sessionId}, store_id=${storeId}, platform=${platform}`);
-      const { error: insertErr } = await supabase.from("platform_connections").insert({
-        store_id: storeId,
-        platform: platform as any,
-        status: "pending_selection",
-        credentials: {
-          session_id: sessionId,
-          user_token: longLivedToken,
-          pages: pages,
-        },
-      });
+      console.log(
+        `[meta-oauth] Storing ${pages.length} options for selection, session_id=${sessionId}, store_id=${storeId}, platform=${platform}`
+      );
+      const { error: insertErr } = await supabase
+        .from("platform_connections")
+        .insert({
+          store_id: storeId,
+          platform: platform as any,
+          status: "pending_selection",
+          credentials: {
+            session_id: sessionId,
+            user_token: longLivedToken,
+            pages: pages,
+          },
+        });
       if (insertErr) {
-        console.error("[meta-oauth] Failed to insert pending record:", insertErr);
+        console.error(
+          "[meta-oauth] Failed to insert pending record:",
+          insertErr
+        );
       }
 
       const finalRedirect = redirectUrl || "/platforms";
       return new Response(null, {
         status: 302,
-        headers: { Location: `${finalRedirect}?session_id=${sessionId}&platform=${platform}` },
+        headers: {
+          Location: `${finalRedirect}?session_id=${sessionId}&platform=${platform}`,
+        },
       });
-
     } catch (err) {
       console.error("OAuth callback error:", err);
       return new Response(null, {
@@ -335,13 +485,25 @@ Deno.serve(async (req) => {
   if (req.method === "POST" && path === "select-pages") {
     try {
       const { session_id, page_ids } = await req.json();
-      console.log(`[meta-oauth] select-pages called with session_id=${session_id}, page_ids=${JSON.stringify(page_ids)}`);
+      console.log(
+        `[meta-oauth] select-pages called with session_id=${session_id}, page_ids=${JSON.stringify(
+          page_ids
+        )}`
+      );
 
-      if (!session_id || !page_ids || !Array.isArray(page_ids) || page_ids.length === 0) {
-        return new Response(JSON.stringify({ error: "session_id and page_ids[] required" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      if (
+        !session_id ||
+        !page_ids ||
+        !Array.isArray(page_ids) ||
+        page_ids.length === 0
+      ) {
+        return new Response(
+          JSON.stringify({ error: "session_id and page_ids[] required" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -358,11 +520,16 @@ Deno.serve(async (req) => {
       );
 
       if (!pending) {
-        console.error(`[meta-oauth] No pending record found for session_id=${session_id}`);
-        return new Response(JSON.stringify({ error: "Invalid or expired session" }), {
-          status: 404,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        console.error(
+          `[meta-oauth] No pending record found for session_id=${session_id}`
+        );
+        return new Response(
+          JSON.stringify({ error: "Invalid or expired session" }),
+          {
+            status: 404,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
       }
 
       const creds = pending.credentials as any;
@@ -388,7 +555,9 @@ Deno.serve(async (req) => {
 
         if (platform === "whatsapp") {
           // ─── WhatsApp: Connect phone number ───
-          const existingConn = (existingConns || []).find((c: any) => c.page_id === page.id);
+          const existingConn = (existingConns || []).find(
+            (c: any) => c.page_id === page.id
+          );
 
           const connectionCredentials = {
             page_access_token: page.access_token, // User's long-lived token
@@ -408,7 +577,9 @@ Deno.serve(async (req) => {
                 last_synced_at: new Date().toISOString(),
               })
               .eq("id", existingConn.id);
-            console.log(`[meta-oauth] Updated existing WhatsApp connection for phone ${page.id}`);
+            console.log(
+              `[meta-oauth] Updated existing WhatsApp connection for phone ${page.id}`
+            );
           } else {
             await supabase.from("platform_connections").insert({
               store_id: storeId,
@@ -419,15 +590,21 @@ Deno.serve(async (req) => {
               credentials: connectionCredentials,
               last_synced_at: new Date().toISOString(),
             });
-            console.log(`[meta-oauth] Inserted new WhatsApp connection for phone ${page.id}`);
+            console.log(
+              `[meta-oauth] Inserted new WhatsApp connection for phone ${page.id}`
+            );
           }
 
           connectedPages.push(page.name);
         } else {
           // ─── Facebook / Instagram: Connect page ───
-          let instagramBusinessAccountId: string | null = page.instagram_business_account || null;
+          let instagramBusinessAccountId: string | null =
+            page.instagram_business_account || null;
           if (platform === "instagram" && !instagramBusinessAccountId) {
-            instagramBusinessAccountId = await fetchInstagramBusinessAccountId(page.id, page.access_token);
+            instagramBusinessAccountId = await fetchInstagramBusinessAccountId(
+              page.id,
+              page.access_token
+            );
           }
 
           let finalPageId = page.id;
@@ -441,14 +618,29 @@ Deno.serve(async (req) => {
               c.page_id === finalPageId ||
               c.page_id === page.id ||
               cCreds?.facebook_page_id === page.id ||
-              (instagramBusinessAccountId && cCreds?.instagram_business_account_id === instagramBusinessAccountId)
+              (instagramBusinessAccountId &&
+                cCreds?.instagram_business_account_id ===
+                  instagramBusinessAccountId)
             );
           });
 
           // Subscribe page to app webhooks (Messenger + Instagram)
-          const subscribed = await subscribePageToWebhooks(page.id, page.access_token, platform);
+          const webhookCallbackUrl = `${SUPABASE_URL}/functions/v1/platform-webhook`;
+          const verifyToken =
+            Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024";
+          const subscribed = await subscribePageToWebhooks(
+            page.id,
+            page.access_token,
+            platform,
+            META_APP_ID,
+            META_APP_SECRET,
+            webhookCallbackUrl,
+            verifyToken
+          );
           if (!subscribed) {
-            console.warn(`[meta-oauth] Could not subscribe page ${page.id}, connecting anyway`);
+            console.warn(
+              `[meta-oauth] Could not subscribe page ${page.id}, connecting anyway`
+            );
           }
 
           const connectionCredentials: any = {
@@ -458,7 +650,8 @@ Deno.serve(async (req) => {
           if (platform === "instagram") {
             connectionCredentials.facebook_page_id = page.id;
             if (instagramBusinessAccountId) {
-              connectionCredentials.instagram_business_account_id = instagramBusinessAccountId;
+              connectionCredentials.instagram_business_account_id =
+                instagramBusinessAccountId;
             }
           }
 
@@ -468,12 +661,15 @@ Deno.serve(async (req) => {
               .update({
                 status: "connected",
                 page_id: finalPageId,
-                page_name: page.name + (platform === "instagram" ? " (IG)" : ""),
+                page_name:
+                  page.name + (platform === "instagram" ? " (IG)" : ""),
                 credentials: connectionCredentials,
                 last_synced_at: new Date().toISOString(),
               })
               .eq("id", existingConn.id);
-            console.log(`[meta-oauth] Updated existing ${platform} connection for page ${page.id} -> ${finalPageId}`);
+            console.log(
+              `[meta-oauth] Updated existing ${platform} connection for page ${page.id} -> ${finalPageId}`
+            );
           } else {
             await supabase.from("platform_connections").insert({
               store_id: storeId,
@@ -484,7 +680,9 @@ Deno.serve(async (req) => {
               credentials: connectionCredentials,
               last_synced_at: new Date().toISOString(),
             });
-            console.log(`[meta-oauth] Inserted new ${platform} connection for page ${page.id} -> ${finalPageId}`);
+            console.log(
+              `[meta-oauth] Inserted new ${platform} connection for page ${page.id} -> ${finalPageId}`
+            );
           }
 
           connectedPages.push(page.name);
@@ -492,20 +690,19 @@ Deno.serve(async (req) => {
       }
 
       // Delete the pending_selection record
-      await supabase
-        .from("platform_connections")
-        .delete()
-        .eq("id", pending.id);
+      await supabase.from("platform_connections").delete().eq("id", pending.id);
 
-      return new Response(JSON.stringify({
-        success: true,
-        connected: connectedPages,
-        failed: failedPages,
-      }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-
+      return new Response(
+        JSON.stringify({
+          success: true,
+          connected: connectedPages,
+          failed: failedPages,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     } catch (err) {
       console.error("Select pages error:", err);
       return new Response(JSON.stringify({ error: "Internal error" }), {
@@ -517,10 +714,13 @@ Deno.serve(async (req) => {
 
   // ─── Legacy single page select ───
   if (req.method === "POST" && path === "select-page") {
-    return new Response(JSON.stringify({ error: "Please use select-pages endpoint" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: "Please use select-pages endpoint" }),
+      {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   }
 
   return new Response("Not found", { status: 404, headers: corsHeaders });

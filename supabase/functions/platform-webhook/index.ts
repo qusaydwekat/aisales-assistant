@@ -33,10 +33,7 @@ async function verifyMetaSignature(req: Request, body: string): Promise<boolean>
 
 // Auto-detect platform from Meta webhook payload
 function detectPlatform(body: any, queryPlatform: string | null): string {
-  // If explicitly provided via query param, use it
-  if (queryPlatform) return queryPlatform;
-
-  // Auto-detect from Meta webhook object field
+  // Always prefer the payload's object field — it is authoritative from Meta
   const obj = body?.object;
   if (obj === "page") return "facebook";
   if (obj === "instagram") return "instagram";
@@ -45,6 +42,9 @@ function detectPlatform(body: any, queryPlatform: string | null): string {
   // Fallback: check entry structure
   if (body?.entry?.[0]?.messaging) return "facebook";
   if (body?.entry?.[0]?.changes?.[0]?.value?.messages) return "whatsapp";
+
+  // Last resort: use query param if provided
+  if (queryPlatform) return queryPlatform;
 
   return "facebook"; // default
 }
@@ -973,31 +973,59 @@ Deno.serve(async (req) => {
         const igbaId = entry.id; // Instagram Business Account ID — matches stored page_id
         for (const messaging of entry.messaging || []) {
           if (messaging.message?.is_echo) continue;
-          if (messaging.message?.text) {
-            messages.push({
-              platform: "instagram",
-              sender: messaging.sender?.id || "unknown",
-              text: messaging.message.text,
-              platformId: messaging.sender?.id || "",
-              timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
-              pageId: igbaId,
-            });
+
+          let text: string = messaging.message?.text || "";
+
+          // Handle non-text message types
+          if (!text && messaging.message?.attachments?.length > 0) {
+            const att = messaging.message.attachments[0];
+            if (att.type === "image") text = "[Image]";
+            else if (att.type === "video") text = "[Video]";
+            else if (att.type === "audio") text = "[Audio]";
+            else if (att.type === "file") text = "[File]";
+            else if (att.type === "sticker") text = "[Sticker]";
+            else text = `[${att.type || "Attachment"}]`;
           }
+
+          // Handle story mentions and story replies
+          if (!text && messaging.message?.reply_to) {
+            text = "[Story Reply]";
+          }
+
+          if (!text) continue;
+
+          messages.push({
+            platform: "instagram",
+            sender: messaging.sender?.id || "unknown",
+            text,
+            platformId: messaging.sender?.id || "",
+            timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+            pageId: igbaId,
+          });
         }
         // Also handle Instagram changes-based format (some API versions)
         for (const change of entry.changes || []) {
           if (change.field === "messages" && change.value?.message) {
             const val = change.value;
-            if (val.message?.text) {
-              messages.push({
-                platform: "instagram",
-                sender: val.sender?.id || "unknown",
-                text: val.message.text,
-                platformId: val.sender?.id || "",
-                timestamp: new Date(val.timestamp || Date.now()).toISOString(),
-                pageId: igbaId,
-              });
+            let text: string = val.message?.text || "";
+
+            if (!text && val.message?.attachments?.length > 0) {
+              const att = val.message.attachments[0];
+              text = att.type
+                ? `[${att.type.charAt(0).toUpperCase() + att.type.slice(1)}]`
+                : "[Attachment]";
             }
+
+            if (!text) continue;
+
+            messages.push({
+              platform: "instagram",
+              sender: val.sender?.id || "unknown",
+              text,
+              platformId: val.sender?.id || "",
+              timestamp: new Date(val.timestamp || Date.now()).toISOString(),
+              pageId: igbaId,
+            });
           }
         }
       }

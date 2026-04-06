@@ -182,7 +182,7 @@ export default function PlatformsPage() {
           const Icon = platformIcons[p];
           const color = platformColors[p];
           const conns = connectedByPlatform.find(x => x.platform === p)?.connections || [];
-          const webhookUrl = `${webhookBaseUrl}?platform=${p}`;
+          const webhookUrl = webhookBaseUrl;
 
           return (
             <div key={p} className="glass rounded-xl p-4 md:p-6 space-y-3 md:space-y-4">

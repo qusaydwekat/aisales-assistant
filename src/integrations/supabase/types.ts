@@ -16,6 +16,7 @@ export type Database = {
     Tables: {
       ai_settings: {
         Row: {
+          ai_instructions: string | null
           auto_reply: boolean
           created_at: string
           escalation_threshold: number
@@ -33,6 +34,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_instructions?: string | null
           auto_reply?: boolean
           created_at?: string
           escalation_threshold?: number
@@ -50,6 +52,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_instructions?: string | null
           auto_reply?: boolean
           created_at?: string
           escalation_threshold?: number

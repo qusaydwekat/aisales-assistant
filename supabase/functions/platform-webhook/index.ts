@@ -732,9 +732,11 @@ async function generateAIReply(
     ? `\n\nExisting Orders for this conversation:\n${existingOrders.map(o => `- ${o.order_number} | Status: ${o.status} | Customer: ${o.customer_name} | Items: ${JSON.stringify(o.items)} | Total: ${o.total} | Phone: ${o.phone || "N/A"} | Address: ${o.address || "N/A"} | Notes: ${o.notes || "N/A"}`).join("\n")}`
     : "\n\nNo existing orders for this conversation.";
 
+  const customInstructions = aiSettings?.ai_instructions || "";
+
   const systemPrompt = `You are ${personaName}, an AI sales assistant for "${storeInfo.name}".
 Your tone is ${toneDesc}. ${languageInstruction}
-
+${customInstructions ? `\nCustom Store Instructions:\n${customInstructions}\n` : ""}
 Store Information:
 - Name: ${storeInfo.name}
 - Category: ${storeInfo.category || "General"}

@@ -1241,7 +1241,7 @@ Deno.serve(async (req) => {
         // Send product images if any
         for (const img of aiResult.images) {
           try {
-            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || undefined);
+            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || "");
           } catch (imgErr) {
             console.error(`[${platform}] Failed to send image:`, imgErr);
           }

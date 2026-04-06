@@ -1236,7 +1236,7 @@ Deno.serve(async (req) => {
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
         console.log(`[${platform}] Sending reply to ${msg.sender} using stored page token`);
-        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || undefined);
+        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || "");
 
         // Send product images if any
         for (const img of aiResult.images) {

@@ -161,10 +161,11 @@ const ORDER_TOOL = {
         address: { type: "string", description: "Customer's delivery address" },
         items: {
           type: "array",
-          description: "List of ordered items",
+          description: "List of ordered items. IMPORTANT: Always include product_id from search results for accurate stock tracking.",
           items: {
             type: "object",
             properties: {
+              product_id: { type: "string", description: "The product UUID from search results. MUST be included for stock tracking." },
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
@@ -567,7 +568,7 @@ async function executeSearchProducts(
 ): Promise<string> {
   let query = supabase
     .from("products")
-    .select("name, description, price, compare_price, stock, category, images, variants, sku")
+    .select("id, name, description, price, compare_price, stock, category, images, variants, sku")
     .eq("store_id", storeId)
     .eq("active", true);
 
@@ -606,6 +607,7 @@ async function executeSearchProducts(
   results = results.slice(0, 10);
 
   const formatted = results.map((p: any) => ({
+    id: p.id,
     name: p.name,
     description: p.description || "",
     price: p.price,

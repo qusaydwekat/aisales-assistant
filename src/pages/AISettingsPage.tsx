@@ -16,6 +16,7 @@ export default function AISettingsPage() {
   const [delay, setDelay] = useState(2);
   const [escalationThreshold, setEscalationThreshold] = useState(5);
   const [fallbackMessage, setFallbackMessage] = useState("I'm not sure about that. Let me connect you with our team!");
+  const [aiInstructions, setAiInstructions] = useState('You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
   const [testMessage, setTestMessage] = useState('');
   const [testChat, setTestChat] = useState<{ role: string; text: string }[]>([]);
   const [isTestLoading, setIsTestLoading] = useState(false);
@@ -29,6 +30,7 @@ export default function AISettingsPage() {
       setDelay(settings.response_delay);
       setEscalationThreshold(settings.escalation_threshold);
       setFallbackMessage(settings.fallback_message || '');
+      setAiInstructions((settings as any).ai_instructions || 'You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
     }
   }, [settings]);
 
@@ -36,7 +38,7 @@ export default function AISettingsPage() {
     upsert.mutate({
       persona_name: personaName, language, tone, auto_reply: autoReply,
       response_delay: delay, escalation_threshold: escalationThreshold,
-      fallback_message: fallbackMessage,
+      fallback_message: fallbackMessage, ai_instructions: aiInstructions,
     });
   };
 
@@ -100,6 +102,12 @@ export default function AISettingsPage() {
             </div>
             <div><label className="text-xs text-muted-foreground">Response delay: {delay}s</label><input type="range" min={0} max={10} value={delay} onChange={e => setDelay(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
             <div><label className="text-xs text-muted-foreground">Escalation after {escalationThreshold} messages</label><input type="range" min={2} max={10} value={escalationThreshold} onChange={e => setEscalationThreshold(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
+          </div>
+
+          <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> AI Instructions</h2>
+            <p className="text-xs text-muted-foreground">Custom instructions that guide how the AI behaves with your customers</p>
+            <textarea value={aiInstructions} onChange={e => setAiInstructions(e.target.value)} rows={5} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" placeholder="Enter custom AI instructions..." />
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">

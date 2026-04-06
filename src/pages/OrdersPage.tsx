@@ -135,6 +135,45 @@ export default function OrdersPage() {
                 <div className="col-span-2"><p className="text-muted-foreground text-xs">Address</p><p className="text-foreground">{selectedOrder.address || '—'}</p></div>
                 {selectedOrder.notes && <div className="col-span-2"><p className="text-muted-foreground text-xs">Notes</p><p className="text-foreground">{selectedOrder.notes}</p></div>}
               </div>
+
+              {/* Order Items / Products */}
+              {(() => {
+                const items = Array.isArray(selectedOrder.items) ? selectedOrder.items as Array<Record<string, unknown>> : [];
+                if (items.length === 0) return null;
+                return (
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Products</p>
+                    <div className="rounded-lg border border-border overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-muted/50 border-b border-border">
+                            <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">Product</th>
+                            <th className="px-3 py-2 text-center text-xs font-medium text-muted-foreground">Qty</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Price</th>
+                            <th className="px-3 py-2 text-right text-xs font-medium text-muted-foreground">Subtotal</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((item, idx) => {
+                            const name = (item.product_name || item.name || 'Unknown') as string;
+                            const qty = Number(item.quantity || 1);
+                            const price = Number(item.price || 0);
+                            return (
+                              <tr key={idx} className="border-b border-border/50 last:border-0">
+                                <td className="px-3 py-2 text-foreground">{name}</td>
+                                <td className="px-3 py-2 text-center text-muted-foreground">{qty}</td>
+                                <td className="px-3 py-2 text-right text-muted-foreground">${price.toFixed(2)}</td>
+                                <td className="px-3 py-2 text-right font-medium text-foreground">${(qty * price).toFixed(2)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="flex justify-between items-center text-foreground font-heading font-bold">
                 <span>Total</span>
                 <span>${Number(selectedOrder.total).toFixed(2)}</span>

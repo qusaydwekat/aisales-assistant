@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, ArrowLeft, Upload, Check, Loader2, AlertCircle } from "lucide-react";
+import { Zap, Upload, Check, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Navigate } from "react-router-dom";
-
-const steps = ['Account', 'Store Info', 'Review'];
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function SignupPage() {
   const { signUp, session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
   const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -25,6 +25,8 @@ export default function SignupPage() {
   const [storeDescription, setStoreDescription] = useState("");
   const [storeCategory, setStoreCategory] = useState("");
   const [storeAddress, setStoreAddress] = useState("");
+
+  const steps = [t("step_account"), t("step_store_info"), t("step_review")];
 
   if (authLoading) return null;
   if (session && !success) return <Navigate to="/dashboard" replace />;
@@ -43,7 +45,7 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
         <div className="w-full max-w-sm text-center">
           <div className="flex items-center gap-2 justify-center mb-8">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
@@ -53,10 +55,10 @@ export default function SignupPage() {
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-success/20">
               <Check className="h-8 w-8 text-success" />
             </div>
-            <h2 className="text-lg font-heading font-bold text-foreground">Account Created!</h2>
-            <p className="text-sm text-muted-foreground">Please check your email to verify your account. Your store will be reviewed by our team.</p>
+            <h2 className="text-lg font-heading font-bold text-foreground">{t("account_created")}</h2>
+            <p className="text-sm text-muted-foreground">{t("check_email")}</p>
             <button onClick={() => navigate("/login")} className="w-full rounded-lg bg-primary text-primary-foreground py-2.5 font-medium text-sm hover:bg-primary/90 transition-colors">
-              Go to Login
+              {t("go_to_login")}
             </button>
           </div>
         </div>
@@ -65,7 +67,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-2 justify-center mb-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
@@ -84,7 +86,7 @@ export default function SignupPage() {
           ))}
         </div>
 
-        <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="glass rounded-2xl p-6 space-y-4">
+        <motion.div key={step} initial={{ opacity: 0, x: dir === 'rtl' ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} className="glass rounded-2xl p-6 space-y-4">
           <h2 className="text-lg font-heading font-bold text-foreground">{steps[step]}</h2>
 
           {error && (
@@ -96,37 +98,39 @@ export default function SignupPage() {
 
           {step === 0 && (
             <div className="space-y-3">
-              <input placeholder="Full Name" value={fullName} onChange={e => setFullName(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder="Email" type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder="Password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder="Phone Number" value={phone} onChange={e => setPhone(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder="Store Name" value={storeName} onChange={e => setStoreName(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("full_name")} value={fullName} onChange={e => setFullName(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("email")} type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("password")} type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("phone_number")} value={phone} onChange={e => setPhone(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("store_name")} value={storeName} onChange={e => setStoreName(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
           )}
 
           {step === 1 && (
             <div className="space-y-3">
-              <textarea placeholder="Store Description" rows={3} value={storeDescription} onChange={e => setStoreDescription(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
+              <textarea placeholder={t("store_description")} rows={3} value={storeDescription} onChange={e => setStoreDescription(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
               <select value={storeCategory} onChange={e => setStoreCategory(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground outline-none">
-                <option value="">Select Category</option>
-                <option value="clothing">Clothing & Fashion</option>
-                <option value="electronics">Electronics</option>
-                <option value="food">Food & Beverage</option>
-                <option value="beauty">Health & Beauty</option>
+                <option value="">{t("select_category")}</option>
+                <option value="clothing">{t("clothing_fashion")}</option>
+                <option value="electronics">{t("electronics")}</option>
+                <option value="food">{t("food_beverage")}</option>
+                <option value="beauty">{t("health_beauty")}</option>
               </select>
-              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm cursor-pointer hover:border-primary/50 transition-colors"><Upload className="h-6 w-6 mx-auto mb-2" />Upload Store Logo</div>
-              <input placeholder="Store Address" value={storeAddress} onChange={e => setStoreAddress(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <div className="border-2 border-dashed border-border rounded-lg p-8 text-center text-muted-foreground text-sm cursor-pointer hover:border-primary/50 transition-colors">
+                <Upload className="h-6 w-6 mx-auto mb-2" />{t("upload_store_logo")}
+              </div>
+              <input placeholder={t("store_address")} value={storeAddress} onChange={e => setStoreAddress(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
           )}
 
           {step === 2 && (
             <div className="space-y-3 text-sm">
-              <p className="text-muted-foreground">Review your details and submit. Your account will be reviewed by our team.</p>
+              <p className="text-muted-foreground">{t("review_details")}</p>
               <div className="glass rounded-lg p-4 space-y-2">
-                <div className="flex justify-between"><span className="text-muted-foreground">Name</span><span className="text-foreground">{fullName || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="text-foreground">{email || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Store</span><span className="text-foreground">{storeName || '—'}</span></div>
-                <div className="flex justify-between"><span className="text-muted-foreground">Category</span><span className="text-foreground">{storeCategory || 'Not set'}</span></div>
+                <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("name_field")}</span><span className="text-foreground">{fullName || '—'}</span></div>
+                <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("email")}</span><span className="text-foreground">{email || '—'}</span></div>
+                <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("store")}</span><span className="text-foreground">{storeName || '—'}</span></div>
+                <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("category_field")}</span><span className="text-foreground">{storeCategory || '—'}</span></div>
               </div>
               <button
                 type="button"
@@ -135,20 +139,28 @@ export default function SignupPage() {
                 className="w-full rounded-lg bg-primary text-primary-foreground py-2.5 font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-                Submit for Review
+                {t("submit_review")}
               </button>
             </div>
           )}
 
           {step < 2 && (
             <div className="flex justify-between pt-2">
-              <button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowLeft className="h-4 w-4" /> Back</button>
-              <button type="button" onClick={() => setStep(Math.min(2, step + 1))} className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">Next <ArrowRight className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}
+                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30">
+                {dir === 'rtl' ? '→' : '←'} {t("back")}
+              </button>
+              <button type="button" onClick={() => setStep(Math.min(2, step + 1))}
+                className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
+                {t("next")} {dir === 'rtl' ? '←' : '→'}
+              </button>
             </div>
           )}
         </motion.div>
 
-        <p className="text-center text-sm text-muted-foreground mt-4">Already have an account? <a href="/login" className="text-primary hover:underline">Log in</a></p>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          {t("already_have_account")} <a href="/login" className="text-primary hover:underline">{t("log_in")}</a>
+        </p>
       </div>
     </div>
   );

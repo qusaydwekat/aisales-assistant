@@ -2,11 +2,13 @@ import { useState } from "react";
 import { Zap, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Navigate } from "react-router-dom";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { lovable } from "@/integrations/lovable/index";
 
 export default function LoginPage() {
   const { signIn, session, profile, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  const { t, dir } = useLanguage();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -44,7 +46,7 @@ export default function LoginPage() {
   const isPending = profile?.status === "pending";
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-sm">
         <div className="flex items-center gap-2 justify-center mb-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
@@ -52,7 +54,7 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
-          <h2 className="text-lg font-heading font-bold text-foreground text-center">Welcome back</h2>
+          <h2 className="text-lg font-heading font-bold text-foreground text-center">{t("welcome_back_login")}</h2>
 
           {isPending && (
             <div className="flex items-start gap-2 p-3 rounded-lg bg-warning/10 border border-warning/20">
@@ -70,7 +72,7 @@ export default function LoginPage() {
 
           <div className="space-y-3">
             <input
-              placeholder="Email"
+              placeholder={t("email")}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -78,7 +80,7 @@ export default function LoginPage() {
               className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
             />
             <input
-              placeholder="Password"
+              placeholder={t("password")}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -93,12 +95,12 @@ export default function LoginPage() {
             className="w-full rounded-lg bg-primary text-primary-foreground py-2.5 font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            Sign In
+            {t("sign_in")}
           </button>
 
           <div className="relative my-1">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
-            <div className="relative flex justify-center text-xs"><span className="bg-card px-2 text-muted-foreground">or</span></div>
+            <div className="relative flex justify-center text-xs"><span className="bg-card px-2 text-muted-foreground">{t("or_divider")}</span></div>
           </div>
 
           <button
@@ -115,15 +117,17 @@ export default function LoginPage() {
                 <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
               </svg>
             )}
-            Continue with Google
+            {t("continue_google")}
           </button>
 
           <p className="text-center text-xs text-muted-foreground">
-            <a href="#" className="text-primary hover:underline">Forgot password?</a>
+            <a href="#" className="text-primary hover:underline">{t("forgot_password")}</a>
           </p>
         </form>
 
-        <p className="text-center text-sm text-muted-foreground mt-4">Don't have an account? <a href="/signup" className="text-primary hover:underline">Sign up</a></p>
+        <p className="text-center text-sm text-muted-foreground mt-4">
+          {t("dont_have_account")} <a href="/signup" className="text-primary hover:underline">{t("sign_up")}</a>
+        </p>
       </div>
     </div>
   );

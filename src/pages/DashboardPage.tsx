@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { useDashboardStats, useConversations, useOrders } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { platformColors } from "@/data/mock-data";
 
 type Platform = "facebook" | "instagram" | "whatsapp";
@@ -12,15 +13,16 @@ const item = { hidden: { opacity: 0, y: 16 }, show: { opacity: 1, y: 0 } };
 
 export default function DashboardPage() {
   const { profile } = useAuth();
+  const { t, dir } = useLanguage();
   const { data: stats, isLoading } = useDashboardStats();
   const { data: conversations = [] } = useConversations();
   const { data: orders = [] } = useOrders();
 
   const metrics = [
-    { label: "Messages Today", value: String(stats?.messagesToday || 0), icon: MessageSquare, color: "text-primary" },
-    { label: "New Orders", value: String(stats?.newOrders || 0), icon: ShoppingCart, color: "text-success" },
-    { label: "Pending Orders", value: String(stats?.pendingOrders || 0), icon: Clock, color: "text-warning" },
-    { label: "Revenue (Month)", value: `$${(stats?.monthRevenue || 0).toLocaleString()}`, icon: DollarSign, color: "text-accent" },
+    { label: t("messages_today"), value: String(stats?.messagesToday || 0), icon: MessageSquare, color: "text-primary" },
+    { label: t("new_orders"), value: String(stats?.newOrders || 0), icon: ShoppingCart, color: "text-success" },
+    { label: t("pending_orders"), value: String(stats?.pendingOrders || 0), icon: Clock, color: "text-warning" },
+    { label: t("revenue_month"), value: `$${(stats?.monthRevenue || 0).toLocaleString()}`, icon: DollarSign, color: "text-accent" },
   ];
 
   const platformStatus = (stats?.platforms || []).map((p: any) => ({
@@ -47,10 +49,10 @@ export default function DashboardPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6" dir={dir}>
       <div>
-        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">Dashboard</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-1">Welcome back, {profile?.full_name || 'there'}. Here's what's happening.</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("dashboard")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">{t("welcome_back")}, {profile?.full_name || 'there'}. {t("here_whats_happening")}</p>
       </div>
 
       <motion.div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4"
@@ -80,7 +82,7 @@ export default function DashboardPage() {
 
       {ordersPerDay.length > 0 && (
         <div className="glass rounded-xl p-5">
-          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Orders Per Day</h3>
+          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("orders_per_day")}</h3>
           <ResponsiveContainer width="100%" height={240}>
             <BarChart data={ordersPerDay}>
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 20% 16%)" />
@@ -95,7 +97,7 @@ export default function DashboardPage() {
 
       {recentActivity.length > 0 && (
         <div className="glass rounded-xl p-5">
-          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Recent Activity</h3>
+          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("recent_activity")}</h3>
           <div className="space-y-3">
             {recentActivity.map((a, i) => (
               <div key={i} className="flex items-start gap-3 text-sm">
@@ -112,7 +114,7 @@ export default function DashboardPage() {
 
       {recentActivity.length === 0 && orders.length === 0 && (
         <div className="glass rounded-xl p-12 text-center text-muted-foreground">
-          No activity yet. Start by adding products and connecting your messaging platforms.
+          {t("no_activity_yet")}
         </div>
       )}
     </div>

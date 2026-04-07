@@ -57,7 +57,7 @@ export default function DashboardLayout() {
                 >
                   <Bell className="h-5 w-5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
+                    <span className="absolute -top-0.5 -end-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
                       {unreadCount}
                     </span>
                   )}
@@ -74,7 +74,7 @@ export default function DashboardLayout() {
                       <p className="px-3 py-2 text-sm font-heading font-semibold text-foreground">{t("notifications")}</p>
                       <div className="max-h-64 overflow-y-auto space-y-1">
                         {notifications.length === 0 && (
-                          <p className="px-3 py-4 text-sm text-muted-foreground text-center">No notifications yet</p>
+                          <p className="px-3 py-4 text-sm text-muted-foreground text-center">{t("no_notifications")}</p>
                         )}
                         {notifications.slice(0, 5).map((n: any) => (
                           <div key={n.id} className={`px-3 py-2 rounded-lg text-sm ${n.read ? 'text-muted-foreground' : 'text-foreground bg-muted/50'}`}>

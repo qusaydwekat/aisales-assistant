@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, ArrowLeft, Upload, Facebook, Instagram, MessageCircle, Check, Loader2, AlertCircle } from "lucide-react";
+import { Zap, ArrowRight, ArrowLeft, Upload, Check, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Navigate } from "react-router-dom";
 
-const steps = ['Account', 'Store Info', 'Products', 'Platforms', 'Review'];
+const steps = ['Account', 'Store Info', 'Review'];
 
 export default function SignupPage() {
   const { signUp, session, loading: authLoading } = useAuth();
@@ -120,36 +120,6 @@ export default function SignupPage() {
           )}
 
           {step === 2 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Add your products or import via CSV. You can also do this later from the Products page.</p>
-              <div className="glass rounded-lg p-4 space-y-3">
-                <input placeholder="Product Name" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input placeholder="Price" type="number" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-                  <input placeholder="Stock" type="number" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-                </div>
-                <button type="button" className="w-full rounded-lg bg-primary/10 text-primary py-2 text-sm font-medium">+ Add Product</button>
-              </div>
-              <button type="button" className="w-full rounded-lg border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-primary/50 transition-colors">📄 Import CSV</button>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Connect your messaging platforms (optional — you can do this later)</p>
-              {[{ name: 'Facebook', icon: Facebook, color: '#1877F2' }, { name: 'Instagram', icon: Instagram, color: '#E4405F' }, { name: 'WhatsApp', icon: MessageCircle, color: '#25D366' }].map(p => (
-                <div key={p.name} className="glass rounded-lg p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <p.icon className="h-5 w-5" style={{ color: p.color }} />
-                    <span className="text-sm text-foreground">{p.name}</span>
-                  </div>
-                  <button type="button" className="px-3 py-1.5 rounded-lg text-xs bg-muted text-foreground hover:bg-primary hover:text-primary-foreground transition-colors">Connect</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {step === 4 && (
             <div className="space-y-3 text-sm">
               <p className="text-muted-foreground">Review your details and submit. Your account will be reviewed by our team.</p>
               <div className="glass rounded-lg p-4 space-y-2">
@@ -170,10 +140,10 @@ export default function SignupPage() {
             </div>
           )}
 
-          {step < 4 && (
+          {step < 2 && (
             <div className="flex justify-between pt-2">
               <button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowLeft className="h-4 w-4" /> Back</button>
-              <button type="button" onClick={() => setStep(Math.min(4, step + 1))} className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">Next <ArrowRight className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setStep(Math.min(2, step + 1))} className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">Next <ArrowRight className="h-4 w-4" /></button>
             </div>
           )}
         </motion.div>

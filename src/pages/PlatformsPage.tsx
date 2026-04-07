@@ -195,12 +195,12 @@ export default function PlatformsPage() {
                   <div>
                     <h3 className="font-heading font-semibold text-foreground">{platformLabels[p]}</h3>
                     <p className="text-sm text-muted-foreground">
-                      {conns.length > 0 ? `${conns.length} page${conns.length !== 1 ? "s" : ""} connected` : "Not connected"}
+                      {conns.length > 0 ? `${conns.length} ${t("pages_connected")}` : t("not_connected_msg")}
                     </p>
                   </div>
                 </div>
                 <Button size="sm" onClick={() => startOAuth(p)} className="gap-1.5" variant={conns.length > 0 ? "outline" : "default"}>
-                  <Link2 className="h-4 w-4" /> {conns.length > 0 ? "Add Pages" : "Connect"}
+                  <Link2 className="h-4 w-4" /> {conns.length > 0 ? t("add_pages") : t("connect")}
                 </Button>
               </div>
 
@@ -231,7 +231,7 @@ export default function PlatformsPage() {
 
               {/* Webhook URL */}
               <div className="pt-2 border-t border-border/50">
-                <p className="text-xs text-muted-foreground mb-1.5">Webhook URL</p>
+                <p className="text-xs text-muted-foreground mb-1.5">{t("webhook_url")}</p>
                 <div className="flex items-center gap-2">
                   <code className="flex-1 text-xs bg-muted rounded-lg px-3 py-2 text-foreground/80 truncate font-mono">
                     {webhookUrl}
@@ -250,7 +250,7 @@ export default function PlatformsPage() {
       {/* Setup Guide */}
       <div className="glass rounded-xl p-6 space-y-4">
         <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-          <ExternalLink className="h-4 w-4 text-primary" /> Setup Guide
+          <ExternalLink className="h-4 w-4 text-primary" /> {t("setup_guide")}
         </h3>
 
         {/* Facebook Messenger */}
@@ -303,10 +303,10 @@ export default function PlatformsPage() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {selectPlatform && (() => { const Icon = platformIcons[selectPlatform]; return <Icon className="h-5 w-5" style={{ color: platformColors[selectPlatform] }} />; })()}
-              Select Pages to Connect
+              {t("select_pages_title")}
             </DialogTitle>
             <DialogDescription>
-              Choose which pages AI should manage. All selected pages will receive automatic replies.
+              {t("select_pages_desc")}
             </DialogDescription>
           </DialogHeader>
 
@@ -316,7 +316,7 @@ export default function PlatformsPage() {
                 {selectedPageIds.size === pages.length
                   ? <CheckSquare className="h-4 w-4 text-primary shrink-0" />
                   : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
-                <span className="text-sm font-medium text-foreground">Select All ({pages.length} pages)</span>
+                <span className="text-sm font-medium text-foreground">{t("select_all")} ({pages.length})</span>
               </button>
             )}
             {pages.map(page => (
@@ -338,7 +338,7 @@ export default function PlatformsPage() {
             {pages.length === 0 && (
               <div className="text-center py-6 text-muted-foreground text-sm">
                 <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2" />
-                Loading pages...
+                {t("loading_pages")}
               </div>
             )}
           </div>
@@ -347,7 +347,7 @@ export default function PlatformsPage() {
             <div className="pt-3 border-t border-border/50">
               <Button onClick={handleConnectSelected} disabled={submitting || selectedPageIds.size === 0} className="w-full gap-2">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-                Connect {selectedPageIds.size} Page{selectedPageIds.size !== 1 ? "s" : ""}
+                {t("connect")} {selectedPageIds.size} {t("pages_connected")}
               </Button>
             </div>
           )}

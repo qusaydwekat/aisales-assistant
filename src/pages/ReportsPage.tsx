@@ -102,26 +102,26 @@ export default function ReportsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-heading font-bold text-foreground">{t("reports")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">Track your store's performance</p>
+          <p className="text-sm text-muted-foreground mt-1">{t("track_performance")}</p>
         </div>
         <div className="flex gap-2">
           {(["7d", "30d", "90d"] as const).map(r => (
             <button key={r} onClick={() => setRange(r)}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${range === r ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
-              {r === "7d" ? "7 Days" : r === "30d" ? "30 Days" : "90 Days"}
+              {r === "7d" ? t("seven_days") : r === "30d" ? t("thirty_days") : t("ninety_days")}
             </button>
           ))}
-          <button onClick={handleExport} className="glass-hover rounded-lg px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5"><Download className="h-3.5 w-3.5" /> Export</button>
+          <button onClick={handleExport} className="glass-hover rounded-lg px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5"><Download className="h-3.5 w-3.5" /> {t("export")}</button>
         </div>
       </div>
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         {[
-          { label: 'Conversations', value: String(filteredConvos.length), icon: BarChart3, color: 'text-primary' },
-          { label: 'Orders', value: String(filteredOrders.length), icon: Target, color: 'text-success' },
-          { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'text-accent' },
-          { label: 'Avg Order Value', value: `$${avgOrderValue.toFixed(0)}`, icon: Clock, color: 'text-warning' },
+          { label: t("conversations_label"), value: String(filteredConvos.length), icon: BarChart3, color: 'text-primary' },
+          { label: t("orders"), value: String(filteredOrders.length), icon: Target, color: 'text-success' },
+          { label: t("conversion_rate"), value: `${conversionRate}%`, icon: TrendingUp, color: 'text-accent' },
+          { label: t("avg_order_value"), value: `$${avgOrderValue.toFixed(0)}`, icon: Clock, color: 'text-warning' },
         ].map(k => (
           <div key={k.label} className="glass rounded-xl p-4">
             <div className="flex items-center justify-between">
@@ -137,7 +137,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {messagesByPlatform.length > 0 && (
           <div className="glass rounded-xl p-5">
-            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">By Platform</h3>
+            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("by_platform")}</h3>
             <ResponsiveContainer width="100%" height={200}>
               <PieChart>
                 <Pie data={messagesByPlatform} cx="50%" cy="50%" innerRadius={50} outerRadius={80} dataKey="value" stroke="none">
@@ -158,7 +158,7 @@ export default function ReportsPage() {
 
         {revenueData.length > 0 && (
           <div className="glass rounded-xl p-5 lg:col-span-2">
-            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Revenue Over Time</h3>
+            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("revenue_over_time")}</h3>
             <ResponsiveContainer width="100%" height={200}>
               <AreaChart data={revenueData}>
                 <defs>
@@ -182,7 +182,7 @@ export default function ReportsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {statusData.some(s => s.count > 0) && (
           <div className="glass rounded-xl p-5">
-            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Order Status Funnel</h3>
+            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("order_status_funnel")}</h3>
             <ResponsiveContainer width="100%" height={220}>
               <BarChart data={statusData} layout="vertical">
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 20% 16%)" />
@@ -197,22 +197,22 @@ export default function ReportsPage() {
 
         {platformComparison.length > 0 && (
           <div className="glass rounded-xl p-5">
-            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Platform Performance</h3>
+            <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("platform_performance")}</h3>
             <div className="space-y-4">
               {platformComparison.map(p => (
                 <div key={p.platform} className="space-y-1.5">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-foreground font-medium">{p.platform}</span>
-                    <span className="text-muted-foreground">{p.conversionRate}% conv.</span>
+                    <span className="text-muted-foreground">{p.conversionRate}% {t("conv_abbr")}</span>
                   </div>
                   <div className="h-2 bg-muted rounded-full overflow-hidden">
                     <div className="h-full rounded-full transition-all duration-500"
                       style={{ width: `${Math.min(p.conversionRate, 100)}%`, backgroundColor: platformColors[p.platform.toLowerCase() as Platform] || '#888' }} />
                   </div>
                   <div className="flex gap-4 text-xs text-muted-foreground">
-                    <span>{p.conversations} convos</span>
-                    <span>{p.orders} orders</span>
-                    <span>${p.revenue.toFixed(0)} revenue</span>
+                    <span>{p.conversations} {t("convos_label")}</span>
+                    <span>{p.orders} {t("orders_label")}</span>
+                    <span>${p.revenue.toFixed(0)} {t("revenue_label")}</span>
                   </div>
                 </div>
               ))}
@@ -224,13 +224,13 @@ export default function ReportsPage() {
       {/* Top Products */}
       {topProducts.length > 0 && (
         <div className="glass rounded-xl p-5">
-          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">Top Products</h3>
+          <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("top_products")}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="border-b border-border text-start">
-                <th className="pb-2 text-xs text-muted-foreground text-start">Product</th>
-                <th className="pb-2 text-xs text-muted-foreground text-start">Sold</th>
-                <th className="pb-2 text-xs text-muted-foreground text-start">Revenue</th>
+                <th className="pb-2 text-xs text-muted-foreground text-start">{t("product_col")}</th>
+                <th className="pb-2 text-xs text-muted-foreground text-start">{t("sold_col")}</th>
+                <th className="pb-2 text-xs text-muted-foreground text-start">{t("revenue_col")}</th>
               </tr></thead>
               <tbody>
                 {topProducts.map(p => (
@@ -248,7 +248,7 @@ export default function ReportsPage() {
 
       {filteredOrders.length === 0 && filteredConvos.length === 0 && (
         <div className="glass rounded-xl p-12 text-center text-muted-foreground">
-          No data for this period. Reports will populate as you receive orders and conversations.
+          {t("no_data_period")}
         </div>
       )}
     </div>

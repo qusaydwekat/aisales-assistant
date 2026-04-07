@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter, ArrowLeft, Bot } from "lucide-react";
+import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter, ArrowLeft, ArrowRight, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections, useMarkConversationRead, useToggleAIAutoReply } from "@/hooks/useSupabaseData";
 import { useRealtimeMessages, useRealtimeConversations, useRealtimeOrders } from "@/hooks/useRealtimeMessages";
@@ -168,7 +168,7 @@ export default function InboxPage() {
           <div className="p-6 text-center">
             <p className="text-sm text-muted-foreground">{t("no_conversations")}</p>
             {filterPlatform !== 'all' && (
-              <p className="text-xs text-muted-foreground/60 mt-1">No {platformLabels[filterPlatform]} conversations yet</p>
+              <p className="text-xs text-muted-foreground/60 mt-1">{t("no_conversations")}</p>
             )}
           </div>
         )}
@@ -202,7 +202,7 @@ export default function InboxPage() {
               {c.status !== 'open' && (
                 <div className="ps-10 mt-1">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === 'pending_order' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>
-                    {c.status === 'pending_order' ? 'Pending Order' : 'Resolved'}
+                    {c.status === 'pending_order' ? t("pending_order") : t("resolved_status")}
                   </span>
                 </div>
               )}
@@ -222,7 +222,7 @@ export default function InboxPage() {
             <div className="flex items-center gap-2 md:gap-3">
               {/* Back button for mobile */}
               <button onClick={handleBack} className="md:hidden p-1.5 -ms-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <ArrowLeft className="h-5 w-5" />
+                {dir === 'rtl' ? <ArrowRight className="h-5 w-5" /> : <ArrowLeft className="h-5 w-5" />}
               </button>
               <div className="relative">
                 <div className="h-8 w-8 md:h-9 md:w-9 rounded-full bg-muted flex items-center justify-center">
@@ -260,7 +260,7 @@ export default function InboxPage() {
                 title={(selected as any).ai_auto_reply !== false ? 'AI auto-reply is ON — click to disable' : 'AI auto-reply is OFF — click to enable'}
               >
                 <Bot className="h-3 w-3" />
-                <span className="hidden sm:inline">{(selected as any).ai_auto_reply !== false ? 'AI ON' : 'AI OFF'}</span>
+                <span className="hidden sm:inline">{(selected as any).ai_auto_reply !== false ? t("ai_on") : t("ai_off")}</span>
               </button>
               {selected.status !== 'resolved' && (
                 <button onClick={() => updateStatus.mutate({ id: selected.id, status: 'resolved' })}
@@ -350,9 +350,9 @@ export default function InboxPage() {
         </div>
       </div>
       <div>
-        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">Past Orders</h4>
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase mb-2">{t("past_orders")}</h4>
         {orders.filter(o => o.phone === selected.customer_phone).length === 0 && (
-          <p className="text-xs text-muted-foreground">No orders found</p>
+          <p className="text-xs text-muted-foreground">{t("no_orders_found")}</p>
         )}
         {orders.filter(o => o.phone === selected.customer_phone).map(o => (
           <div key={o.id} className="glass rounded-lg p-2.5 mb-2 text-xs cursor-pointer hover:bg-muted/50 transition-colors"

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -90,11 +90,25 @@
 
 /* RTL Support */
 [dir="rtl"] {
-  font-family: 'DM Sans', 'Noto Sans Arabic', system-ui, sans-serif;
+  font-family: 'Noto Sans Arabic', 'DM Sans', system-ui, sans-serif;
 }
 
 [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3, [dir="rtl"] h4, [dir="rtl"] h5, [dir="rtl"] h6 {
-  font-family: 'Space Grotesk', 'Noto Sans Arabic', system-ui, sans-serif;
+  font-family: 'Noto Sans Arabic', 'Space Grotesk', system-ui, sans-serif;
+}
+
+[dir="rtl"] input,
+[dir="rtl"] textarea,
+[dir="rtl"] select {
+  text-align: right;
+}
+
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] input[type="password"],
+[dir="rtl"] input[type="time"] {
+  text-align: left;
+  direction: ltr;
 }
 
 /* Mobile safe area for bottom nav */

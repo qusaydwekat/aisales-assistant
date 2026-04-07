@@ -60,15 +60,15 @@ export default function StoreSettingsPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-3xl pb-20 md:pb-6" dir={dir}>
       <div>
         <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("store_settings")}</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-1">Manage your store information</p>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">{t("manage_store_info")}</p>
       </div>
 
       {/* Logo & Cover */}
       <div className="glass rounded-xl p-6 space-y-4">
-        <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><ImageIcon className="h-4 w-4 text-primary" /> Branding</h2>
+        <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><ImageIcon className="h-4 w-4 text-primary" /> {t("branding")}</h2>
         <div className="flex gap-6 flex-wrap">
           <div className="text-center">
-            <p className="text-xs text-muted-foreground mb-2">Logo</p>
+            <p className="text-xs text-muted-foreground mb-2">{t("logo")}</p>
             <label className="relative cursor-pointer group">
               <div className="h-24 w-24 rounded-xl border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center overflow-hidden transition-colors">
                 {form.logo_url ? (
@@ -81,7 +81,7 @@ export default function StoreSettingsPage() {
             </label>
           </div>
           <div className="flex-1 min-w-[200px]">
-            <p className="text-xs text-muted-foreground mb-2">Cover Image</p>
+            <p className="text-xs text-muted-foreground mb-2">{t("cover_image")}</p>
             <label className="relative cursor-pointer group block">
               <div className="h-24 w-full rounded-xl border-2 border-dashed border-border hover:border-primary/50 flex items-center justify-center overflow-hidden transition-colors">
                 {form.cover_image_url ? (
@@ -89,7 +89,7 @@ export default function StoreSettingsPage() {
                 ) : (
                   <div className="flex flex-col items-center">
                     <Upload className="h-6 w-6 text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground mt-1">Upload cover</span>
+                    <span className="text-xs text-muted-foreground mt-1">{t("upload_cover")}</span>
                   </div>
                 )}
               </div>
@@ -102,15 +102,15 @@ export default function StoreSettingsPage() {
       <div className="glass rounded-xl p-6 space-y-4">
         <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Store className="h-4 w-4 text-primary" /> {t("store_information")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label className="text-xs text-muted-foreground">Store Name</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-          <div><label className="text-xs text-muted-foreground">Category</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+          <div><label className="text-xs text-muted-foreground">{t("store_name_field")}</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+          <div><label className="text-xs text-muted-foreground">{t("category_field")}</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
         </div>
-        <div><label className="text-xs text-muted-foreground">Description</label><textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none" /></div>
+        <div><label className="text-xs text-muted-foreground">{t("description_field")}</label><textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none" /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div><label className="text-xs text-muted-foreground">Phone</label><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-          <div><label className="text-xs text-muted-foreground">Email</label><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+          <div><label className="text-xs text-muted-foreground">{t("phone_field")}</label><input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+          <div><label className="text-xs text-muted-foreground">{t("email_field")}</label><input value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
         </div>
-        <div><label className="text-xs text-muted-foreground">Address</label><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+        <div><label className="text-xs text-muted-foreground">{t("address_field")}</label><input value={form.address} onChange={e => setForm(f => ({ ...f, address: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
       </div>
 
       <div className="glass rounded-xl p-6 space-y-4">
@@ -123,7 +123,7 @@ export default function StoreSettingsPage() {
                 <label className="w-20 md:w-28 text-xs md:text-sm text-foreground shrink-0">{day}</label>
                 <input type="checkbox" checked={h.open} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, open: e.target.checked } }))} className="accent-primary shrink-0" />
                 <input type="time" value={h.from} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, from: e.target.value } }))} disabled={!h.open} className="rounded bg-muted px-2 py-1 text-xs md:text-sm text-foreground outline-none disabled:opacity-40 w-[5.5rem] md:w-auto" />
-                <span className="text-muted-foreground text-xs md:text-sm">to</span>
+                <span className="text-muted-foreground text-xs md:text-sm">{t("to_label")}</span>
                 <input type="time" value={h.to} onChange={e => setHours(prev => ({ ...prev, [day]: { ...h, to: e.target.value } }))} disabled={!h.open} className="rounded bg-muted px-2 py-1 text-xs md:text-sm text-foreground outline-none disabled:opacity-40 w-[5.5rem] md:w-auto" />
               </div>
             );

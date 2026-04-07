@@ -120,36 +120,6 @@ export default function SignupPage() {
           )}
 
           {step === 2 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Add your products or import via CSV. You can also do this later from the Products page.</p>
-              <div className="glass rounded-lg p-4 space-y-3">
-                <input placeholder="Product Name" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-                <div className="grid grid-cols-2 gap-2">
-                  <input placeholder="Price" type="number" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-                  <input placeholder="Stock" type="number" className="rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
-                </div>
-                <button type="button" className="w-full rounded-lg bg-primary/10 text-primary py-2 text-sm font-medium">+ Add Product</button>
-              </div>
-              <button type="button" className="w-full rounded-lg border border-dashed border-border py-3 text-sm text-muted-foreground hover:border-primary/50 transition-colors">📄 Import CSV</button>
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">Connect your messaging platforms (optional — you can do this later)</p>
-              {[{ name: 'Facebook', icon: Facebook, color: '#1877F2' }, { name: 'Instagram', icon: Instagram, color: '#E4405F' }, { name: 'WhatsApp', icon: MessageCircle, color: '#25D366' }].map(p => (
-                <div key={p.name} className="glass rounded-lg p-4 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <p.icon className="h-5 w-5" style={{ color: p.color }} />
-                    <span className="text-sm text-foreground">{p.name}</span>
-                  </div>
-                  <button type="button" className="px-3 py-1.5 rounded-lg text-xs bg-muted text-foreground hover:bg-primary hover:text-primary-foreground transition-colors">Connect</button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {step === 4 && (
             <div className="space-y-3 text-sm">
               <p className="text-muted-foreground">Review your details and submit. Your account will be reviewed by our team.</p>
               <div className="glass rounded-lg p-4 space-y-2">

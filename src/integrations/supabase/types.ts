@@ -81,6 +81,7 @@ export type Database = {
       }
       conversations: {
         Row: {
+          ai_auto_reply: boolean
           created_at: string
           customer_address: string | null
           customer_name: string
@@ -97,6 +98,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          ai_auto_reply?: boolean
           created_at?: string
           customer_address?: string | null
           customer_name?: string
@@ -113,6 +115,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          ai_auto_reply?: boolean
           created_at?: string
           customer_address?: string | null
           customer_name?: string

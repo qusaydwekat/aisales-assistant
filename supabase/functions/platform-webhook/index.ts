@@ -208,14 +208,15 @@ const UPDATE_ORDER_TOOL = {
         customer_name: { type: "string", description: "Updated customer name (only if changed)" },
         phone: { type: "string", description: "Updated phone number (only if changed)" },
         address: { type: "string", description: "Updated delivery address (only if changed)" },
-        items: {
+          items: {
           type: "array",
-          description: "Updated full list of items (replaces existing items). Only provide if items changed.",
+          description: "Updated full list of items (replaces existing items). Only provide if items changed. Parse quantities from natural language.",
           items: {
             type: "object",
             properties: {
+              product_id: { type: "string", description: "The product UUID from search results. MUST be included for stock tracking." },
               product_name: { type: "string" },
-              quantity: { type: "number" },
+              quantity: { type: "number", description: "Quantity parsed from customer message. Default to 1 if not specified." },
               price: { type: "number" },
             },
             required: ["product_name", "quantity", "price"],

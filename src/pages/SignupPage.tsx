@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, ArrowLeft, Upload, Facebook, Instagram, MessageCircle, Check, Loader2, AlertCircle } from "lucide-react";
+import { Zap, ArrowRight, ArrowLeft, Upload, Check, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate, Navigate } from "react-router-dom";
 
-const steps = ['Account', 'Store Info', 'Products', 'Platforms', 'Review'];
+const steps = ['Account', 'Store Info', 'Review'];
 
 export default function SignupPage() {
   const { signUp, session, loading: authLoading } = useAuth();

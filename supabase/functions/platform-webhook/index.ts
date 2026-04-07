@@ -200,7 +200,7 @@ const UPDATE_ORDER_TOOL = {
   type: "function" as const,
   function: {
     name: "update_order",
-    description: "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something about their current order.",
+    description: "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something. Parse quantities from natural language.",
     parameters: {
       type: "object",
       properties: {

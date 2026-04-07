@@ -189,9 +189,34 @@ export function useSendMessage() {
         last_message_time: new Date().toISOString(),
         unread: false,
       }).eq("id", msg.conversation_id);
+
+      // If sent by owner, also deliver to platform via edge function
+      if (msg.sender === "owner") {
+        try {
+          await supabase.functions.invoke("send-owner-message", {
+            body: { conversation_id: msg.conversation_id, content: msg.content },
+          });
+        } catch (e) {
+          console.error("Failed to send message to platform:", e);
+        }
+      }
     },
     onSuccess: (_, vars) => {
       qc.invalidateQueries({ queryKey: ["messages", vars.conversation_id] });
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
+export function useToggleAIAutoReply() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ id, ai_auto_reply }: { id: string; ai_auto_reply: boolean }) => {
+      const { error } = await supabase.from("conversations").update({ ai_auto_reply }).eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["conversations"] });
     },
     onError: (e: any) => toast.error(e.message),

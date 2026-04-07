@@ -1239,6 +1239,12 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Check per-conversation AI auto-reply toggle
+      if (conversation.ai_auto_reply === false) {
+        console.log("AI auto-reply disabled for conversation:", conversation.id);
+        continue;
+      }
+
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 

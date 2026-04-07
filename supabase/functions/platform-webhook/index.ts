@@ -152,7 +152,7 @@ const ORDER_TOOL = {
   type: "function" as const,
   function: {
     name: "create_order",
-    description: "Create a new order when the customer has confirmed items and provided their full name, phone number, and delivery address. Call this ONLY after the customer explicitly confirms all details.",
+    description: "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). Call this ONLY after all required info is collected.",
     parameters: {
       type: "object",
       properties: {

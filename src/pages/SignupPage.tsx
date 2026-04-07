@@ -140,10 +140,10 @@ export default function SignupPage() {
             </div>
           )}
 
-          {step < 4 && (
+          {step < 2 && (
             <div className="flex justify-between pt-2">
               <button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0} className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30"><ArrowLeft className="h-4 w-4" /> Back</button>
-              <button type="button" onClick={() => setStep(Math.min(4, step + 1))} className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">Next <ArrowRight className="h-4 w-4" /></button>
+              <button type="button" onClick={() => setStep(Math.min(2, step + 1))} className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">Next <ArrowRight className="h-4 w-4" /></button>
             </div>
           )}
         </motion.div>

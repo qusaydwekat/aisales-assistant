@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
-import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter, ArrowLeft } from "lucide-react";
+import { Search, Facebook, Instagram, MessageCircle, Send, Check, User, Loader2, Image as ImageIcon, Filter, ArrowLeft, Bot } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections, useMarkConversationRead } from "@/hooks/useSupabaseData";
+import { useConversations, useMessages, useSendMessage, useUpdateConversationStatus, useOrders, usePlatformConnections, useMarkConversationRead, useToggleAIAutoReply } from "@/hooks/useSupabaseData";
 import { useRealtimeMessages, useRealtimeConversations, useRealtimeOrders } from "@/hooks/useRealtimeMessages";
 import { useNavigate } from "react-router-dom";
 import { useFileUpload } from "@/hooks/useFileUpload";

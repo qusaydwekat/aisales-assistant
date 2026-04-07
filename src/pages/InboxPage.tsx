@@ -249,12 +249,26 @@ export default function InboxPage() {
                 </div>
               </div>
             </div>
-            {selected.status !== 'resolved' && (
-              <button onClick={() => updateStatus.mutate({ id: selected.id, status: 'resolved' })}
-                className="px-2 md:px-3 py-1.5 rounded-lg text-xs font-medium bg-success/20 text-success hover:bg-success/30 transition-colors flex items-center gap-1 shrink-0">
-                <Check className="h-3 w-3" /> <span className="hidden sm:inline">{t("mark_resolved")}</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                onClick={() => toggleAI.mutate({ id: selected.id, ai_auto_reply: !(selected as any).ai_auto_reply })}
+                className={`px-2 md:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${
+                  (selected as any).ai_auto_reply !== false
+                    ? 'bg-accent/20 text-accent-foreground hover:bg-accent/30'
+                    : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                }`}
+                title={(selected as any).ai_auto_reply !== false ? 'AI auto-reply is ON — click to disable' : 'AI auto-reply is OFF — click to enable'}
+              >
+                <Bot className="h-3 w-3" />
+                <span className="hidden sm:inline">{(selected as any).ai_auto_reply !== false ? 'AI ON' : 'AI OFF'}</span>
               </button>
-            )}
+              {selected.status !== 'resolved' && (
+                <button onClick={() => updateStatus.mutate({ id: selected.id, status: 'resolved' })}
+                  className="px-2 md:px-3 py-1.5 rounded-lg text-xs font-medium bg-success/20 text-success hover:bg-success/30 transition-colors flex items-center gap-1 shrink-0">
+                  <Check className="h-3 w-3" /> <span className="hidden sm:inline">{t("mark_resolved")}</span>
+                </button>
+              )}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
             {messages.length === 0 && <p className="text-sm text-muted-foreground text-center mt-12">{t("no_messages")}</p>}

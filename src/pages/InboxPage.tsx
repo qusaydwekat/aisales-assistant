@@ -33,6 +33,7 @@ export default function InboxPage() {
   const updateStatus = useUpdateConversationStatus();
   const markRead = useMarkConversationRead();
   const { upload, uploading } = useFileUpload();
+  const toggleAI = useToggleAIAutoReply();
 
   useEffect(() => {
     if (selectedId) {

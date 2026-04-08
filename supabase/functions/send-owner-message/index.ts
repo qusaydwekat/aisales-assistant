@@ -53,49 +53,71 @@ Deno.serve(async (req) => {
     let connectionPageId: string | null = pageId;
 
     if (pageId) {
-      const { data: conn } = await supabase
+      const { data: directConns, error: directConnError } = await supabase
         .from("platform_connections")
-        .select("credentials, page_id")
+        .select("credentials, page_id, updated_at")
+        .eq("store_id", conversation.store_id)
+        .eq("platform", platform)
         .eq("page_id", pageId)
         .eq("status", "connected")
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(2);
 
-      if (conn) {
+      if (directConnError) {
+        console.error(`Failed to look up direct connection for conversation ${conversation_id}:`, directConnError);
+      } else if (directConns?.length) {
+        if (directConns.length > 1) {
+          console.warn(`Multiple direct connections found for conversation ${conversation_id}; using the most recently updated one.`);
+        }
+
+        const conn = directConns[0] as any;
         pageAccessToken = (conn.credentials as any)?.page_access_token || null;
         connectionPageId = conn.page_id;
       } else if (platform === "instagram") {
-        // Fallback for Instagram
-        const { data: igConns } = await supabase
+        const { data: igConns, error: igConnError } = await supabase
           .from("platform_connections")
-          .select("credentials, page_id")
+          .select("credentials, page_id, updated_at")
+          .eq("store_id", conversation.store_id)
           .eq("platform", "instagram")
           .eq("status", "connected");
 
-        const igConn = (igConns || []).find((c: any) => {
-          const creds = c.credentials as any;
-          return creds?.facebook_page_id === pageId ||
-            creds?.instagram_business_account_id === pageId ||
-            c.page_id === pageId;
-        });
+        if (igConnError) {
+          console.error(`Failed Instagram fallback lookup for conversation ${conversation_id}:`, igConnError);
+        } else {
+          const matchingIgConns = (igConns || []).filter((c: any) => {
+            const creds = c.credentials as any;
+            return creds?.facebook_page_id === pageId ||
+              creds?.instagram_business_account_id === pageId ||
+              c.page_id === pageId;
+          });
 
-        if (igConn) {
-          pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
-          connectionPageId = igConn.page_id;
+          if (matchingIgConns.length > 1) {
+            console.warn(`Multiple Instagram connections found for conversation ${conversation_id}; using the most recently updated one.`);
+          }
+
+          if (matchingIgConns.length > 0) {
+            const igConn = matchingIgConns.sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0];
+            pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
+            connectionPageId = igConn.page_id;
+          }
         }
       }
     }
 
     if (!pageAccessToken) {
-      // Try finding any connected platform connection for this store
-      const { data: conn } = await supabase
+      const { data: fallbackConns, error: fallbackConnError } = await supabase
         .from("platform_connections")
-        .select("credentials, page_id")
+        .select("credentials, page_id, updated_at")
         .eq("store_id", conversation.store_id)
         .eq("platform", platform)
         .eq("status", "connected")
-        .maybeSingle();
+        .order("updated_at", { ascending: false })
+        .limit(1);
 
-      if (conn) {
+      if (fallbackConnError) {
+        console.error(`Failed fallback connection lookup for conversation ${conversation_id}:`, fallbackConnError);
+      } else if (fallbackConns?.length) {
+        const conn = fallbackConns[0] as any;
         pageAccessToken = (conn.credentials as any)?.page_access_token || null;
         connectionPageId = conn.page_id;
       }

@@ -78,9 +78,14 @@ async function uploadToStoreAssets(
   bytes: Uint8Array,
   contentType: string | null
 ): Promise<string | null> {
+  // Supabase Storage upload is most reliable with Blob in Deno
+  const blob = new Blob([bytes], {
+    type: contentType || "application/octet-stream",
+  });
+
   const { error: uploadErr } = await supabase.storage
     .from("store-assets")
-    .upload(filePath, bytes, {
+    .upload(filePath, blob, {
       upsert: true,
       contentType: contentType || undefined,
     });
@@ -281,6 +286,8 @@ async function fetchMetaDisplayName(
 ): Promise<string | null> {
   if (!pageAccessToken) return null;
   if (!senderId) return null;
+
+  console.log("fetchMetaDisplayName confirm deployed");
 
   // For Facebook/Instagram, we can often resolve the sender profile name via Graph API.
   // If this fails (permissions/token/etc), we fall back to a short placeholder.
@@ -947,6 +954,8 @@ async function executeListCategories(
 
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
 function sanitizeAIResponse(text: string): string {
+  console.log("sanitizeAIResponse confirm deployed");
+
   // Remove markdown code blocks
   let clean = text.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, "");
   // Remove HTML tags
@@ -1823,7 +1832,6 @@ Deno.serve(async (req) => {
 
       // Prepare content to store + use for AI
       let storedContent = msg.text;
-      console.log("msg", msg);
       if (msg.kind === "image") {
         let publicUrl: string | null = null;
         const safeId = safeStorageId(inferredPlatformMessageId);
@@ -1886,6 +1894,16 @@ Deno.serve(async (req) => {
         );
         continue;
       }
+
+      // Ensure conversation list reflects images (not just "[Image]")
+      await supabase
+        .from("conversations")
+        .update({
+          last_message: msg.kind === "image" ? storedContent : msg.text,
+          last_message_time: msg.timestamp,
+          unread: true,
+        })
+        .eq("id", conversation.id);
 
       // ─── AI Auto-Reply ───
       const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] =

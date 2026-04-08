@@ -116,7 +116,22 @@ export default function PlatformsPage() {
       if (!res.ok) throw new Error(result.error || "Failed to connect pages");
 
       const count = result.connected?.length || 0;
-      toast.success(`Connected ${count} page${count !== 1 ? "s" : ""} successfully!`);
+      const conflictCount = result.conflicts?.length || 0;
+      const failedCount = result.failed?.length || 0;
+
+      if (count > 0) {
+        toast.success(`Connected ${count} page${count !== 1 ? "s" : ""} successfully!`);
+      }
+
+      if (conflictCount > 0) {
+        const preview = result.conflicts.slice(0, 2).join(", ");
+        toast.error(`${conflictCount} page${conflictCount !== 1 ? "s are" : " is"} already linked to another store${preview ? `: ${preview}` : ""}`);
+      }
+
+      if (!count && !conflictCount && failedCount > 0) {
+        throw new Error("Failed to connect the selected pages");
+      }
+
       qc.invalidateQueries({ queryKey: ["platform_connections"] });
       setSelectingPage(false);
       setPages([]);

@@ -1090,44 +1090,59 @@ Deno.serve(async (req) => {
       let connectionId: string | null = null;
 
       if (msg.pageId) {
-        // Look for connection by page_id — for Instagram, this is the IGBA ID
-        const { data: conn } = await supabase
+        const { data: directConns, error: directConnError } = await supabase
           .from("platform_connections")
           .select("id, store_id, credentials, page_id, platform")
+          .eq("platform", msg.platform as any)
           .eq("page_id", msg.pageId)
           .eq("status", "connected")
-          .maybeSingle();
+          .limit(2);
 
-        if (conn) {
+        if (directConnError) {
+          console.error(`[${platform}] Failed to look up connection for page ${msg.pageId}:`, directConnError);
+          continue;
+        }
+
+        if ((directConns?.length || 0) === 1) {
+          const conn = directConns![0];
           connectionId = conn.id;
           storeId = conn.store_id;
           pageAccessToken = (conn.credentials as any)?.page_access_token || null;
           connectionPageId = conn.page_id;
           console.log(`[${platform}] Found connection for page ${msg.pageId} (platform: ${conn.platform}), store: ${storeId}`);
+        } else if ((directConns?.length || 0) > 1) {
+          console.error(`[${platform}] Multiple connected stores found for page ${msg.pageId}. Ignoring message to prevent cross-store routing.`);
+          continue;
         } else if (platform === "instagram") {
-          // Fallback 1: Instagram webhooks may use different IDs
-          // Try matching by page_id directly (FB page ID stored as page_id when no IGBA)
-          // or via credentials.facebook_page_id or credentials.instagram_business_account_id
-          const { data: igConns } = await supabase
+          // Instagram webhooks may use either IG business account ID or the linked Facebook page ID.
+          const { data: igConns, error: igConnError } = await supabase
             .from("platform_connections")
             .select("id, store_id, credentials, page_id, platform")
             .eq("platform", "instagram")
             .eq("status", "connected");
 
-          const igConn = (igConns || []).find(c => {
+          if (igConnError) {
+            console.error(`[${platform}] Failed Instagram fallback lookup for page ${msg.pageId}:`, igConnError);
+            continue;
+          }
+
+          const matchingIgConns = (igConns || []).filter((c) => {
             const creds = c.credentials as any;
-            // Match by: stored facebook_page_id, stored IGBA ID, or direct page_id
             return creds?.facebook_page_id === msg.pageId ||
               creds?.instagram_business_account_id === msg.pageId ||
               c.page_id === msg.pageId;
           });
 
-          if (igConn) {
+          if (matchingIgConns.length === 1) {
+            const igConn = matchingIgConns[0];
             connectionId = igConn.id;
             storeId = igConn.store_id;
             pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
             connectionPageId = igConn.page_id;
             console.log(`[${platform}] Found Instagram connection via fallback lookup, store: ${storeId}`);
+          } else if (matchingIgConns.length > 1) {
+            console.error(`[${platform}] Multiple Instagram stores matched page ${msg.pageId}. Ignoring message to prevent cross-store routing.`);
+            continue;
           } else {
             console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
           }
@@ -1137,23 +1152,28 @@ Deno.serve(async (req) => {
       }
 
       if (!storeId) {
-        // Fallback: find any store (for testing)
-        const { data: store } = await supabase.from("stores").select("id").limit(1).single();
-        if (!store) {
-          console.error("No stores found in database");
-          continue;
-        }
-        storeId = store.id;
-        console.warn(`[${platform}] Using fallback store: ${storeId}`);
+        console.warn(`[${platform}] Ignoring incoming message for unconnected page ${msg.pageId || "unknown"}`);
+        continue;
       }
 
-      // Find or create conversation
-      let { data: conversation } = await supabase
+      // Find or create conversation within the resolved store only
+      const { data: existingConversations, error: conversationLookupError } = await supabase
         .from("conversations")
         .select("*")
+        .eq("store_id", storeId)
         .eq("platform_conversation_id", msg.platformId)
         .eq("platform", msg.platform)
-        .maybeSingle();
+        .order("created_at", { ascending: false })
+        .limit(5);
+
+      if (conversationLookupError) {
+        console.error(`[${platform}] Error looking up conversation for store ${storeId}:`, conversationLookupError);
+        continue;
+      }
+
+      let conversation = (existingConversations || []).find((c: any) => msg.pageId && c.page_id === msg.pageId)
+        || (existingConversations || []).find((c: any) => !c.page_id)
+        || (existingConversations || [])[0];
 
       if (!conversation) {
         const { data: newConvo, error: convoErr } = await supabase
@@ -1306,6 +1326,8 @@ Deno.serve(async (req) => {
             currentCount = await supabase
               .from("platform_connections")
               .select("message_count")
+              .eq("store_id", storeId)
+              .eq("platform", msg.platform as any)
               .eq("page_id", lookupPageId)
               .eq("status", "connected")
               .single()
@@ -1317,6 +1339,8 @@ Deno.serve(async (req) => {
                 message_count: currentCount + 1,
                 last_synced_at: new Date().toISOString(),
               })
+              .eq("store_id", storeId)
+              .eq("platform", msg.platform as any)
               .eq("page_id", lookupPageId)
               .eq("status", "connected");
           }

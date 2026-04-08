@@ -537,6 +537,7 @@ Deno.serve(async (req) => {
       const platform = pending.platform;
       const connectedPages: string[] = [];
       const failedPages: string[] = [];
+      const conflictPages: string[] = [];
 
       // Get existing connected rows to avoid duplicates
       const { data: existingConns } = await supabase
@@ -558,6 +559,27 @@ Deno.serve(async (req) => {
           const existingConn = (existingConns || []).find(
             (c: any) => c.page_id === page.id
           );
+
+          const { data: conflictingConns, error: conflictErr } = await supabase
+            .from("platform_connections")
+            .select("id")
+            .eq("platform", "whatsapp")
+            .eq("page_id", page.id)
+            .eq("status", "connected")
+            .neq("store_id", storeId)
+            .limit(1);
+
+          if (conflictErr) {
+            console.error(`[meta-oauth] Failed to check WhatsApp connection ownership for ${page.id}:`, conflictErr);
+            failedPages.push(page.name);
+            continue;
+          }
+
+          if ((conflictingConns?.length || 0) > 0) {
+            console.warn(`[meta-oauth] WhatsApp phone ${page.id} is already connected to another store`);
+            conflictPages.push(page.name);
+            continue;
+          }
 
           const connectionCredentials = {
             page_access_token: page.access_token, // User's long-lived token
@@ -610,6 +632,27 @@ Deno.serve(async (req) => {
           let finalPageId = page.id;
           if (platform === "instagram" && instagramBusinessAccountId) {
             finalPageId = instagramBusinessAccountId;
+          }
+
+          const { data: conflictingConns, error: conflictErr } = await supabase
+            .from("platform_connections")
+            .select("id")
+            .eq("platform", platform)
+            .eq("page_id", finalPageId)
+            .eq("status", "connected")
+            .neq("store_id", storeId)
+            .limit(1);
+
+          if (conflictErr) {
+            console.error(`[meta-oauth] Failed to check ${platform} connection ownership for ${finalPageId}:`, conflictErr);
+            failedPages.push(page.name);
+            continue;
+          }
+
+          if ((conflictingConns?.length || 0) > 0) {
+            console.warn(`[meta-oauth] ${platform} page ${finalPageId} is already connected to another store`);
+            conflictPages.push(page.name);
+            continue;
           }
 
           const existingConn = (existingConns || []).find((c: any) => {
@@ -697,6 +740,7 @@ Deno.serve(async (req) => {
           success: true,
           connected: connectedPages,
           failed: failedPages,
+          conflicts: conflictPages,
         }),
         {
           status: 200,

@@ -31,6 +31,18 @@ async function verifyMetaSignature(req: Request, body: string): Promise<boolean>
   return signature === expected;
 }
 
+function toHex(bytes: ArrayBuffer): string {
+  return Array.from(new Uint8Array(bytes))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function stableId(input: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(input));
+  return toHex(digest);
+}
+
 // Auto-detect platform from Meta webhook payload
 function detectPlatform(body: any, queryPlatform: string | null): string {
   // Always prefer the payload's object field — it is authoritative from Meta
@@ -145,6 +157,31 @@ async function sendMetaImage(platform: string, recipientId: string, imageUrl: st
       console.log(`[whatsapp] Image sent to ${recipientId}: ${imageUrl}`);
     }
     return data;
+  }
+}
+
+async function fetchMetaDisplayName(platform: string, senderId: string, pageAccessToken: string | null): Promise<string | null> {
+  if (!pageAccessToken) return null;
+  if (!senderId) return null;
+
+  // For Facebook/Instagram, we can often resolve the sender profile name via Graph API.
+  // If this fails (permissions/token/etc), we fall back to a short placeholder.
+  if (platform !== "facebook" && platform !== "instagram") return null;
+
+  try {
+    const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(senderId)}?fields=name`;
+    const res = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const name = (data?.name || "").toString().trim();
+    return name.length > 0 ? name : null;
+  } catch {
+    return null;
   }
 }
 
@@ -975,7 +1012,16 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    let messages: { platform: string; sender: string; text: string; platformId: string; timestamp: string; pageId?: string }[] = [];
+    const messages: {
+      platform: string;
+      sender: string;
+      text: string;
+      platformId: string;
+      timestamp: string;
+      pageId?: string;
+      platformMessageId?: string;
+      displayName?: string;
+    }[] = [];
 
     if (platform === "facebook") {
       for (const entry of body.entry || []) {
@@ -990,6 +1036,7 @@ Deno.serve(async (req) => {
               platformId: messaging.sender?.id || "",
               timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
               pageId,
+              platformMessageId: messaging.message?.mid || undefined,
             });
           }
         }
@@ -1029,6 +1076,7 @@ Deno.serve(async (req) => {
             platformId: messaging.sender?.id || "",
             timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
             pageId: igbaId,
+            platformMessageId: messaging.message?.mid || undefined,
           });
         }
         // Also handle Instagram changes-based format (some API versions)
@@ -1053,6 +1101,7 @@ Deno.serve(async (req) => {
               platformId: val.sender?.id || "",
               timestamp: new Date(val.timestamp || Date.now()).toISOString(),
               pageId: igbaId,
+              platformMessageId: val.message?.mid || undefined,
             });
           }
         }
@@ -1061,6 +1110,10 @@ Deno.serve(async (req) => {
       for (const entry of body.entry || []) {
         const phoneNumberId = entry.changes?.[0]?.value?.metadata?.phone_number_id;
         for (const change of entry.changes || []) {
+          const waDisplayName =
+            change.value?.contacts?.[0]?.profile?.name ||
+            change.value?.contacts?.[0]?.wa_id ||
+            null;
           if (change.value?.messages) {
             for (const msg of change.value.messages) {
               if (msg.type === "text") {
@@ -1071,6 +1124,8 @@ Deno.serve(async (req) => {
                   platformId: msg.from || "",
                   timestamp: new Date(parseInt(msg.timestamp || "0") * 1000).toISOString(),
                   pageId: phoneNumberId,
+                  platformMessageId: msg.id || undefined,
+                  displayName: waDisplayName || undefined,
                 });
               }
             }
@@ -1176,13 +1231,19 @@ Deno.serve(async (req) => {
         || (existingConversations || [])[0];
 
       if (!conversation) {
+        const displayName =
+          msg.displayName ||
+          (msg.platform === "whatsapp" && msg.sender && msg.sender !== "unknown" ? msg.sender : null) ||
+          (await fetchMetaDisplayName(msg.platform, msg.sender, pageAccessToken)) ||
+          `Customer ${msg.platformId.slice(-4)}`;
+
         const { data: newConvo, error: convoErr } = await supabase
           .from("conversations")
           .insert({
             store_id: storeId,
             platform: msg.platform as any,
             platform_conversation_id: msg.platformId,
-            customer_name: `Customer ${msg.platformId.slice(-4)}`,
+            customer_name: displayName,
             customer_phone: msg.platform === "whatsapp" ? msg.sender : null,
             last_message: msg.text,
             last_message_time: msg.timestamp,
@@ -1198,11 +1259,26 @@ Deno.serve(async (req) => {
         }
         conversation = newConvo;
       } else {
-        // Update page_id if missing
+        // Update page_id if missing, and improve placeholder customer_name if we can
         const updateData: any = { last_message: msg.text, last_message_time: msg.timestamp, unread: true };
         if (msg.pageId && !conversation.page_id) {
           updateData.page_id = msg.pageId;
         }
+
+        const currentName = (conversation.customer_name || "").toString().trim();
+        const looksLikePlaceholder =
+          currentName.length === 0 ||
+          /^Customer\s+\w{1,10}$/i.test(currentName) ||
+          currentName.toLowerCase() === "unknown";
+
+        if (looksLikePlaceholder) {
+          const betterName =
+            msg.displayName ||
+            (msg.platform === "whatsapp" && msg.sender && msg.sender !== "unknown" ? msg.sender : null) ||
+            (await fetchMetaDisplayName(msg.platform, msg.sender, pageAccessToken));
+          if (betterName) updateData.customer_name = betterName;
+        }
+
         await supabase
           .from("conversations")
           .update(updateData)
@@ -1211,13 +1287,48 @@ Deno.serve(async (req) => {
 
       if (!conversation) continue;
 
-      // Store customer message
-      await supabase.from("messages").insert({
+      // Store customer message (idempotent)
+      const inferredPlatformMessageId = msg.platformMessageId
+        ? `${msg.platform}:${msg.platformMessageId}`
+        : `${msg.platform}:fallback:${await stableId(
+            JSON.stringify({
+              platform: msg.platform,
+              sender: msg.sender,
+              platformId: msg.platformId,
+              pageId: msg.pageId || "",
+              timestamp: msg.timestamp,
+              text: msg.text,
+            }),
+          )}`;
+
+      const { data: alreadySeen, error: seenErr } = await supabase
+        .from("messages")
+        .select("id")
+        .eq("conversation_id", conversation.id)
+        .eq("platform_message_id", inferredPlatformMessageId)
+        .maybeSingle();
+
+      if (seenErr) {
+        console.error(`[${platform}] Failed dedupe lookup:`, seenErr);
+        continue;
+      }
+
+      if (alreadySeen?.id) {
+        console.log(`[${platform}] Duplicate webhook delivery ignored: ${inferredPlatformMessageId}`);
+        continue;
+      }
+
+      const { error: insertCustomerErr } = await supabase.from("messages").insert({
         conversation_id: conversation.id,
         sender: "customer",
         content: msg.text,
-        platform_message_id: msg.platformId + "_" + Date.now(),
+        platform_message_id: inferredPlatformMessageId,
       });
+
+      if (insertCustomerErr) {
+        console.error(`[${platform}] Failed to insert customer message:`, insertCustomerErr);
+        continue;
+      }
 
       // ─── AI Auto-Reply ───
       const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
@@ -1274,7 +1385,7 @@ Deno.serve(async (req) => {
         conversation_id: conversation.id,
         sender: "ai",
         content: aiResult.text,
-        platform_message_id: "ai_" + Date.now(),
+        platform_message_id: null,
       });
 
       await supabase.from("conversations").update({
@@ -1344,7 +1455,9 @@ Deno.serve(async (req) => {
               .eq("page_id", lookupPageId)
               .eq("status", "connected");
           }
-        } catch {}
+        } catch (countErr) {
+          console.warn(`[${platform}] Failed to update platform_connections stats:`, countErr);
+        }
       }
     }
 

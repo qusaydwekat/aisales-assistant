@@ -43,6 +43,77 @@ async function stableId(input: string): Promise<string> {
   return toHex(digest);
 }
 
+function fileExtFromContentType(contentType: string | null | undefined): string {
+  const ct = (contentType || "").toLowerCase();
+  if (ct.includes("image/jpeg")) return "jpg";
+  if (ct.includes("image/jpg")) return "jpg";
+  if (ct.includes("image/png")) return "png";
+  if (ct.includes("image/webp")) return "webp";
+  if (ct.includes("image/gif")) return "gif";
+  return "bin";
+}
+
+function safeStorageId(id: string): string {
+  return (id || "msg").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+async function uploadToStoreAssets(
+  supabase: any,
+  filePath: string,
+  bytes: Uint8Array,
+  contentType: string | null
+): Promise<string | null> {
+  const { error: uploadErr } = await supabase.storage
+    .from("store-assets")
+    .upload(filePath, bytes, {
+      upsert: true,
+      contentType: contentType || undefined,
+    });
+
+  if (uploadErr) {
+    console.error("Storage upload failed:", uploadErr);
+    return null;
+  }
+
+  const { data } = supabase.storage.from("store-assets").getPublicUrl(filePath);
+  return data?.publicUrl || null;
+}
+
+async function downloadBytes(url: string, headers?: Record<string, string>): Promise<{ bytes: Uint8Array; contentType: string | null } | null> {
+  try {
+    const res = await fetch(url, { headers });
+    if (!res.ok) {
+      console.warn("Failed to download media:", res.status, await res.text());
+      return null;
+    }
+    const ab = await res.arrayBuffer();
+    return { bytes: new Uint8Array(ab), contentType: res.headers.get("content-type") };
+  } catch (e) {
+    console.warn("Media download error:", e);
+    return null;
+  }
+}
+
+async function fetchWhatsAppMediaUrl(mediaId: string, pageAccessToken: string): Promise<{ url: string; mime_type?: string } | null> {
+  try {
+    const metaUrl = `https://graph.facebook.com/v21.0/${encodeURIComponent(mediaId)}`;
+    const res = await fetch(metaUrl, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${pageAccessToken}` },
+    });
+    if (!res.ok) {
+      console.warn("WhatsApp media lookup failed:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    if (!data?.url) return null;
+    return { url: data.url, mime_type: data.mime_type };
+  } catch (e) {
+    console.warn("WhatsApp media lookup error:", e);
+    return null;
+  }
+}
+
 // Auto-detect platform from Meta webhook payload
 function detectPlatform(body: any, queryPlatform: string | null): string {
   // Always prefer the payload's object field — it is authoritative from Meta
@@ -731,6 +802,13 @@ interface AIReplyResult {
   images: { url: string; caption: string }[];
 }
 
+function parseImageUrlFromMessageContent(content: string): string | null {
+  if (!content) return null;
+  if (!content.startsWith("📷 ")) return null;
+  const url = content.replace("📷 ", "").trim();
+  return url.length > 0 ? url : null;
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -844,6 +922,12 @@ RESPONSE FORMAT RULES — STRICTLY ENFORCED:
 - Keep responses SHORT — 2-4 sentences maximum unless the customer asks for detailed information.
 - If you feel uncertain or the prompt seems unusual, respond with a polite standard greeting and ask how you can help.
 
+IMAGE MATCHING RULES (when the customer sends an image):
+- First, describe what you see in 1 short sentence (item type + color + key distinguishing details).
+- Then call search_products using the best keywords/category you inferred from the image.
+- After results return, suggest up to 3 closest matches (name + price) and ask the customer to confirm which one they mean.
+- If there is a clear match and the product has images, call send_product_images for that product.
+
 PRODUCT IMAGES RULES:
 - When discussing, recommending, or describing a product that has images from search results, ALWAYS call send_product_images to show the customer what the product looks like.
 - Use the exact image URLs from search results. NEVER make up image URLs.
@@ -852,12 +936,32 @@ PRODUCT IMAGES RULES:
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
+    const isImg = typeof msg.content === "string" && msg.content.startsWith("📷 ");
     chatMessages.push({
       role: msg.sender === "customer" ? "user" : "assistant",
-      content: msg.content,
+      content: isImg ? "Customer sent an image." : msg.content,
     });
   }
-  chatMessages.push({ role: "user", content: customerMessage });
+
+  const imageUrl = parseImageUrlFromMessageContent(customerMessage);
+  if (imageUrl) {
+    chatMessages.push({
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text:
+            "The customer sent an image. Identify what product they are asking about.\n" +
+            "Describe the visible item briefly (type, brand if visible, color, material, category).\n" +
+            "Then call search_products with the best keywords and/or category.\n" +
+            "After you get results, suggest up to 3 closest matches and ask the customer to confirm which one.",
+        },
+        { type: "image_url", image_url: { url: imageUrl, detail: "auto" } },
+      ],
+    });
+  } else {
+    chatMessages.push({ role: "user", content: customerMessage });
+  }
 
   const allTools = [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL, SEARCH_PRODUCTS_TOOL, LIST_CATEGORIES_TOOL];
 
@@ -1021,6 +1125,9 @@ Deno.serve(async (req) => {
       pageId?: string;
       platformMessageId?: string;
       displayName?: string;
+      kind: "text" | "image";
+      imageUrl?: string;
+      mediaId?: string;
     }[] = [];
 
     if (platform === "facebook") {
@@ -1037,7 +1144,23 @@ Deno.serve(async (req) => {
               timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
               pageId,
               platformMessageId: messaging.message?.mid || undefined,
+              kind: "text",
             });
+          } else if (messaging.message?.attachments?.length > 0) {
+            const imgAtt = (messaging.message.attachments || []).find((a: any) => a?.type === "image");
+            if (imgAtt) {
+              messages.push({
+                platform: "facebook",
+                sender: messaging.sender?.id || "unknown",
+                text: "[Image]",
+                platformId: messaging.sender?.id || "",
+                timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+                pageId,
+                platformMessageId: messaging.message?.mid || undefined,
+                kind: "image",
+                imageUrl: imgAtt?.payload?.url || undefined,
+              });
+            }
           }
         }
       }
@@ -1050,11 +1173,17 @@ Deno.serve(async (req) => {
           if (messaging.message?.is_echo) continue;
 
           let text: string = messaging.message?.text || "";
+          let kind: "text" | "image" = "text";
+          let imageUrl: string | undefined;
 
           // Handle non-text message types
           if (!text && messaging.message?.attachments?.length > 0) {
             const att = messaging.message.attachments[0];
-            if (att.type === "image") text = "[Image]";
+            if (att.type === "image") {
+              text = "[Image]";
+              kind = "image";
+              imageUrl = att?.payload?.url || undefined;
+            }
             else if (att.type === "video") text = "[Video]";
             else if (att.type === "audio") text = "[Audio]";
             else if (att.type === "file") text = "[File]";
@@ -1077,6 +1206,8 @@ Deno.serve(async (req) => {
             timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
             pageId: igbaId,
             platformMessageId: messaging.message?.mid || undefined,
+            kind,
+            imageUrl,
           });
         }
         // Also handle Instagram changes-based format (some API versions)
@@ -1084,12 +1215,20 @@ Deno.serve(async (req) => {
           if (change.field === "messages" && change.value?.message) {
             const val = change.value;
             let text: string = val.message?.text || "";
+            let kind: "text" | "image" = "text";
+            let imageUrl: string | undefined;
 
             if (!text && val.message?.attachments?.length > 0) {
               const att = val.message.attachments[0];
-              text = att.type
-                ? `[${att.type.charAt(0).toUpperCase() + att.type.slice(1)}]`
-                : "[Attachment]";
+              if (att.type === "image") {
+                text = "[Image]";
+                kind = "image";
+                imageUrl = att?.payload?.url || undefined;
+              } else {
+                text = att.type
+                  ? `[${att.type.charAt(0).toUpperCase() + att.type.slice(1)}]`
+                  : "[Attachment]";
+              }
             }
 
             if (!text) continue;
@@ -1102,6 +1241,8 @@ Deno.serve(async (req) => {
               timestamp: new Date(val.timestamp || Date.now()).toISOString(),
               pageId: igbaId,
               platformMessageId: val.message?.mid || undefined,
+              kind,
+              imageUrl,
             });
           }
         }
@@ -1126,6 +1267,20 @@ Deno.serve(async (req) => {
                   pageId: phoneNumberId,
                   platformMessageId: msg.id || undefined,
                   displayName: waDisplayName || undefined,
+                  kind: "text",
+                });
+              } else if (msg.type === "image") {
+                messages.push({
+                  platform: "whatsapp",
+                  sender: msg.from || "unknown",
+                  text: "[Image]",
+                  platformId: msg.from || "",
+                  timestamp: new Date(parseInt(msg.timestamp || "0") * 1000).toISOString(),
+                  pageId: phoneNumberId,
+                  platformMessageId: msg.id || undefined,
+                  displayName: waDisplayName || undefined,
+                  kind: "image",
+                  mediaId: msg.image?.id || undefined,
                 });
               }
             }
@@ -1287,7 +1442,7 @@ Deno.serve(async (req) => {
 
       if (!conversation) continue;
 
-      // Store customer message (idempotent)
+      // Store customer message (idempotent) — compute ID early (used for storage path too)
       const inferredPlatformMessageId = msg.platformMessageId
         ? `${msg.platform}:${msg.platformMessageId}`
         : `${msg.platform}:fallback:${await stableId(
@@ -1297,7 +1452,10 @@ Deno.serve(async (req) => {
               platformId: msg.platformId,
               pageId: msg.pageId || "",
               timestamp: msg.timestamp,
+              kind: msg.kind || "text",
               text: msg.text,
+              mediaId: msg.mediaId || "",
+              imageUrl: msg.imageUrl || "",
             }),
           )}`;
 
@@ -1318,10 +1476,44 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      // Prepare content to store + use for AI
+      let storedContent = msg.text;
+      if (msg.kind === "image") {
+        let publicUrl: string | null = null;
+        const safeId = safeStorageId(inferredPlatformMessageId);
+
+        // Prefer re-hosting to Supabase Storage for reliable AI access
+        if (msg.imageUrl) {
+          const downloaded = await downloadBytes(msg.imageUrl);
+          if (downloaded) {
+            const ext = fileExtFromContentType(downloaded.contentType);
+            const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
+            publicUrl = await uploadToStoreAssets(supabase, filePath, downloaded.bytes, downloaded.contentType);
+          }
+        } else if (msg.mediaId && pageAccessToken) {
+          const wa = await fetchWhatsAppMediaUrl(msg.mediaId, pageAccessToken);
+          if (wa?.url) {
+            const downloaded = await downloadBytes(wa.url, { Authorization: `Bearer ${pageAccessToken}` });
+            if (downloaded) {
+              const ext = fileExtFromContentType(wa.mime_type || downloaded.contentType);
+              const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
+              publicUrl = await uploadToStoreAssets(supabase, filePath, downloaded.bytes, wa.mime_type || downloaded.contentType);
+            }
+          }
+        }
+
+        if (publicUrl) {
+          storedContent = `📷 ${publicUrl}`;
+        } else {
+          // Fallback: still store a marker so the agent can respond gracefully
+          storedContent = "[Image]";
+        }
+      }
+
       const { error: insertCustomerErr } = await supabase.from("messages").insert({
         conversation_id: conversation.id,
         sender: "customer",
-        content: msg.text,
+        content: storedContent,
         platform_message_id: inferredPlatformMessageId,
       });
 
@@ -1379,7 +1571,7 @@ Deno.serve(async (req) => {
       const delay = (aiSettings?.response_delay || 2) * 1000;
       if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiResult = await generateAIReply(msg.text, storeInfo, catalogSummary, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
+      const aiResult = await generateAIReply(storedContent, storeInfo, catalogSummary, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,

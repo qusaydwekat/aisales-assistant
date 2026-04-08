@@ -175,6 +175,8 @@ export default function InboxPage() {
         {filtered.map(c => {
           const Icon = platformIcons[c.platform as Platform];
           const pageName = getPageName(c);
+          const isLastImage = typeof c.last_message === "string" && c.last_message.startsWith("📷 ");
+          const lastImageUrl = isLastImage ? c.last_message.replace("📷 ", "") : null;
           return (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
               className={`w-full text-start px-3 py-3 border-b border-border/50 transition-colors ${c.id === selectedId ? 'bg-muted/60' : 'hover:bg-muted/30'} ${c.unread ? 'border-s-2 border-s-primary' : ''}`}>
@@ -198,7 +200,20 @@ export default function InboxPage() {
                   {pageName && <span className="text-[10px] text-muted-foreground/70 truncate block">{pageName}</span>}
                 </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-1 truncate ps-10">{c.last_message}</p>
+              <div className="mt-1 ps-10 flex items-center gap-2 min-w-0">
+                {isLastImage && lastImageUrl ? (
+                  <>
+                    <img
+                      src={lastImageUrl}
+                      alt="Last message"
+                      className="h-6 w-6 rounded object-cover border border-border/40 shrink-0"
+                    />
+                    <p className="text-xs text-muted-foreground truncate">📷 Image</p>
+                  </>
+                ) : (
+                  <p className="text-xs text-muted-foreground truncate">{c.last_message}</p>
+                )}
+              </div>
               {c.status !== 'open' && (
                 <div className="ps-10 mt-1">
                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === 'pending_order' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>

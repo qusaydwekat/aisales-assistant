@@ -65,6 +65,13 @@ function safeStorageId(id: string): string {
   return (id || "msg").replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
+function cleanUrl(url: unknown): string | undefined {
+  if (typeof url !== "string") return undefined;
+  // Meta URLs sometimes include stray newlines/spaces when logged/truncated
+  const cleaned = url.replace(/\s+/g, "").trim();
+  return cleaned.length > 0 ? cleaned : undefined;
+}
+
 async function uploadToStoreAssets(
   supabase: any,
   filePath: string,
@@ -1435,7 +1442,7 @@ Deno.serve(async (req) => {
                 pageId,
                 platformMessageId: messaging.message?.mid || undefined,
                 kind: "image",
-                imageUrl: imgAtt?.payload?.url || undefined,
+                imageUrl: cleanUrl(imgAtt?.payload?.url),
               });
             }
           }
@@ -1459,7 +1466,7 @@ Deno.serve(async (req) => {
             if (att.type === "image") {
               text = "[Image]";
               kind = "image";
-              imageUrl = att?.payload?.url || undefined;
+              imageUrl = cleanUrl(att?.payload?.url);
             } else if (att.type === "video") text = "[Video]";
             else if (att.type === "audio") text = "[Audio]";
             else if (att.type === "file") text = "[File]";
@@ -1501,7 +1508,7 @@ Deno.serve(async (req) => {
               if (att.type === "image") {
                 text = "[Image]";
                 kind = "image";
-                imageUrl = att?.payload?.url || undefined;
+                imageUrl = cleanUrl(att?.payload?.url);
               } else {
                 text = att.type
                   ? `[${att.type.charAt(0).toUpperCase() + att.type.slice(1)}]`
@@ -1816,6 +1823,7 @@ Deno.serve(async (req) => {
 
       // Prepare content to store + use for AI
       let storedContent = msg.text;
+      console.log("msg", msg);
       if (msg.kind === "image") {
         let publicUrl: string | null = null;
         const safeId = safeStorageId(inferredPlatformMessageId);

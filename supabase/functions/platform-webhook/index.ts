@@ -3,10 +3,14 @@ import { crypto } from "https://deno.land/std@0.224.0/crypto/mod.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
 };
 
-async function verifyMetaSignature(req: Request, body: string): Promise<boolean> {
+async function verifyMetaSignature(
+  req: Request,
+  body: string
+): Promise<boolean> {
   const signature = req.headers.get("x-hub-signature-256");
   if (!signature) return false;
 
@@ -25,7 +29,9 @@ async function verifyMetaSignature(req: Request, body: string): Promise<boolean>
     ["sign"]
   );
   const sig = await crypto.subtle.sign("HMAC", key, encoder.encode(body));
-  const hex = Array.from(new Uint8Array(sig)).map(b => b.toString(16).padStart(2, "0")).join("");
+  const hex = Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
   const expected = `sha256=${hex}`;
 
   return signature === expected;
@@ -43,7 +49,9 @@ async function stableId(input: string): Promise<string> {
   return toHex(digest);
 }
 
-function fileExtFromContentType(contentType: string | null | undefined): string {
+function fileExtFromContentType(
+  contentType: string | null | undefined
+): string {
   const ct = (contentType || "").toLowerCase();
   if (ct.includes("image/jpeg")) return "jpg";
   if (ct.includes("image/jpg")) return "jpg";
@@ -79,7 +87,10 @@ async function uploadToStoreAssets(
   return data?.publicUrl || null;
 }
 
-async function downloadBytes(url: string, headers?: Record<string, string>): Promise<{ bytes: Uint8Array; contentType: string | null } | null> {
+async function downloadBytes(
+  url: string,
+  headers?: Record<string, string>
+): Promise<{ bytes: Uint8Array; contentType: string | null } | null> {
   try {
     const res = await fetch(url, { headers });
     if (!res.ok) {
@@ -87,22 +98,34 @@ async function downloadBytes(url: string, headers?: Record<string, string>): Pro
       return null;
     }
     const ab = await res.arrayBuffer();
-    return { bytes: new Uint8Array(ab), contentType: res.headers.get("content-type") };
+    return {
+      bytes: new Uint8Array(ab),
+      contentType: res.headers.get("content-type"),
+    };
   } catch (e) {
     console.warn("Media download error:", e);
     return null;
   }
 }
 
-async function fetchWhatsAppMediaUrl(mediaId: string, pageAccessToken: string): Promise<{ url: string; mime_type?: string } | null> {
+async function fetchWhatsAppMediaUrl(
+  mediaId: string,
+  pageAccessToken: string
+): Promise<{ url: string; mime_type?: string } | null> {
   try {
-    const metaUrl = `https://graph.facebook.com/v21.0/${encodeURIComponent(mediaId)}`;
+    const metaUrl = `https://graph.facebook.com/v21.0/${encodeURIComponent(
+      mediaId
+    )}`;
     const res = await fetch(metaUrl, {
       method: "GET",
       headers: { Authorization: `Bearer ${pageAccessToken}` },
     });
     if (!res.ok) {
-      console.warn("WhatsApp media lookup failed:", res.status, await res.text());
+      console.warn(
+        "WhatsApp media lookup failed:",
+        res.status,
+        await res.text()
+      );
       return null;
     }
     const data = await res.json();
@@ -132,7 +155,13 @@ function detectPlatform(body: any, queryPlatform: string | null): string {
   return "facebook"; // default
 }
 
-async function sendMetaReply(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string) {
+async function sendMetaReply(
+  platform: string,
+  recipientId: string,
+  text: string,
+  pageAccessToken: string,
+  pageId?: string
+) {
   if (platform === "facebook" || platform === "instagram") {
     const url = `https://graph.facebook.com/v21.0/me/messages`;
     const res = await fetch(url, {
@@ -179,7 +208,14 @@ async function sendMetaReply(platform: string, recipientId: string, text: string
   }
 }
 
-async function sendMetaImage(platform: string, recipientId: string, imageUrl: string, caption: string, pageAccessToken: string, pageId?: string) {
+async function sendMetaImage(
+  platform: string,
+  recipientId: string,
+  imageUrl: string,
+  caption: string,
+  pageAccessToken: string,
+  pageId?: string
+) {
   if (platform === "facebook" || platform === "instagram") {
     const url = `https://graph.facebook.com/v21.0/me/messages`;
     const res = await fetch(url, {
@@ -231,7 +267,11 @@ async function sendMetaImage(platform: string, recipientId: string, imageUrl: st
   }
 }
 
-async function fetchMetaDisplayName(platform: string, senderId: string, pageAccessToken: string | null): Promise<string | null> {
+async function fetchMetaDisplayName(
+  platform: string,
+  senderId: string,
+  pageAccessToken: string | null
+): Promise<string | null> {
   if (!pageAccessToken) return null;
   if (!senderId) return null;
 
@@ -240,7 +280,9 @@ async function fetchMetaDisplayName(platform: string, senderId: string, pageAcce
   if (platform !== "facebook" && platform !== "instagram") return null;
 
   try {
-    const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(senderId)}?fields=name`;
+    const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(
+      senderId
+    )}?fields=name`;
     const res = await fetch(url, {
       method: "GET",
       headers: {
@@ -260,7 +302,8 @@ const ORDER_TOOL = {
   type: "function" as const,
   function: {
     name: "create_order",
-    description: "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). Call this ONLY after all required info is collected.",
+    description:
+      "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). Call this ONLY after all required info is collected.",
     parameters: {
       type: "object",
       properties: {
@@ -269,11 +312,16 @@ const ORDER_TOOL = {
         address: { type: "string", description: "Customer's delivery address" },
         items: {
           type: "array",
-          description: "List of ordered items. IMPORTANT: Always include product_id from search results for accurate stock tracking.",
+          description:
+            "List of ordered items. IMPORTANT: Always include product_id from search results for accurate stock tracking.",
           items: {
             type: "object",
             properties: {
-              product_id: { type: "string", description: "The product UUID from search results. MUST be included for stock tracking." },
+              product_id: {
+                type: "string",
+                description:
+                  "The product UUID from search results. MUST be included for stock tracking.",
+              },
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
@@ -281,7 +329,10 @@ const ORDER_TOOL = {
             required: ["product_name", "quantity", "price"],
           },
         },
-        notes: { type: "string", description: "Any special notes or requests from the customer" },
+        notes: {
+          type: "string",
+          description: "Any special notes or requests from the customer",
+        },
       },
       required: ["customer_name", "phone", "address", "items"],
     },
@@ -292,12 +343,20 @@ const CANCEL_ORDER_TOOL = {
   type: "function" as const,
   function: {
     name: "cancel_order",
-    description: "Cancel an existing order when the customer explicitly requests to cancel. Use the order number if provided, otherwise look up the most recent pending order for this conversation.",
+    description:
+      "Cancel an existing order when the customer explicitly requests to cancel. Use the order number if provided, otherwise look up the most recent pending order for this conversation.",
     parameters: {
       type: "object",
       properties: {
-        order_number: { type: "string", description: "The order number (e.g. ORD-00001). Optional — if not provided, the most recent pending order for this conversation will be cancelled." },
-        reason: { type: "string", description: "Reason for cancellation if the customer provides one" },
+        order_number: {
+          type: "string",
+          description:
+            "The order number (e.g. ORD-00001). Optional — if not provided, the most recent pending order for this conversation will be cancelled.",
+        },
+        reason: {
+          type: "string",
+          description: "Reason for cancellation if the customer provides one",
+        },
       },
       required: [],
     },
@@ -308,23 +367,46 @@ const UPDATE_ORDER_TOOL = {
   type: "function" as const,
   function: {
     name: "update_order",
-    description: "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something. Parse quantities from natural language.",
+    description:
+      "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something. Parse quantities from natural language.",
     parameters: {
       type: "object",
       properties: {
-        order_number: { type: "string", description: "The order number to update (e.g. ORD-00001). If not provided, the most recent active order for this conversation will be updated." },
-        customer_name: { type: "string", description: "Updated customer name (only if changed)" },
-        phone: { type: "string", description: "Updated phone number (only if changed)" },
-        address: { type: "string", description: "Updated delivery address (only if changed)" },
-          items: {
+        order_number: {
+          type: "string",
+          description:
+            "The order number to update (e.g. ORD-00001). If not provided, the most recent active order for this conversation will be updated.",
+        },
+        customer_name: {
+          type: "string",
+          description: "Updated customer name (only if changed)",
+        },
+        phone: {
+          type: "string",
+          description: "Updated phone number (only if changed)",
+        },
+        address: {
+          type: "string",
+          description: "Updated delivery address (only if changed)",
+        },
+        items: {
           type: "array",
-          description: "Updated full list of items (replaces existing items). Only provide if items changed. Parse quantities from natural language.",
+          description:
+            "Updated full list of items (replaces existing items). Only provide if items changed. Parse quantities from natural language.",
           items: {
             type: "object",
             properties: {
-              product_id: { type: "string", description: "The product UUID from search results. MUST be included for stock tracking." },
+              product_id: {
+                type: "string",
+                description:
+                  "The product UUID from search results. MUST be included for stock tracking.",
+              },
               product_name: { type: "string" },
-              quantity: { type: "number", description: "Quantity parsed from customer message. Default to 1 if not specified." },
+              quantity: {
+                type: "number",
+                description:
+                  "Quantity parsed from customer message. Default to 1 if not specified.",
+              },
               price: { type: "number" },
             },
             required: ["product_name", "quantity", "price"],
@@ -341,11 +423,16 @@ const CHECK_ORDER_STATUS_TOOL = {
   type: "function" as const,
   function: {
     name: "check_order_status",
-    description: "Look up the current status and details of an order from the database. Use this whenever the customer asks about their order status, delivery progress, or order details. You can search by order number or get the most recent order for this conversation.",
+    description:
+      "Look up the current status and details of an order from the database. Use this whenever the customer asks about their order status, delivery progress, or order details. You can search by order number or get the most recent order for this conversation.",
     parameters: {
       type: "object",
       properties: {
-        order_number: { type: "string", description: "The order number to look up (e.g. ORD-00001). If not provided, returns the most recent order for this conversation." },
+        order_number: {
+          type: "string",
+          description:
+            "The order number to look up (e.g. ORD-00001). If not provided, returns the most recent order for this conversation.",
+        },
       },
       required: [],
     },
@@ -356,7 +443,8 @@ const SEND_PRODUCT_IMAGES_TOOL = {
   type: "function" as const,
   function: {
     name: "send_product_images",
-    description: "Send product images to the customer. Use this when the customer asks to see a product, asks what it looks like, or when recommending/discussing products. Always send images alongside your text description.",
+    description:
+      "Send product images to the customer. Use this when the customer asks to see a product, asks what it looks like, or when recommending/discussing products. Always send images alongside your text description.",
     parameters: {
       type: "object",
       properties: {
@@ -366,9 +454,19 @@ const SEND_PRODUCT_IMAGES_TOOL = {
           items: {
             type: "object",
             properties: {
-              product_name: { type: "string", description: "Name of the product" },
-              image_url: { type: "string", description: "The image URL from the product catalog" },
-              caption: { type: "string", description: "Short caption for the image (e.g. product name and price)" },
+              product_name: {
+                type: "string",
+                description: "Name of the product",
+              },
+              image_url: {
+                type: "string",
+                description: "The image URL from the product catalog",
+              },
+              caption: {
+                type: "string",
+                description:
+                  "Short caption for the image (e.g. product name and price)",
+              },
             },
             required: ["product_name", "image_url"],
           },
@@ -383,12 +481,21 @@ const SEARCH_PRODUCTS_TOOL = {
   type: "function" as const,
   function: {
     name: "search_products",
-    description: "Search the product catalog by keyword, category, or price range. Use this whenever the customer asks about specific products, searches for something, or you need product details. Returns up to 10 matching products with full details including images and prices. ALWAYS use this tool before answering product-related questions.",
+    description:
+      "Search the product catalog by keyword, category, or price range. Use this whenever the customer asks about specific products, searches for something, or you need product details. Returns up to 10 matching products with full details including images and prices. ALWAYS use this tool before answering product-related questions.",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Search keyword to match against product name or description (e.g. 'shoes', 'red dress', 'laptop')" },
-        category: { type: "string", description: "Filter by product category (use exact category names from the catalog summary)" },
+        query: {
+          type: "string",
+          description:
+            "Search keyword to match against product name or description (e.g. 'shoes', 'red dress', 'laptop')",
+        },
+        category: {
+          type: "string",
+          description:
+            "Filter by product category (use exact category names from the catalog summary)",
+        },
         min_price: { type: "number", description: "Minimum price filter" },
         max_price: { type: "number", description: "Maximum price filter" },
       },
@@ -401,7 +508,8 @@ const LIST_CATEGORIES_TOOL = {
   type: "function" as const,
   function: {
     name: "list_categories",
-    description: "List all product categories with their product counts and price ranges. Use this when the customer asks a vague question like 'what do you sell?', 'show me your products', or 'what categories do you have?'. This gives an overview without loading all products.",
+    description:
+      "List all product categories with their product counts and price ranges. Use this when the customer asks a vague question like 'what do you sell?', 'show me your products', or 'what categories do you have?'. This gives an overview without loading all products.",
     parameters: {
       type: "object",
       properties: {},
@@ -491,7 +599,8 @@ async function executeCancelOrder(
   if (args.order_number) {
     query = query.eq("order_number", args.order_number);
   } else {
-    query = query.eq("conversation_id", conversationId)
+    query = query
+      .eq("conversation_id", conversationId)
       .in("status", ["pending", "confirmed", "processing"])
       .order("created_at", { ascending: false })
       .limit(1);
@@ -500,15 +609,24 @@ async function executeCancelOrder(
   const { data: orders, error: fetchErr } = await query;
   if (fetchErr || !orders?.length) {
     console.error("Cancel order lookup error:", fetchErr);
-    return JSON.stringify({ success: false, error: "No active order found to cancel." });
+    return JSON.stringify({
+      success: false,
+      error: "No active order found to cancel.",
+    });
   }
 
   const order = orders[0];
   if (order.status === "cancelled") {
-    return JSON.stringify({ success: false, error: `Order ${order.order_number} is already cancelled.` });
+    return JSON.stringify({
+      success: false,
+      error: `Order ${order.order_number} is already cancelled.`,
+    });
   }
   if (order.status === "delivered" || order.status === "shipped") {
-    return JSON.stringify({ success: false, error: `Order ${order.order_number} has already been ${order.status} and cannot be cancelled.` });
+    return JSON.stringify({
+      success: false,
+      error: `Order ${order.order_number} has already been ${order.status} and cannot be cancelled.`,
+    });
   }
 
   const { error: updateErr } = await supabase
@@ -538,7 +656,9 @@ async function executeCancelOrder(
     await supabase.from("notifications").insert({
       user_id: store.user_id,
       title: `Order ${order.order_number} cancelled`,
-      description: `${order.customer_name} cancelled their order.${args.reason ? ` Reason: ${args.reason}` : ""}`,
+      description: `${order.customer_name} cancelled their order.${
+        args.reason ? ` Reason: ${args.reason}` : ""
+      }`,
       type: "order",
     });
   }
@@ -558,7 +678,8 @@ async function executeUpdateOrder(
   if (args.order_number) {
     query = query.eq("order_number", args.order_number);
   } else {
-    query = query.eq("conversation_id", conversationId)
+    query = query
+      .eq("conversation_id", conversationId)
       .in("status", ["pending", "confirmed", "processing"])
       .order("created_at", { ascending: false })
       .limit(1);
@@ -567,12 +688,18 @@ async function executeUpdateOrder(
   const { data: orders, error: fetchErr } = await query;
   if (fetchErr || !orders?.length) {
     console.error("Update order lookup error:", fetchErr);
-    return JSON.stringify({ success: false, error: "No active order found to update." });
+    return JSON.stringify({
+      success: false,
+      error: "No active order found to update.",
+    });
   }
 
   const order = orders[0];
   if (["cancelled", "delivered", "shipped"].includes(order.status)) {
-    return JSON.stringify({ success: false, error: `Order ${order.order_number} is ${order.status} and cannot be updated.` });
+    return JSON.stringify({
+      success: false,
+      error: `Order ${order.order_number} is ${order.status} and cannot be updated.`,
+    });
   }
 
   const updateData: any = {};
@@ -583,7 +710,9 @@ async function executeUpdateOrder(
   if (args.items && args.items.length > 0) {
     updateData.items = args.items;
     updateData.total = args.items.reduce(
-      (sum: number, item: any) => sum + (item.price || 0) * (item.quantity || 1), 0
+      (sum: number, item: any) =>
+        sum + (item.price || 0) * (item.quantity || 1),
+      0
     );
   }
 
@@ -607,11 +736,18 @@ async function executeUpdateOrder(
   if (args.phone) convoUpdate.customer_phone = args.phone;
   if (args.address) convoUpdate.customer_address = args.address;
   if (Object.keys(convoUpdate).length > 0) {
-    await supabase.from("conversations").update(convoUpdate).eq("id", conversationId);
+    await supabase
+      .from("conversations")
+      .update(convoUpdate)
+      .eq("id", conversationId);
   }
 
   // Notify store owner
-  const { data: store } = await supabase.from("stores").select("user_id").eq("id", storeId).single();
+  const { data: store } = await supabase
+    .from("stores")
+    .select("user_id")
+    .eq("id", storeId)
+    .single();
   if (store) {
     const changes = Object.keys(updateData).join(", ");
     await supabase.from("notifications").insert({
@@ -622,7 +758,11 @@ async function executeUpdateOrder(
     });
   }
 
-  console.log(`Order updated: ${order.order_number}, fields: ${Object.keys(updateData).join(", ")}`);
+  console.log(
+    `Order updated: ${order.order_number}, fields: ${Object.keys(
+      updateData
+    ).join(", ")}`
+  );
   return JSON.stringify({
     success: true,
     order_number: order.order_number,
@@ -642,7 +782,8 @@ async function executeCheckOrderStatus(
   if (args.order_number) {
     query = query.eq("order_number", args.order_number);
   } else {
-    query = query.eq("conversation_id", conversationId)
+    query = query
+      .eq("conversation_id", conversationId)
       .order("created_at", { ascending: false })
       .limit(5);
   }
@@ -666,7 +807,9 @@ async function executeCheckOrderStatus(
     updated_at: o.updated_at,
   }));
 
-  console.log(`Order status checked: ${result.map((o: any) => o.order_number).join(", ")}`);
+  console.log(
+    `Order status checked: ${result.map((o: any) => o.order_number).join(", ")}`
+  );
   return JSON.stringify({ success: true, orders: result });
 }
 
@@ -677,7 +820,9 @@ async function executeSearchProducts(
 ): Promise<string> {
   let query = supabase
     .from("products")
-    .select("id, name, description, price, compare_price, stock, category, images, variants, sku")
+    .select(
+      "id, name, description, price, compare_price, stock, category, images, variants, sku"
+    )
     .eq("store_id", storeId)
     .eq("active", true);
 
@@ -698,7 +843,10 @@ async function executeSearchProducts(
   const { data: products, error } = await query;
   if (error) {
     console.error("Search products error:", error);
-    return JSON.stringify({ success: false, error: "Failed to search products." });
+    return JSON.stringify({
+      success: false,
+      error: "Failed to search products.",
+    });
   }
 
   let results = products || [];
@@ -706,9 +854,10 @@ async function executeSearchProducts(
   // Client-side keyword filter on name + description
   if (args.query) {
     const q = args.query.toLowerCase();
-    results = results.filter((p: any) =>
-      (p.name || "").toLowerCase().includes(q) ||
-      (p.description || "").toLowerCase().includes(q)
+    results = results.filter(
+      (p: any) =>
+        (p.name || "").toLowerCase().includes(q) ||
+        (p.description || "").toLowerCase().includes(q)
     );
   }
 
@@ -728,8 +877,16 @@ async function executeSearchProducts(
     sku: p.sku || "",
   }));
 
-  console.log(`Search products: query="${args.query || ""}", category="${args.category || ""}", found ${formatted.length} results`);
-  return JSON.stringify({ success: true, products: formatted, total_results: formatted.length });
+  console.log(
+    `Search products: query="${args.query || ""}", category="${
+      args.category || ""
+    }", found ${formatted.length} results`
+  );
+  return JSON.stringify({
+    success: true,
+    products: formatted,
+    total_results: formatted.length,
+  });
 }
 
 async function executeListCategories(
@@ -744,11 +901,17 @@ async function executeListCategories(
 
   if (error) {
     console.error("List categories error:", error);
-    return JSON.stringify({ success: false, error: "Failed to list categories." });
+    return JSON.stringify({
+      success: false,
+      error: "Failed to list categories.",
+    });
   }
 
-  const categoryMap: Record<string, { count: number; min_price: number; max_price: number }> = {};
-  for (const p of (products || [])) {
+  const categoryMap: Record<
+    string,
+    { count: number; min_price: number; max_price: number }
+  > = {};
+  for (const p of products || []) {
     const cat = p.category || "General";
     if (!categoryMap[cat]) {
       categoryMap[cat] = { count: 0, min_price: p.price, max_price: p.price };
@@ -765,8 +928,14 @@ async function executeListCategories(
   }));
 
   const totalProducts = (products || []).length;
-  console.log(`List categories: ${categories.length} categories, ${totalProducts} total products`);
-  return JSON.stringify({ success: true, categories, total_products: totalProducts });
+  console.log(
+    `List categories: ${categories.length} categories, ${totalProducts} total products`
+  );
+  return JSON.stringify({
+    success: true,
+    categories,
+    total_products: totalProducts,
+  });
 }
 
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
@@ -778,12 +947,21 @@ function sanitizeAIResponse(text: string): string {
   // Collapse repeated emojis (more than 2 of the same emoji in a row)
   clean = clean.replace(/([\u{1F000}-\u{1FFFF}])\1{2,}/gu, "$1");
   // Remove lines that look like code (starting with //, #!, import, const, let, var, function, return, etc.)
-  clean = clean.split("\n").filter(line => {
-    const trimmed = line.trim();
-    return !trimmed.startsWith("//") && !trimmed.startsWith("#!") &&
-      !trimmed.startsWith("import ") && !trimmed.startsWith("export ") &&
-      !/^(const |let |var |function |return |if |for |while |class )/.test(trimmed);
-  }).join("\n");
+  clean = clean
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trim();
+      return (
+        !trimmed.startsWith("//") &&
+        !trimmed.startsWith("#!") &&
+        !trimmed.startsWith("import ") &&
+        !trimmed.startsWith("export ") &&
+        !/^(const |let |var |function |return |if |for |while |class )/.test(
+          trimmed
+        )
+      );
+    })
+    .join("\n");
   // Collapse excessive whitespace
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
   // If after cleaning the response is empty or too short, return a fallback
@@ -821,11 +999,17 @@ async function generateAIReply(
   platform: string,
   existingOrders: any[]
 ): Promise<AIReplyResult> {
-  const emptyResult = (text: string): AIReplyResult => ({ text: sanitizeAIResponse(text), images: [] });
+  const emptyResult = (text: string): AIReplyResult => ({
+    text: sanitizeAIResponse(text),
+    images: [],
+  });
   const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
   if (!LOVABLE_API_KEY) {
     console.warn("LOVABLE_API_KEY not set, using fallback message");
-    return emptyResult(aiSettings?.fallback_message || "Thanks for your message! Our team will get back to you shortly.");
+    return emptyResult(
+      aiSettings?.fallback_message ||
+        "Thanks for your message! Our team will get back to you shortly."
+    );
   }
 
   const toneMap: Record<string, string> = {
@@ -841,18 +1025,39 @@ async function generateAIReply(
 
   let languageInstruction = "";
   if (language === "ar") languageInstruction = "Always respond in Arabic.";
-  else if (language === "en") languageInstruction = "Always respond in English.";
-  else languageInstruction = "Detect the customer's language and respond in the same language (Arabic or English).";
+  else if (language === "en")
+    languageInstruction = "Always respond in English.";
+  else
+    languageInstruction =
+      "Detect the customer's language and respond in the same language (Arabic or English).";
 
-  const ordersContext = existingOrders.length > 0
-    ? `\n\nExisting Orders for this conversation:\n${existingOrders.map(o => `- ${o.order_number} | Status: ${o.status} | Customer: ${o.customer_name} | Items: ${JSON.stringify(o.items)} | Total: ${o.total} | Phone: ${o.phone || "N/A"} | Address: ${o.address || "N/A"} | Notes: ${o.notes || "N/A"}`).join("\n")}`
-    : "\n\nNo existing orders for this conversation.";
+  const ordersContext =
+    existingOrders.length > 0
+      ? `\n\nExisting Orders for this conversation:\n${existingOrders
+          .map(
+            (o) =>
+              `- ${o.order_number} | Status: ${o.status} | Customer: ${
+                o.customer_name
+              } | Items: ${JSON.stringify(o.items)} | Total: ${
+                o.total
+              } | Phone: ${o.phone || "N/A"} | Address: ${
+                o.address || "N/A"
+              } | Notes: ${o.notes || "N/A"}`
+          )
+          .join("\n")}`
+      : "\n\nNo existing orders for this conversation.";
 
   const customInstructions = aiSettings?.ai_instructions || "";
 
-  const systemPrompt = `You are ${personaName}, an AI sales assistant for "${storeInfo.name}".
+  const systemPrompt = `You are ${personaName}, an AI sales assistant for "${
+    storeInfo.name
+  }".
 Your tone is ${toneDesc}. ${languageInstruction}
-${customInstructions ? `\nCustom Store Instructions:\n${customInstructions}\n` : ""}
+${
+  customInstructions
+    ? `\nCustom Store Instructions:\n${customInstructions}\n`
+    : ""
+}
 Store Information:
 - Name: ${storeInfo.name}
 - Category: ${storeInfo.category || "General"}
@@ -936,7 +1141,8 @@ PRODUCT IMAGES RULES:
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
-    const isImg = typeof msg.content === "string" && msg.content.startsWith("📷 ");
+    const isImg =
+      typeof msg.content === "string" && msg.content.startsWith("📷 ");
     chatMessages.push({
       role: msg.sender === "customer" ? "user" : "assistant",
       content: isImg ? "Customer sent an image." : msg.content,
@@ -963,7 +1169,15 @@ PRODUCT IMAGES RULES:
     chatMessages.push({ role: "user", content: customerMessage });
   }
 
-  const allTools = [ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL, SEARCH_PRODUCTS_TOOL, LIST_CATEGORIES_TOOL];
+  const allTools = [
+    ORDER_TOOL,
+    CANCEL_ORDER_TOOL,
+    UPDATE_ORDER_TOOL,
+    CHECK_ORDER_STATUS_TOOL,
+    SEND_PRODUCT_IMAGES_TOOL,
+    SEARCH_PRODUCTS_TOOL,
+    LIST_CATEGORIES_TOOL,
+  ];
 
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
   let currentMessages = [...chatMessages];
@@ -972,37 +1186,54 @@ PRODUCT IMAGES RULES:
 
   try {
     for (let round = 0; round < maxRounds; round++) {
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: currentMessages,
-          tools: allTools,
-        }),
-      });
+      const response = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "google/gemini-3-flash-preview",
+            messages: currentMessages,
+            tools: allTools,
+          }),
+        }
+      );
 
       if (response.status === 429 || response.status === 402) {
         console.warn("AI rate limited or credits exhausted, using fallback");
-        return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
+        return emptyResult(
+          aiSettings?.fallback_message ||
+            "Thanks for your message! We'll get back to you shortly."
+        );
       }
 
       if (!response.ok) {
         const errText = await response.text();
         console.error("AI gateway error:", response.status, errText);
-        return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
+        return emptyResult(
+          aiSettings?.fallback_message ||
+            "Thanks for your message! We'll get back to you shortly."
+        );
       }
 
       const data = await response.json();
       const choice = data.choices?.[0];
-      console.log(`AI response round ${round + 1} - finish_reason: ${choice?.finish_reason}, tool_calls: ${choice?.message?.tool_calls?.length || 0}`);
+      console.log(
+        `AI response round ${round + 1} - finish_reason: ${
+          choice?.finish_reason
+        }, tool_calls: ${choice?.message?.tool_calls?.length || 0}`
+      );
 
       // If no tool calls, return the text response
       if (!choice?.message?.tool_calls?.length) {
-        const text = sanitizeAIResponse(choice?.message?.content || aiSettings?.fallback_message || "Thanks for your message!");
+        const text = sanitizeAIResponse(
+          choice?.message?.content ||
+            aiSettings?.fallback_message ||
+            "Thanks for your message!"
+        );
         return { text, images: allImageesToSend };
       }
 
@@ -1011,31 +1242,62 @@ PRODUCT IMAGES RULES:
       const toolResults: any[] = [];
 
       for (const tc of toolCalls) {
-        const args = typeof tc.function.arguments === "string"
-          ? JSON.parse(tc.function.arguments)
-          : tc.function.arguments;
+        const args =
+          typeof tc.function.arguments === "string"
+            ? JSON.parse(tc.function.arguments)
+            : tc.function.arguments;
 
         let result: string;
         if (tc.function?.name === "create_order") {
           console.log("AI triggered create_order:", JSON.stringify(args));
-          result = await executeCreateOrder(supabase, storeId, conversationId, platform, args);
+          result = await executeCreateOrder(
+            supabase,
+            storeId,
+            conversationId,
+            platform,
+            args
+          );
         } else if (tc.function?.name === "cancel_order") {
           console.log("AI triggered cancel_order:", JSON.stringify(args));
-          result = await executeCancelOrder(supabase, storeId, conversationId, args);
+          result = await executeCancelOrder(
+            supabase,
+            storeId,
+            conversationId,
+            args
+          );
         } else if (tc.function?.name === "update_order") {
           console.log("AI triggered update_order:", JSON.stringify(args));
-          result = await executeUpdateOrder(supabase, storeId, conversationId, args);
+          result = await executeUpdateOrder(
+            supabase,
+            storeId,
+            conversationId,
+            args
+          );
         } else if (tc.function?.name === "check_order_status") {
           console.log("AI triggered check_order_status:", JSON.stringify(args));
-          result = await executeCheckOrderStatus(supabase, storeId, conversationId, args);
+          result = await executeCheckOrderStatus(
+            supabase,
+            storeId,
+            conversationId,
+            args
+          );
         } else if (tc.function?.name === "send_product_images") {
-          console.log("AI triggered send_product_images:", JSON.stringify(args));
+          console.log(
+            "AI triggered send_product_images:",
+            JSON.stringify(args)
+          );
           for (const p of args.products || []) {
             if (p.image_url) {
-              allImageesToSend.push({ url: p.image_url, caption: p.caption || p.product_name || "" });
+              allImageesToSend.push({
+                url: p.image_url,
+                caption: p.caption || p.product_name || "",
+              });
             }
           }
-          result = JSON.stringify({ success: true, images_queued: allImageesToSend.length });
+          result = JSON.stringify({
+            success: true,
+            images_queued: allImageesToSend.length,
+          });
         } else if (tc.function?.name === "search_products") {
           console.log("AI triggered search_products:", JSON.stringify(args));
           result = await executeSearchProducts(supabase, storeId, args);
@@ -1054,21 +1316,23 @@ PRODUCT IMAGES RULES:
       }
 
       // Add assistant message + tool results for the next round
-      currentMessages = [
-        ...currentMessages,
-        choice.message,
-        ...toolResults,
-      ];
+      currentMessages = [...currentMessages, choice.message, ...toolResults];
 
       // Images are accumulated in allImageesToSend across rounds
       // Continue to next round to let AI compose a text response
     }
 
     // If we exhausted all rounds, return last content
-    return { text: sanitizeAIResponse("Thanks for your message! How can I help you?"), images: allImageesToSend };
+    return {
+      text: sanitizeAIResponse("Thanks for your message! How can I help you?"),
+      images: allImageesToSend,
+    };
   } catch (err) {
     console.error("AI generation error:", err);
-    return emptyResult(aiSettings?.fallback_message || "Thanks for your message! We'll get back to you shortly.");
+    return emptyResult(
+      aiSettings?.fallback_message ||
+        "Thanks for your message! We'll get back to you shortly."
+    );
   }
 }
 
@@ -1086,7 +1350,8 @@ Deno.serve(async (req) => {
     const token = url.searchParams.get("hub.verify_token");
     const challenge = url.searchParams.get("hub.challenge");
 
-    const VERIFY_TOKEN = Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024";
+    const VERIFY_TOKEN =
+      Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024";
 
     if (mode === "subscribe" && token === VERIFY_TOKEN) {
       console.log("Webhook verified for platform:", queryPlatform);
@@ -1103,14 +1368,20 @@ Deno.serve(async (req) => {
     const isValid = await verifyMetaSignature(req, bodyText);
     if (!isValid) {
       console.error("Invalid webhook signature");
-      return new Response("Invalid signature", { status: 401, headers: corsHeaders });
+      return new Response("Invalid signature", {
+        status: 401,
+        headers: corsHeaders,
+      });
     }
 
     const body = JSON.parse(bodyText);
 
     // Auto-detect platform from payload
     const platform = detectPlatform(body, queryPlatform);
-    console.log(`[${platform}] Webhook received (object: ${body?.object}):`, JSON.stringify(body).slice(0, 500));
+    console.log(
+      `[${platform}] Webhook received (object: ${body?.object}):`,
+      JSON.stringify(body).slice(0, 500)
+    );
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1141,20 +1412,26 @@ Deno.serve(async (req) => {
               sender: messaging.sender?.id || "unknown",
               text: messaging.message.text,
               platformId: messaging.sender?.id || "",
-              timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+              timestamp: new Date(
+                messaging.timestamp || Date.now()
+              ).toISOString(),
               pageId,
               platformMessageId: messaging.message?.mid || undefined,
               kind: "text",
             });
           } else if (messaging.message?.attachments?.length > 0) {
-            const imgAtt = (messaging.message.attachments || []).find((a: any) => a?.type === "image");
+            const imgAtt = (messaging.message.attachments || []).find(
+              (a: any) => a?.type === "image"
+            );
             if (imgAtt) {
               messages.push({
                 platform: "facebook",
                 sender: messaging.sender?.id || "unknown",
                 text: "[Image]",
                 platformId: messaging.sender?.id || "",
-                timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+                timestamp: new Date(
+                  messaging.timestamp || Date.now()
+                ).toISOString(),
                 pageId,
                 platformMessageId: messaging.message?.mid || undefined,
                 kind: "image",
@@ -1183,8 +1460,7 @@ Deno.serve(async (req) => {
               text = "[Image]";
               kind = "image";
               imageUrl = att?.payload?.url || undefined;
-            }
-            else if (att.type === "video") text = "[Video]";
+            } else if (att.type === "video") text = "[Video]";
             else if (att.type === "audio") text = "[Audio]";
             else if (att.type === "file") text = "[File]";
             else if (att.type === "sticker") text = "[Sticker]";
@@ -1203,7 +1479,9 @@ Deno.serve(async (req) => {
             sender: messaging.sender?.id || "unknown",
             text,
             platformId: messaging.sender?.id || "",
-            timestamp: new Date(messaging.timestamp || Date.now()).toISOString(),
+            timestamp: new Date(
+              messaging.timestamp || Date.now()
+            ).toISOString(),
             pageId: igbaId,
             platformMessageId: messaging.message?.mid || undefined,
             kind,
@@ -1249,7 +1527,8 @@ Deno.serve(async (req) => {
       }
     } else if (platform === "whatsapp") {
       for (const entry of body.entry || []) {
-        const phoneNumberId = entry.changes?.[0]?.value?.metadata?.phone_number_id;
+        const phoneNumberId =
+          entry.changes?.[0]?.value?.metadata?.phone_number_id;
         for (const change of entry.changes || []) {
           const waDisplayName =
             change.value?.contacts?.[0]?.profile?.name ||
@@ -1263,7 +1542,9 @@ Deno.serve(async (req) => {
                   sender: msg.from || "unknown",
                   text: msg.text?.body || "",
                   platformId: msg.from || "",
-                  timestamp: new Date(parseInt(msg.timestamp || "0") * 1000).toISOString(),
+                  timestamp: new Date(
+                    parseInt(msg.timestamp || "0") * 1000
+                  ).toISOString(),
                   pageId: phoneNumberId,
                   platformMessageId: msg.id || undefined,
                   displayName: waDisplayName || undefined,
@@ -1275,7 +1556,9 @@ Deno.serve(async (req) => {
                   sender: msg.from || "unknown",
                   text: "[Image]",
                   platformId: msg.from || "",
-                  timestamp: new Date(parseInt(msg.timestamp || "0") * 1000).toISOString(),
+                  timestamp: new Date(
+                    parseInt(msg.timestamp || "0") * 1000
+                  ).toISOString(),
                   pageId: phoneNumberId,
                   platformMessageId: msg.id || undefined,
                   displayName: waDisplayName || undefined,
@@ -1309,7 +1592,10 @@ Deno.serve(async (req) => {
           .limit(2);
 
         if (directConnError) {
-          console.error(`[${platform}] Failed to look up connection for page ${msg.pageId}:`, directConnError);
+          console.error(
+            `[${platform}] Failed to look up connection for page ${msg.pageId}:`,
+            directConnError
+          );
           continue;
         }
 
@@ -1317,11 +1603,16 @@ Deno.serve(async (req) => {
           const conn = directConns![0];
           connectionId = conn.id;
           storeId = conn.store_id;
-          pageAccessToken = (conn.credentials as any)?.page_access_token || null;
+          pageAccessToken =
+            (conn.credentials as any)?.page_access_token || null;
           connectionPageId = conn.page_id;
-          console.log(`[${platform}] Found connection for page ${msg.pageId} (platform: ${conn.platform}), store: ${storeId}`);
+          console.log(
+            `[${platform}] Found connection for page ${msg.pageId} (platform: ${conn.platform}), store: ${storeId}`
+          );
         } else if ((directConns?.length || 0) > 1) {
-          console.error(`[${platform}] Multiple connected stores found for page ${msg.pageId}. Ignoring message to prevent cross-store routing.`);
+          console.error(
+            `[${platform}] Multiple connected stores found for page ${msg.pageId}. Ignoring message to prevent cross-store routing.`
+          );
           continue;
         } else if (platform === "instagram") {
           // Instagram webhooks may use either IG business account ID or the linked Facebook page ID.
@@ -1332,64 +1623,95 @@ Deno.serve(async (req) => {
             .eq("status", "connected");
 
           if (igConnError) {
-            console.error(`[${platform}] Failed Instagram fallback lookup for page ${msg.pageId}:`, igConnError);
+            console.error(
+              `[${platform}] Failed Instagram fallback lookup for page ${msg.pageId}:`,
+              igConnError
+            );
             continue;
           }
 
           const matchingIgConns = (igConns || []).filter((c) => {
             const creds = c.credentials as any;
-            return creds?.facebook_page_id === msg.pageId ||
+            return (
+              creds?.facebook_page_id === msg.pageId ||
               creds?.instagram_business_account_id === msg.pageId ||
-              c.page_id === msg.pageId;
+              c.page_id === msg.pageId
+            );
           });
 
           if (matchingIgConns.length === 1) {
             const igConn = matchingIgConns[0];
             connectionId = igConn.id;
             storeId = igConn.store_id;
-            pageAccessToken = (igConn.credentials as any)?.page_access_token || null;
+            pageAccessToken =
+              (igConn.credentials as any)?.page_access_token || null;
             connectionPageId = igConn.page_id;
-            console.log(`[${platform}] Found Instagram connection via fallback lookup, store: ${storeId}`);
+            console.log(
+              `[${platform}] Found Instagram connection via fallback lookup, store: ${storeId}`
+            );
           } else if (matchingIgConns.length > 1) {
-            console.error(`[${platform}] Multiple Instagram stores matched page ${msg.pageId}. Ignoring message to prevent cross-store routing.`);
+            console.error(
+              `[${platform}] Multiple Instagram stores matched page ${msg.pageId}. Ignoring message to prevent cross-store routing.`
+            );
             continue;
           } else {
-            console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
+            console.warn(
+              `[${platform}] No connected page found for page_id: ${msg.pageId}`
+            );
           }
         } else {
-          console.warn(`[${platform}] No connected page found for page_id: ${msg.pageId}`);
+          console.warn(
+            `[${platform}] No connected page found for page_id: ${msg.pageId}`
+          );
         }
       }
 
       if (!storeId) {
-        console.warn(`[${platform}] Ignoring incoming message for unconnected page ${msg.pageId || "unknown"}`);
+        console.warn(
+          `[${platform}] Ignoring incoming message for unconnected page ${
+            msg.pageId || "unknown"
+          }`
+        );
         continue;
       }
 
       // Find or create conversation within the resolved store only
-      const { data: existingConversations, error: conversationLookupError } = await supabase
-        .from("conversations")
-        .select("*")
-        .eq("store_id", storeId)
-        .eq("platform_conversation_id", msg.platformId)
-        .eq("platform", msg.platform)
-        .order("created_at", { ascending: false })
-        .limit(5);
+      const { data: existingConversations, error: conversationLookupError } =
+        await supabase
+          .from("conversations")
+          .select("*")
+          .eq("store_id", storeId)
+          .eq("platform_conversation_id", msg.platformId)
+          .eq("platform", msg.platform)
+          .order("created_at", { ascending: false })
+          .limit(5);
 
       if (conversationLookupError) {
-        console.error(`[${platform}] Error looking up conversation for store ${storeId}:`, conversationLookupError);
+        console.error(
+          `[${platform}] Error looking up conversation for store ${storeId}:`,
+          conversationLookupError
+        );
         continue;
       }
 
-      let conversation = (existingConversations || []).find((c: any) => msg.pageId && c.page_id === msg.pageId)
-        || (existingConversations || []).find((c: any) => !c.page_id)
-        || (existingConversations || [])[0];
+      let conversation =
+        (existingConversations || []).find(
+          (c: any) => msg.pageId && c.page_id === msg.pageId
+        ) ||
+        (existingConversations || []).find((c: any) => !c.page_id) ||
+        (existingConversations || [])[0];
 
       if (!conversation) {
         const displayName =
           msg.displayName ||
-          (msg.platform === "whatsapp" && msg.sender && msg.sender !== "unknown" ? msg.sender : null) ||
-          (await fetchMetaDisplayName(msg.platform, msg.sender, pageAccessToken)) ||
+          (msg.platform === "whatsapp" && msg.sender && msg.sender !== "unknown"
+            ? msg.sender
+            : null) ||
+          (await fetchMetaDisplayName(
+            msg.platform,
+            msg.sender,
+            pageAccessToken
+          )) ||
           `Customer ${msg.platformId.slice(-4)}`;
 
         const { data: newConvo, error: convoErr } = await supabase
@@ -1415,12 +1737,18 @@ Deno.serve(async (req) => {
         conversation = newConvo;
       } else {
         // Update page_id if missing, and improve placeholder customer_name if we can
-        const updateData: any = { last_message: msg.text, last_message_time: msg.timestamp, unread: true };
+        const updateData: any = {
+          last_message: msg.text,
+          last_message_time: msg.timestamp,
+          unread: true,
+        };
         if (msg.pageId && !conversation.page_id) {
           updateData.page_id = msg.pageId;
         }
 
-        const currentName = (conversation.customer_name || "").toString().trim();
+        const currentName = (conversation.customer_name || "")
+          .toString()
+          .trim();
         const looksLikePlaceholder =
           currentName.length === 0 ||
           /^Customer\s+\w{1,10}$/i.test(currentName) ||
@@ -1429,8 +1757,16 @@ Deno.serve(async (req) => {
         if (looksLikePlaceholder) {
           const betterName =
             msg.displayName ||
-            (msg.platform === "whatsapp" && msg.sender && msg.sender !== "unknown" ? msg.sender : null) ||
-            (await fetchMetaDisplayName(msg.platform, msg.sender, pageAccessToken));
+            (msg.platform === "whatsapp" &&
+            msg.sender &&
+            msg.sender !== "unknown"
+              ? msg.sender
+              : null) ||
+            (await fetchMetaDisplayName(
+              msg.platform,
+              msg.sender,
+              pageAccessToken
+            ));
           if (betterName) updateData.customer_name = betterName;
         }
 
@@ -1456,7 +1792,7 @@ Deno.serve(async (req) => {
               text: msg.text,
               mediaId: msg.mediaId || "",
               imageUrl: msg.imageUrl || "",
-            }),
+            })
           )}`;
 
       const { data: alreadySeen, error: seenErr } = await supabase
@@ -1472,7 +1808,9 @@ Deno.serve(async (req) => {
       }
 
       if (alreadySeen?.id) {
-        console.log(`[${platform}] Duplicate webhook delivery ignored: ${inferredPlatformMessageId}`);
+        console.log(
+          `[${platform}] Duplicate webhook delivery ignored: ${inferredPlatformMessageId}`
+        );
         continue;
       }
 
@@ -1488,16 +1826,30 @@ Deno.serve(async (req) => {
           if (downloaded) {
             const ext = fileExtFromContentType(downloaded.contentType);
             const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
-            publicUrl = await uploadToStoreAssets(supabase, filePath, downloaded.bytes, downloaded.contentType);
+            publicUrl = await uploadToStoreAssets(
+              supabase,
+              filePath,
+              downloaded.bytes,
+              downloaded.contentType
+            );
           }
         } else if (msg.mediaId && pageAccessToken) {
           const wa = await fetchWhatsAppMediaUrl(msg.mediaId, pageAccessToken);
           if (wa?.url) {
-            const downloaded = await downloadBytes(wa.url, { Authorization: `Bearer ${pageAccessToken}` });
+            const downloaded = await downloadBytes(wa.url, {
+              Authorization: `Bearer ${pageAccessToken}`,
+            });
             if (downloaded) {
-              const ext = fileExtFromContentType(wa.mime_type || downloaded.contentType);
+              const ext = fileExtFromContentType(
+                wa.mime_type || downloaded.contentType
+              );
               const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
-              publicUrl = await uploadToStoreAssets(supabase, filePath, downloaded.bytes, wa.mime_type || downloaded.contentType);
+              publicUrl = await uploadToStoreAssets(
+                supabase,
+                filePath,
+                downloaded.bytes,
+                wa.mime_type || downloaded.contentType
+              );
             }
           }
         }
@@ -1510,33 +1862,53 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { error: insertCustomerErr } = await supabase.from("messages").insert({
-        conversation_id: conversation.id,
-        sender: "customer",
-        content: storedContent,
-        platform_message_id: inferredPlatformMessageId,
-      });
+      const { error: insertCustomerErr } = await supabase
+        .from("messages")
+        .insert({
+          conversation_id: conversation.id,
+          sender: "customer",
+          content: storedContent,
+          platform_message_id: inferredPlatformMessageId,
+        });
 
       if (insertCustomerErr) {
-        console.error(`[${platform}] Failed to insert customer message:`, insertCustomerErr);
+        console.error(
+          `[${platform}] Failed to insert customer message:`,
+          insertCustomerErr
+        );
         continue;
       }
 
       // ─── AI Auto-Reply ───
-      const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] = await Promise.all([
-        supabase.from("stores").select("*").eq("id", storeId).single(),
-        supabase.from("products").select("category, price").eq("store_id", storeId).eq("active", true),
-        supabase.from("ai_settings").select("*").eq("store_id", storeId).maybeSingle(),
-        supabase.from("messages").select("sender, content, created_at")
-          .eq("conversation_id", conversation.id)
-          .order("created_at", { ascending: true })
-          .limit(20),
-        supabase.from("orders").select("order_number, status, customer_name, items, total, phone, address, notes")
-          .eq("conversation_id", conversation.id)
-          .in("status", ["pending", "confirmed", "processing"])
-          .order("created_at", { ascending: false })
-          .limit(5),
-      ]);
+      const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] =
+        await Promise.all([
+          supabase.from("stores").select("*").eq("id", storeId).single(),
+          supabase
+            .from("products")
+            .select("category, price")
+            .eq("store_id", storeId)
+            .eq("active", true),
+          supabase
+            .from("ai_settings")
+            .select("*")
+            .eq("store_id", storeId)
+            .maybeSingle(),
+          supabase
+            .from("messages")
+            .select("sender, content, created_at")
+            .eq("conversation_id", conversation.id)
+            .order("created_at", { ascending: true })
+            .limit(20),
+          supabase
+            .from("orders")
+            .select(
+              "order_number, status, customer_name, items, total, phone, address, notes"
+            )
+            .eq("conversation_id", conversation.id)
+            .in("status", ["pending", "confirmed", "processing"])
+            .order("created_at", { ascending: false })
+            .limit(5),
+        ]);
 
       const storeInfo = storeRes.data;
       const aiSettings = aiSettingsRes.data;
@@ -1545,17 +1917,31 @@ Deno.serve(async (req) => {
 
       // Build lightweight catalog summary (categories + counts) instead of full product list
       const catalogProducts = catalogRes.data || [];
-      const catMap: Record<string, { count: number; min: number; max: number }> = {};
+      const catMap: Record<
+        string,
+        { count: number; min: number; max: number }
+      > = {};
       for (const p of catalogProducts) {
         const cat = p.category || "General";
-        if (!catMap[cat]) catMap[cat] = { count: 0, min: p.price, max: p.price };
+        if (!catMap[cat])
+          catMap[cat] = { count: 0, min: p.price, max: p.price };
         catMap[cat].count++;
         catMap[cat].min = Math.min(catMap[cat].min, p.price);
         catMap[cat].max = Math.max(catMap[cat].max, p.price);
       }
-      const catalogSummary = catalogProducts.length === 0
-        ? "No products available yet."
-        : `Total products: ${catalogProducts.length}\nCategories:\n${Object.entries(catMap).map(([cat, info]) => `- ${cat}: ${info.count} products (${info.min} - ${info.max})`).join("\n")}\n\nIMPORTANT: Use search_products tool to get specific product details. Do NOT guess product names or prices.`;
+      const catalogSummary =
+        catalogProducts.length === 0
+          ? "No products available yet."
+          : `Total products: ${
+              catalogProducts.length
+            }\nCategories:\n${Object.entries(catMap)
+              .map(
+                ([cat, info]) =>
+                  `- ${cat}: ${info.count} products (${info.min} - ${info.max})`
+              )
+              .join(
+                "\n"
+              )}\n\nIMPORTANT: Use search_products tool to get specific product details. Do NOT guess product names or prices.`;
 
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);
@@ -1564,14 +1950,29 @@ Deno.serve(async (req) => {
 
       // Check per-conversation AI auto-reply toggle
       if (conversation.ai_auto_reply === false) {
-        console.log("AI auto-reply disabled for conversation:", conversation.id);
+        console.log(
+          "AI auto-reply disabled for conversation:",
+          conversation.id
+        );
         continue;
       }
 
       const delay = (aiSettings?.response_delay || 2) * 1000;
-      if (delay > 0) await new Promise(r => setTimeout(r, Math.min(delay, 5000)));
+      if (delay > 0)
+        await new Promise((r) => setTimeout(r, Math.min(delay, 5000)));
 
-      const aiResult = await generateAIReply(storedContent, storeInfo, catalogSummary, aiSettings, history, supabase, storeId, conversation.id, msg.platform, existingOrders);
+      const aiResult = await generateAIReply(
+        storedContent,
+        storeInfo,
+        catalogSummary,
+        aiSettings,
+        history,
+        supabase,
+        storeId,
+        conversation.id,
+        msg.platform,
+        existingOrders
+      );
 
       await supabase.from("messages").insert({
         conversation_id: conversation.id,
@@ -1580,26 +1981,46 @@ Deno.serve(async (req) => {
         platform_message_id: null,
       });
 
-      await supabase.from("conversations").update({
-        last_message: aiResult.text,
-        last_message_time: new Date().toISOString(),
-      }).eq("id", conversation.id);
+      await supabase
+        .from("conversations")
+        .update({
+          last_message: aiResult.text,
+          last_message_time: new Date().toISOString(),
+        })
+        .eq("id", conversation.id);
 
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
-        console.log(`[${platform}] Sending reply to ${msg.sender} using stored page token`);
-        await sendMetaReply(msg.platform, msg.sender, aiResult.text, pageAccessToken, connectionPageId || msg.pageId || "");
+        console.log(
+          `[${platform}] Sending reply to ${msg.sender} using stored page token`
+        );
+        await sendMetaReply(
+          msg.platform,
+          msg.sender,
+          aiResult.text,
+          pageAccessToken,
+          connectionPageId || msg.pageId || ""
+        );
 
         // Send product images if any
         for (const img of aiResult.images) {
           try {
-            await sendMetaImage(msg.platform, msg.sender, img.url, img.caption, pageAccessToken, connectionPageId || msg.pageId || "");
+            await sendMetaImage(
+              msg.platform,
+              msg.sender,
+              img.url,
+              img.caption,
+              pageAccessToken,
+              connectionPageId || msg.pageId || ""
+            );
           } catch (imgErr) {
             console.error(`[${platform}] Failed to send image:`, imgErr);
           }
         }
       } else {
-        console.warn(`[${platform}] No page access token found in platform_connections for page ${msg.pageId}, cannot send reply`);
+        console.warn(
+          `[${platform}] No page access token found in platform_connections for page ${msg.pageId}, cannot send reply`
+        );
       }
 
       // Update message count and last_synced_at
@@ -1614,7 +2035,7 @@ Deno.serve(async (req) => {
               .eq("id", connectionId)
               .eq("status", "connected")
               .single()
-              .then(r => r.data?.message_count || 0);
+              .then((r) => r.data?.message_count || 0);
 
             await supabase
               .from("platform_connections")
@@ -1634,7 +2055,7 @@ Deno.serve(async (req) => {
               .eq("page_id", lookupPageId)
               .eq("status", "connected")
               .single()
-              .then(r => r.data?.message_count || 0);
+              .then((r) => r.data?.message_count || 0);
 
             await supabase
               .from("platform_connections")
@@ -1648,15 +2069,21 @@ Deno.serve(async (req) => {
               .eq("status", "connected");
           }
         } catch (countErr) {
-          console.warn(`[${platform}] Failed to update platform_connections stats:`, countErr);
+          console.warn(
+            `[${platform}] Failed to update platform_connections stats:`,
+            countErr
+          );
         }
       }
     }
 
-    return new Response(JSON.stringify({ success: true, processed: messages.length }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ success: true, processed: messages.length }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
   } catch (error) {
     console.error("Webhook error:", error);
     return new Response(JSON.stringify({ error: "Internal error" }), {

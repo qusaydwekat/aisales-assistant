@@ -287,6 +287,8 @@ async function fetchMetaDisplayName(
   if (!pageAccessToken) return null;
   if (!senderId) return null;
 
+  console.log("fetchMetaDisplayName confirm deployed");
+
   // For Facebook/Instagram, we can often resolve the sender profile name via Graph API.
   // If this fails (permissions/token/etc), we fall back to a short placeholder.
   if (platform !== "facebook" && platform !== "instagram") return null;
@@ -952,6 +954,8 @@ async function executeListCategories(
 
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
 function sanitizeAIResponse(text: string): string {
+  console.log("sanitizeAIResponse confirm deployed");
+
   // Remove markdown code blocks
   let clean = text.replace(/```[\s\S]*?```/g, "").replace(/`[^`]+`/g, "");
   // Remove HTML tags

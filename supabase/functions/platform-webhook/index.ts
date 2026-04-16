@@ -1886,7 +1886,7 @@ Deno.serve(async (req) => {
           content: storedContent,
           platform_message_id: inferredPlatformMessageId,
         })
-        .select("created_at")
+        .select("id, created_at")
         .single();
 
       if (insertCustomerErr) {

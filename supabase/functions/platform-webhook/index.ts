@@ -79,7 +79,7 @@ async function uploadToStoreAssets(
   contentType: string | null
 ): Promise<string | null> {
   // Supabase Storage upload is most reliable with Blob in Deno
-  const blob = new Blob([bytes], {
+  const blob = new Blob([bytes as unknown as BlobPart], {
     type: contentType || "application/octet-stream",
   });
 

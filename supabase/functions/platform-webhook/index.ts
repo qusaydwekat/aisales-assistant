@@ -1993,12 +1993,13 @@ Deno.serve(async (req) => {
 
       // After waiting, check if newer customer messages arrived in this conversation.
       // If so, skip replying now — the newest message's webhook invocation will handle the batch.
+      const insertedCreatedAt = insertedMsg?.created_at || new Date().toISOString();
       const { data: newerMsgs } = await supabase
         .from("messages")
         .select("id, created_at")
         .eq("conversation_id", conversation.id)
         .eq("sender", "customer")
-        .gt("created_at", msg.timestamp)
+        .gt("created_at", insertedCreatedAt)
         .limit(1);
 
       if (newerMsgs && newerMsgs.length > 0) {

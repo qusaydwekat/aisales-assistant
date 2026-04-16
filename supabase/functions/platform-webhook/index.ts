@@ -1991,8 +1991,9 @@ Deno.serve(async (req) => {
       const DEBOUNCE_SECONDS = 5;
       await new Promise((r) => setTimeout(r, DEBOUNCE_SECONDS * 1000));
 
-      // After waiting, check if THIS message is still the latest customer message.
-      // If not, skip — only the latest message's invocation should trigger the AI.
+      // After waiting, check if THIS message is the latest customer message.
+      // Only the latest message's webhook invocation should trigger the AI reply.
+      const myMsgId = insertedMsg?.id;
       const { data: latestCustomerMsg } = await supabase
         .from("messages")
         .select("id")
@@ -2002,23 +2003,9 @@ Deno.serve(async (req) => {
         .limit(1)
         .single();
 
-      const insertedMsgId = insertedMsg?.created_at
-        ? (await supabase.from("messages").select("id").eq("conversation_id", conversation.id).eq("sender", "customer").eq("created_at", insertedMsg.created_at).limit(1).single())?.data?.id
-        : null;
-
-      // Compare by checking if there's any customer message newer than ours
-      const insertedCreatedAt = insertedMsg?.created_at || new Date().toISOString();
-      const { data: newerMsgs } = await supabase
-        .from("messages")
-        .select("id")
-        .eq("conversation_id", conversation.id)
-        .eq("sender", "customer")
-        .gt("created_at", insertedCreatedAt)
-        .limit(1);
-
-      if (newerMsgs && newerMsgs.length > 0) {
+      if (latestCustomerMsg?.id !== myMsgId) {
         console.log(
-          `[${platform}] Skipping AI reply — newer customer message exists (debounce). Will let the latest message trigger AI.`
+          `[${platform}] Skipping AI reply — this is not the latest customer message (debounce). My msg: ${myMsgId}, latest: ${latestCustomerMsg?.id}`
         );
         continue;
       }

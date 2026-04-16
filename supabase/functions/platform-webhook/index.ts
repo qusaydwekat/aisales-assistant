@@ -1886,7 +1886,7 @@ Deno.serve(async (req) => {
           content: storedContent,
           platform_message_id: inferredPlatformMessageId,
         })
-        .select("created_at")
+        .select("id, created_at")
         .single();
 
       if (insertCustomerErr) {
@@ -1986,25 +1986,26 @@ Deno.serve(async (req) => {
       }
 
       // ─── Message Batching / Debounce ───
-      // Wait a few seconds so rapid sequential messages from the customer
-      // are treated as a single combined message by the AI.
-      const debounceMs = Math.max((aiSettings?.response_delay || 3) * 1000, 3000);
-      await new Promise((r) => setTimeout(r, Math.min(debounceMs, 8000)));
+      // Wait 5 seconds so rapid sequential messages from the customer
+      // are treated as a single combined prompt by the AI.
+      const DEBOUNCE_SECONDS = 5;
+      await new Promise((r) => setTimeout(r, DEBOUNCE_SECONDS * 1000));
 
-      // After waiting, check if newer customer messages arrived in this conversation.
-      // If so, skip replying now — the newest message's webhook invocation will handle the batch.
-      const insertedCreatedAt = insertedMsg?.created_at || new Date().toISOString();
-      const { data: newerMsgs } = await supabase
+      // After waiting, check if THIS message is the latest customer message.
+      // Only the latest message's webhook invocation should trigger the AI reply.
+      const myMsgId = insertedMsg?.id;
+      const { data: latestCustomerMsg } = await supabase
         .from("messages")
-        .select("id, created_at")
+        .select("id")
         .eq("conversation_id", conversation.id)
         .eq("sender", "customer")
-        .gt("created_at", insertedCreatedAt)
-        .limit(1);
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
 
-      if (newerMsgs && newerMsgs.length > 0) {
+      if (latestCustomerMsg?.id !== myMsgId) {
         console.log(
-          `[${platform}] Skipping AI reply — newer customer message exists (debounce). Will let the latest message trigger AI.`
+          `[${platform}] Skipping AI reply — this is not the latest customer message (debounce). My msg: ${myMsgId}, latest: ${latestCustomerMsg?.id}`
         );
         continue;
       }

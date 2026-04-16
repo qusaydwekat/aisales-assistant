@@ -1878,14 +1878,16 @@ Deno.serve(async (req) => {
         }
       }
 
-      const { error: insertCustomerErr } = await supabase
+      const { data: insertedMsg, error: insertCustomerErr } = await supabase
         .from("messages")
         .insert({
           conversation_id: conversation.id,
           sender: "customer",
           content: storedContent,
           platform_message_id: inferredPlatformMessageId,
-        });
+        })
+        .select("created_at")
+        .single();
 
       if (insertCustomerErr) {
         console.error(

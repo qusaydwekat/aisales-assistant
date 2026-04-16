@@ -79,7 +79,7 @@ async function uploadToStoreAssets(
   contentType: string | null
 ): Promise<string | null> {
   // Supabase Storage upload is most reliable with Blob in Deno
-  const blob = new Blob([bytes], {
+  const blob = new Blob([bytes as unknown as BlobPart], {
     type: contentType || "application/octet-stream",
   });
 
@@ -1983,16 +1983,55 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const delay = (aiSettings?.response_delay || 2) * 1000;
-      if (delay > 0)
-        await new Promise((r) => setTimeout(r, Math.min(delay, 5000)));
+      // ─── Message Batching / Debounce ───
+      // Wait a few seconds so rapid sequential messages from the customer
+      // are treated as a single combined message by the AI.
+      const debounceMs = Math.max((aiSettings?.response_delay || 3) * 1000, 3000);
+      await new Promise((r) => setTimeout(r, Math.min(debounceMs, 8000)));
+
+      // After waiting, check if newer customer messages arrived in this conversation.
+      // If so, skip replying now — the newest message's webhook invocation will handle the batch.
+      const { data: newerMsgs } = await supabase
+        .from("messages")
+        .select("id, created_at")
+        .eq("conversation_id", conversation.id)
+        .eq("sender", "customer")
+        .gt("created_at", msg.timestamp)
+        .limit(1);
+
+      if (newerMsgs && newerMsgs.length > 0) {
+        console.log(
+          `[${platform}] Skipping AI reply — newer customer message exists (debounce). Will let the latest message trigger AI.`
+        );
+        continue;
+      }
+
+      // Re-fetch conversation history after debounce to include all batched messages
+      const { data: freshHistory } = await supabase
+        .from("messages")
+        .select("sender, content, created_at")
+        .eq("conversation_id", conversation.id)
+        .order("created_at", { ascending: true })
+        .limit(20);
+
+      // Combine recent consecutive customer messages into one for the AI prompt
+      const allHistory = freshHistory || history;
+      const recentCustomerTexts: string[] = [];
+      for (let i = allHistory.length - 1; i >= 0; i--) {
+        if (allHistory[i].sender === "customer") {
+          recentCustomerTexts.unshift(allHistory[i].content);
+        } else {
+          break; // stop at the last non-customer message
+        }
+      }
+      const combinedCustomerMessage = recentCustomerTexts.join("\n");
 
       const aiResult = await generateAIReply(
-        storedContent,
+        combinedCustomerMessage,
         storeInfo,
         catalogSummary,
         aiSettings,
-        history,
+        allHistory,
         supabase,
         storeId,
         conversation.id,

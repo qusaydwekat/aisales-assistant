@@ -1992,7 +1992,7 @@ Deno.serve(async (req) => {
       // silently (they don't reply at all — the last one replies for them).
       const DEBOUNCE_SECONDS = 5;
       const myMsgId = insertedMsg?.id;
-      const myCreatedAt = insertedCreatedAt;
+      const myCreatedAt = insertedMsg?.created_at || new Date().toISOString();
 
       let shouldProceed = true;
       let waitMs = DEBOUNCE_SECONDS * 1000;

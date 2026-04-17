@@ -1197,11 +1197,28 @@ PRODUCT IMAGES RULES:
 
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
   let currentMessages = [...chatMessages];
-  const maxRounds = 3;
+  const maxRounds = 5;
   const allImageesToSend: { url: string; caption: string }[] = [];
 
   try {
     for (let round = 0; round < maxRounds; round++) {
+      const isFinalRound = round === maxRounds - 1;
+      // On the final round, force a text-only response (no more tool calls)
+      const requestBody: any = {
+        model: "google/gemini-3-flash-preview",
+        messages: isFinalRound
+          ? [
+              ...currentMessages,
+              {
+                role: "system",
+                content:
+                  "You have gathered enough information. Now respond to the customer in natural language. Do NOT call any more tools.",
+              },
+            ]
+          : currentMessages,
+      };
+      if (!isFinalRound) requestBody.tools = allTools;
+
       const response = await fetch(
         "https://ai.gateway.lovable.dev/v1/chat/completions",
         {
@@ -1210,13 +1227,10 @@ PRODUCT IMAGES RULES:
             Authorization: `Bearer ${LOVABLE_API_KEY}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            model: "google/gemini-3-flash-preview",
-            messages: currentMessages,
-            tools: allTools,
-          }),
+          body: JSON.stringify(requestBody),
         }
       );
+
 
       if (response.status === 429 || response.status === 402) {
         console.warn("AI rate limited or credits exhausted, using fallback");

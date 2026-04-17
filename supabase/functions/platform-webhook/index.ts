@@ -1985,30 +1985,48 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Message Batching / Debounce ───
-      // Wait 5 seconds so rapid sequential messages from the customer
-      // are treated as a single combined prompt by the AI.
+      // ─── Sliding-window Message Batching ───
+      // Wait up to 5s. If a new customer message arrives during the wait,
+      // reset the timer. Only the LAST webhook invocation will proceed and
+      // combine all messages into one AI reply. Earlier invocations exit
+      // silently (they don't reply at all — the last one replies for them).
       const DEBOUNCE_SECONDS = 5;
-      await new Promise((r) => setTimeout(r, DEBOUNCE_SECONDS * 1000));
-
-      // After waiting, check if THIS message is the latest customer message.
-      // Only the latest message's webhook invocation should trigger the AI reply.
       const myMsgId = insertedMsg?.id;
-      const { data: latestCustomerMsg } = await supabase
-        .from("messages")
-        .select("id")
-        .eq("conversation_id", conversation.id)
-        .eq("sender", "customer")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single();
+      const myCreatedAt = insertedCreatedAt;
 
-      if (latestCustomerMsg?.id !== myMsgId) {
-        console.log(
-          `[${platform}] Skipping AI reply — this is not the latest customer message (debounce). My msg: ${myMsgId}, latest: ${latestCustomerMsg?.id}`
-        );
-        continue;
+      let shouldProceed = true;
+      let waitMs = DEBOUNCE_SECONDS * 1000;
+      const maxTotalWaitMs = 20000;
+      let totalWaited = 0;
+      let lastSeenCreatedAt = myCreatedAt;
+
+      while (waitMs > 0 && totalWaited < maxTotalWaitMs) {
+        const chunk = Math.min(waitMs, 1000);
+        await new Promise((r) => setTimeout(r, chunk));
+        totalWaited += chunk;
+        waitMs -= chunk;
+
+        const { data: newer } = await supabase
+          .from("messages")
+          .select("id, created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("sender", "customer")
+          .gt("created_at", lastSeenCreatedAt)
+          .order("created_at", { ascending: false })
+          .limit(1);
+
+        if (newer && newer.length > 0) {
+          // A newer customer message arrived → that webhook will handle the reply.
+          // This invocation steps aside.
+          shouldProceed = false;
+          console.log(
+            `[${platform}] Newer message ${newer[0].id} arrived during debounce — yielding to it. My msg: ${myMsgId}`
+          );
+          break;
+        }
       }
+
+      if (!shouldProceed) continue;
 
       // Re-fetch conversation history after debounce to include all batched messages
       const { data: freshHistory } = await supabase

@@ -1986,47 +1986,53 @@ Deno.serve(async (req) => {
       }
 
       // ─── Sliding-window Message Batching ───
-      // Wait up to 5s. If a new customer message arrives during the wait,
-      // reset the timer. Only the LAST webhook invocation will proceed and
-      // combine all messages into one AI reply. Earlier invocations exit
-      // silently (they don't reply at all — the last one replies for them).
-      const DEBOUNCE_SECONDS = 5;
+      // Wait until there has been QUIET_MS of silence after the latest
+      // customer message. Only the webhook whose message ends up being the
+      // latest after the quiet period proceeds; all others yield silently.
+      const QUIET_MS = 5000;
+      const MAX_TOTAL_WAIT_MS = 25000;
+      const POLL_MS = 700;
       const myMsgId = insertedMsg?.id;
-      const myCreatedAt = insertedMsg?.created_at || new Date().toISOString();
 
       let shouldProceed = true;
-      let waitMs = DEBOUNCE_SECONDS * 1000;
-      const maxTotalWaitMs = 20000;
-      let totalWaited = 0;
-      let lastSeenCreatedAt = myCreatedAt;
+      const startedAt = Date.now();
+      let lastActivityAt = Date.now();
 
-      while (waitMs > 0 && totalWaited < maxTotalWaitMs) {
-        const chunk = Math.min(waitMs, 1000);
-        await new Promise((r) => setTimeout(r, chunk));
-        totalWaited += chunk;
-        waitMs -= chunk;
-
-        const { data: newer } = await supabase
+      while (Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
+        // Find the latest customer message in this conversation right now
+        const { data: latest } = await supabase
           .from("messages")
           .select("id, created_at")
           .eq("conversation_id", conversation.id)
           .eq("sender", "customer")
-          .gt("created_at", lastSeenCreatedAt)
           .order("created_at", { ascending: false })
-          .limit(1);
+          .limit(1)
+          .single();
 
-        if (newer && newer.length > 0) {
-          // A newer customer message arrived → that webhook will handle the reply.
-          // This invocation steps aside.
+        if (!latest) break;
+
+        // If I am NOT the latest message, yield — the latest message's webhook will reply
+        if (latest.id !== myMsgId) {
           shouldProceed = false;
           console.log(
-            `[${platform}] Newer message ${newer[0].id} arrived during debounce — yielding to it. My msg: ${myMsgId}`
+            `[${platform}] Not the latest customer message (latest=${latest.id}, mine=${myMsgId}) — yielding.`
           );
           break;
         }
+
+        // I am the latest. Has it been quiet long enough?
+        const latestTs = new Date(latest.created_at).getTime();
+        if (Date.now() - latestTs >= QUIET_MS) {
+          // Quiet period elapsed → proceed to reply
+          break;
+        }
+
+        lastActivityAt = latestTs;
+        await new Promise((r) => setTimeout(r, POLL_MS));
       }
 
       if (!shouldProceed) continue;
+
 
       // Re-fetch conversation history after debounce to include all batched messages
       const { data: freshHistory } = await supabase

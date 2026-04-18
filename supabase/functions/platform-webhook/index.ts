@@ -998,9 +998,43 @@ interface AIReplyResult {
 
 function parseImageUrlFromMessageContent(content: string): string | null {
   if (!content) return null;
-  if (!content.startsWith("📷 ")) return null;
-  const url = content.replace("📷 ", "").trim();
+  const main = content.split("\n\n[CTX]")[0];
+  if (!main.startsWith("📷 ")) return null;
+  const url = main.replace("📷 ", "").trim();
   return url.length > 0 ? url : null;
+}
+
+// Parse the [CTX] block appended by the webhook with ad/reply context.
+function parseMessageContext(content: string): {
+  contextImageUrl: string | null;
+  adTitle: string | null;
+  adId: string | null;
+  adUrl: string | null;
+  textWithoutCtx: string;
+} {
+  const result = {
+    contextImageUrl: null as string | null,
+    adTitle: null as string | null,
+    adId: null as string | null,
+    adUrl: null as string | null,
+    textWithoutCtx: content || "",
+  };
+  if (!content) return result;
+  const idx = content.indexOf("\n\n[CTX] ");
+  if (idx === -1) return result;
+  result.textWithoutCtx = content.slice(0, idx);
+  const ctxLine = content.slice(idx + "\n\n[CTX] ".length);
+  for (const part of ctxLine.split(" | ")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const key = part.slice(0, eq).trim();
+    const val = part.slice(eq + 1).trim();
+    if (key === "context_image") result.contextImageUrl = val;
+    else if (key === "ad_title") result.adTitle = val;
+    else if (key === "ad_id") result.adId = val;
+    else if (key === "ad_url") result.adUrl = val;
+  }
+  return result;
 }
 
 async function generateAIReply(

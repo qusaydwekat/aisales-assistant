@@ -1968,9 +1968,45 @@ Deno.serve(async (req) => {
         if (publicUrl) {
           storedContent = `📷 ${publicUrl}`;
         } else {
-          // Fallback: still store a marker so the agent can respond gracefully
           storedContent = "[Image]";
         }
+      }
+
+      // ─── Extra context: replied-to image OR Facebook/Instagram ad referral ───
+      // Re-host so the AI vision pipeline can fetch them reliably.
+      let contextImagePublicUrl: string | null = null;
+      const candidateContextUrl =
+        msg.contextImageUrl || msg.adContext?.adImageUrl;
+      if (candidateContextUrl) {
+        try {
+          const safeId = safeStorageId(inferredPlatformMessageId) + "-ctx";
+          const downloaded = await downloadBytes(candidateContextUrl);
+          if (downloaded) {
+            const ext = fileExtFromContentType(downloaded.contentType);
+            const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
+            contextImagePublicUrl = await uploadToStoreAssets(
+              supabase,
+              filePath,
+              downloaded.bytes,
+              downloaded.contentType
+            );
+          }
+        } catch (e) {
+          console.error(`[${platform}] Failed to rehost context image:`, e);
+        }
+      }
+
+      // Append a hidden context block parsed by generateAIReply().
+      const ctxParts: string[] = [];
+      if (contextImagePublicUrl)
+        ctxParts.push(`context_image=${contextImagePublicUrl}`);
+      if (msg.adContext?.adTitle)
+        ctxParts.push(`ad_title=${msg.adContext.adTitle}`);
+      if (msg.adContext?.adId) ctxParts.push(`ad_id=${msg.adContext.adId}`);
+      if (msg.adContext?.adSourceUrl)
+        ctxParts.push(`ad_url=${msg.adContext.adSourceUrl}`);
+      if (ctxParts.length > 0) {
+        storedContent = `${storedContent}\n\n[CTX] ${ctxParts.join(" | ")}`;
       }
 
       const { data: insertedMsg, error: insertCustomerErr } = await supabase

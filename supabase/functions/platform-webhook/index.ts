@@ -998,9 +998,43 @@ interface AIReplyResult {
 
 function parseImageUrlFromMessageContent(content: string): string | null {
   if (!content) return null;
-  if (!content.startsWith("📷 ")) return null;
-  const url = content.replace("📷 ", "").trim();
+  const main = content.split("\n\n[CTX]")[0];
+  if (!main.startsWith("📷 ")) return null;
+  const url = main.replace("📷 ", "").trim();
   return url.length > 0 ? url : null;
+}
+
+// Parse the [CTX] block appended by the webhook with ad/reply context.
+function parseMessageContext(content: string): {
+  contextImageUrl: string | null;
+  adTitle: string | null;
+  adId: string | null;
+  adUrl: string | null;
+  textWithoutCtx: string;
+} {
+  const result = {
+    contextImageUrl: null as string | null,
+    adTitle: null as string | null,
+    adId: null as string | null,
+    adUrl: null as string | null,
+    textWithoutCtx: content || "",
+  };
+  if (!content) return result;
+  const idx = content.indexOf("\n\n[CTX] ");
+  if (idx === -1) return result;
+  result.textWithoutCtx = content.slice(0, idx);
+  const ctxLine = content.slice(idx + "\n\n[CTX] ".length);
+  for (const part of ctxLine.split(" | ")) {
+    const eq = part.indexOf("=");
+    if (eq === -1) continue;
+    const key = part.slice(0, eq).trim();
+    const val = part.slice(eq + 1).trim();
+    if (key === "context_image") result.contextImageUrl = val;
+    else if (key === "ad_title") result.adTitle = val;
+    else if (key === "ad_id") result.adId = val;
+    else if (key === "ad_url") result.adUrl = val;
+  }
+  return result;
 }
 
 async function generateAIReply(
@@ -1157,32 +1191,67 @@ PRODUCT IMAGES RULES:
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
-    const isImg =
-      typeof msg.content === "string" && msg.content.startsWith("📷 ");
+    const rawContent = typeof msg.content === "string" ? msg.content : "";
+    const histCtx = parseMessageContext(rawContent);
+    const histMain = histCtx.textWithoutCtx;
+    const isImg = histMain.startsWith("📷 ");
     chatMessages.push({
       role: msg.sender === "customer" ? "user" : "assistant",
-      content: isImg ? "Customer sent an image." : msg.content,
+      content: isImg ? "Customer sent an image." : histMain,
     });
   }
 
-  const imageUrl = parseImageUrlFromMessageContent(customerMessage);
-  if (imageUrl) {
-    chatMessages.push({
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text:
-            "The customer sent an image. Identify what product they are asking about.\n" +
-            "Describe the visible item briefly (type, brand if visible, color, material, category).\n" +
-            "Then call search_products with the best keywords and/or category.\n" +
-            "After you get results, suggest up to 3 closest matches and ask the customer to confirm which one.",
-        },
-        { type: "image_url", image_url: { url: imageUrl, detail: "auto" } },
-      ],
-    });
+  // Parse the latest customer message for image + reply/ad context
+  const ctx = parseMessageContext(customerMessage);
+  const mainContent = ctx.textWithoutCtx;
+  const imageUrl = parseImageUrlFromMessageContent(mainContent);
+
+  const ctxHints: string[] = [];
+  if (ctx.adTitle || ctx.adId) {
+    ctxHints.push(
+      `The customer started this chat by clicking a Facebook/Instagram ad${
+        ctx.adTitle ? ` titled "${ctx.adTitle}"` : ""
+      }${ctx.adId ? ` (ad_id=${ctx.adId})` : ""}. Treat the ad creative image as the product they are interested in.`
+    );
+  } else if (ctx.contextImageUrl) {
+    ctxHints.push(
+      "The customer is replying to an image they were sent (a product photo, ad creative, or story). Treat that image as the product they are asking about."
+    );
+  }
+
+  if (imageUrl || ctx.contextImageUrl) {
+    const userParts: any[] = [];
+    const textHint =
+      (imageUrl
+        ? "The customer sent an image. "
+        : "The customer is asking about the image below (replied-to or ad creative). ") +
+      (ctxHints.length > 0 ? ctxHints.join(" ") + " " : "") +
+      "Identify the product: describe the visible item briefly (type, brand if visible, color, material, category). " +
+      "Then call search_products with the best keywords and/or category. " +
+      "After results return, suggest up to 3 closest matches and ask the customer to confirm." +
+      (mainContent && mainContent !== "[Image]" && !mainContent.startsWith("📷 ")
+        ? `\n\nThe customer also wrote: "${mainContent}"`
+        : "");
+    userParts.push({ type: "text", text: textHint });
+    if (imageUrl) {
+      userParts.push({
+        type: "image_url",
+        image_url: { url: imageUrl, detail: "auto" },
+      });
+    }
+    if (ctx.contextImageUrl) {
+      userParts.push({
+        type: "image_url",
+        image_url: { url: ctx.contextImageUrl, detail: "auto" },
+      });
+    }
+    chatMessages.push({ role: "user", content: userParts });
   } else {
-    chatMessages.push({ role: "user", content: customerMessage });
+    const finalText =
+      ctxHints.length > 0
+        ? `${ctxHints.join(" ")}\n\nCustomer message: ${mainContent}`
+        : mainContent;
+    chatMessages.push({ role: "user", content: finalText });
   }
 
   const allTools = [
@@ -1429,6 +1498,16 @@ Deno.serve(async (req) => {
       kind: "text" | "image";
       imageUrl?: string;
       mediaId?: string;
+      // Context: image the customer is replying to (e.g. an ad creative or a previous message image)
+      contextImageUrl?: string;
+      // Context: Facebook ad referral info (when message originates from clicking an ad)
+      adContext?: {
+        adId?: string;
+        adTitle?: string;
+        adSourceUrl?: string;
+        adImageUrl?: string;
+        ref?: string;
+      };
     }[] = [];
 
     if (platform === "facebook") {
@@ -1436,6 +1515,31 @@ Deno.serve(async (req) => {
         const pageId = entry.id;
         for (const messaging of entry.messaging || []) {
           if (messaging.message?.is_echo) continue;
+
+          // Facebook Ad referral context (CTM ads / m.me ad clicks)
+          // Can appear at messaging.referral OR messaging.message.referral
+          const ref = messaging.referral || messaging.message?.referral;
+          let adContext: any = undefined;
+          if (ref && (ref.ad_id || ref.source === "ADS" || ref.ref || ref.source_url)) {
+            adContext = {
+              adId: ref.ad_id,
+              adTitle: ref.ads_context_data?.ad_title,
+              adSourceUrl: ref.source_url,
+              adImageUrl: cleanUrl(ref.ads_context_data?.photo_url),
+              ref: ref.ref,
+            };
+          }
+
+          // Reply-to context: customer replying to a specific message (could be an image)
+          let contextImageUrl: string | undefined;
+          const replyTo = messaging.message?.reply_to;
+          if (replyTo) {
+            const replyImg = (replyTo.attachments || []).find(
+              (a: any) => a?.type === "image"
+            );
+            if (replyImg) contextImageUrl = cleanUrl(replyImg?.payload?.url);
+          }
+
           if (messaging.message?.text) {
             messages.push({
               platform: "facebook",
@@ -1448,6 +1552,8 @@ Deno.serve(async (req) => {
               pageId,
               platformMessageId: messaging.message?.mid || undefined,
               kind: "text",
+              contextImageUrl,
+              adContext,
             });
           } else if (messaging.message?.attachments?.length > 0) {
             const imgAtt = (messaging.message.attachments || []).find(
@@ -1466,8 +1572,26 @@ Deno.serve(async (req) => {
                 platformMessageId: messaging.message?.mid || undefined,
                 kind: "image",
                 imageUrl: cleanUrl(imgAtt?.payload?.url),
+                contextImageUrl,
+                adContext,
               });
             }
+          } else if (adContext || contextImageUrl) {
+            // Pure referral / reply with no text — still create an entry so AI can react
+            messages.push({
+              platform: "facebook",
+              sender: messaging.sender?.id || "unknown",
+              text: adContext ? "[Started chat from ad]" : "[Reply]",
+              platformId: messaging.sender?.id || "",
+              timestamp: new Date(
+                messaging.timestamp || Date.now()
+              ).toISOString(),
+              pageId,
+              platformMessageId: messaging.message?.mid || `ref-${Date.now()}`,
+              kind: "text",
+              contextImageUrl,
+              adContext,
+            });
           }
         }
       }
@@ -1482,6 +1606,32 @@ Deno.serve(async (req) => {
           let text: string = messaging.message?.text || "";
           let kind: "text" | "image" = "text";
           let imageUrl: string | undefined;
+          let contextImageUrl: string | undefined;
+          let adContext: any = undefined;
+
+          // Instagram Ad referral (CTM Instagram ads)
+          const ref = messaging.referral || messaging.message?.referral;
+          if (ref && (ref.ad_id || ref.source === "ADS" || ref.ref || ref.source_url)) {
+            adContext = {
+              adId: ref.ad_id,
+              adTitle: ref.ads_context_data?.ad_title,
+              adSourceUrl: ref.source_url,
+              adImageUrl: cleanUrl(ref.ads_context_data?.photo_url),
+              ref: ref.ref,
+            };
+          }
+
+          // Reply-to context (customer replying to a story / image / post)
+          const replyTo = messaging.message?.reply_to;
+          if (replyTo) {
+            const replyImg = (replyTo.attachments || []).find(
+              (a: any) => a?.type === "image"
+            );
+            if (replyImg) contextImageUrl = cleanUrl(replyImg?.payload?.url);
+            if (!contextImageUrl && replyTo.story?.url) {
+              contextImageUrl = cleanUrl(replyTo.story.url);
+            }
+          }
 
           // Handle non-text message types
           if (!text && messaging.message?.attachments?.length > 0) {
@@ -1497,10 +1647,8 @@ Deno.serve(async (req) => {
             else text = `[${att.type || "Attachment"}]`;
           }
 
-          // Handle story mentions and story replies
-          if (!text && messaging.message?.reply_to) {
-            text = "[Story Reply]";
-          }
+          if (!text && replyTo) text = "[Story Reply]";
+          if (!text && adContext) text = "[Started chat from ad]";
 
           if (!text) continue;
 
@@ -1516,6 +1664,8 @@ Deno.serve(async (req) => {
             platformMessageId: messaging.message?.mid || undefined,
             kind,
             imageUrl,
+            contextImageUrl,
+            adContext,
           });
         }
         // Also handle Instagram changes-based format (some API versions)
@@ -1887,9 +2037,45 @@ Deno.serve(async (req) => {
         if (publicUrl) {
           storedContent = `📷 ${publicUrl}`;
         } else {
-          // Fallback: still store a marker so the agent can respond gracefully
           storedContent = "[Image]";
         }
+      }
+
+      // ─── Extra context: replied-to image OR Facebook/Instagram ad referral ───
+      // Re-host so the AI vision pipeline can fetch them reliably.
+      let contextImagePublicUrl: string | null = null;
+      const candidateContextUrl =
+        msg.contextImageUrl || msg.adContext?.adImageUrl;
+      if (candidateContextUrl) {
+        try {
+          const safeId = safeStorageId(inferredPlatformMessageId) + "-ctx";
+          const downloaded = await downloadBytes(candidateContextUrl);
+          if (downloaded) {
+            const ext = fileExtFromContentType(downloaded.contentType);
+            const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
+            contextImagePublicUrl = await uploadToStoreAssets(
+              supabase,
+              filePath,
+              downloaded.bytes,
+              downloaded.contentType
+            );
+          }
+        } catch (e) {
+          console.error(`[${platform}] Failed to rehost context image:`, e);
+        }
+      }
+
+      // Append a hidden context block parsed by generateAIReply().
+      const ctxParts: string[] = [];
+      if (contextImagePublicUrl)
+        ctxParts.push(`context_image=${contextImagePublicUrl}`);
+      if (msg.adContext?.adTitle)
+        ctxParts.push(`ad_title=${msg.adContext.adTitle}`);
+      if (msg.adContext?.adId) ctxParts.push(`ad_id=${msg.adContext.adId}`);
+      if (msg.adContext?.adSourceUrl)
+        ctxParts.push(`ad_url=${msg.adContext.adSourceUrl}`);
+      if (ctxParts.length > 0) {
+        storedContent = `${storedContent}\n\n[CTX] ${ctxParts.join(" | ")}`;
       }
 
       const { data: insertedMsg, error: insertCustomerErr } = await supabase

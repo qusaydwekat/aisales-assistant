@@ -1446,6 +1446,31 @@ Deno.serve(async (req) => {
         const pageId = entry.id;
         for (const messaging of entry.messaging || []) {
           if (messaging.message?.is_echo) continue;
+
+          // Facebook Ad referral context (CTM ads / m.me ad clicks)
+          // Can appear at messaging.referral OR messaging.message.referral
+          const ref = messaging.referral || messaging.message?.referral;
+          let adContext: any = undefined;
+          if (ref && (ref.ad_id || ref.source === "ADS" || ref.ref || ref.source_url)) {
+            adContext = {
+              adId: ref.ad_id,
+              adTitle: ref.ads_context_data?.ad_title,
+              adSourceUrl: ref.source_url,
+              adImageUrl: cleanUrl(ref.ads_context_data?.photo_url),
+              ref: ref.ref,
+            };
+          }
+
+          // Reply-to context: customer replying to a specific message (could be an image)
+          let contextImageUrl: string | undefined;
+          const replyTo = messaging.message?.reply_to;
+          if (replyTo) {
+            const replyImg = (replyTo.attachments || []).find(
+              (a: any) => a?.type === "image"
+            );
+            if (replyImg) contextImageUrl = cleanUrl(replyImg?.payload?.url);
+          }
+
           if (messaging.message?.text) {
             messages.push({
               platform: "facebook",
@@ -1458,6 +1483,8 @@ Deno.serve(async (req) => {
               pageId,
               platformMessageId: messaging.message?.mid || undefined,
               kind: "text",
+              contextImageUrl,
+              adContext,
             });
           } else if (messaging.message?.attachments?.length > 0) {
             const imgAtt = (messaging.message.attachments || []).find(
@@ -1476,8 +1503,26 @@ Deno.serve(async (req) => {
                 platformMessageId: messaging.message?.mid || undefined,
                 kind: "image",
                 imageUrl: cleanUrl(imgAtt?.payload?.url),
+                contextImageUrl,
+                adContext,
               });
             }
+          } else if (adContext || contextImageUrl) {
+            // Pure referral / reply with no text — still create an entry so AI can react
+            messages.push({
+              platform: "facebook",
+              sender: messaging.sender?.id || "unknown",
+              text: adContext ? "[Started chat from ad]" : "[Reply]",
+              platformId: messaging.sender?.id || "",
+              timestamp: new Date(
+                messaging.timestamp || Date.now()
+              ).toISOString(),
+              pageId,
+              platformMessageId: messaging.message?.mid || `ref-${Date.now()}`,
+              kind: "text",
+              contextImageUrl,
+              adContext,
+            });
           }
         }
       }

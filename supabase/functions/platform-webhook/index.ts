@@ -1191,32 +1191,67 @@ PRODUCT IMAGES RULES:
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {
-    const isImg =
-      typeof msg.content === "string" && msg.content.startsWith("📷 ");
+    const rawContent = typeof msg.content === "string" ? msg.content : "";
+    const histCtx = parseMessageContext(rawContent);
+    const histMain = histCtx.textWithoutCtx;
+    const isImg = histMain.startsWith("📷 ");
     chatMessages.push({
       role: msg.sender === "customer" ? "user" : "assistant",
-      content: isImg ? "Customer sent an image." : msg.content,
+      content: isImg ? "Customer sent an image." : histMain,
     });
   }
 
-  const imageUrl = parseImageUrlFromMessageContent(customerMessage);
-  if (imageUrl) {
-    chatMessages.push({
-      role: "user",
-      content: [
-        {
-          type: "text",
-          text:
-            "The customer sent an image. Identify what product they are asking about.\n" +
-            "Describe the visible item briefly (type, brand if visible, color, material, category).\n" +
-            "Then call search_products with the best keywords and/or category.\n" +
-            "After you get results, suggest up to 3 closest matches and ask the customer to confirm which one.",
-        },
-        { type: "image_url", image_url: { url: imageUrl, detail: "auto" } },
-      ],
-    });
+  // Parse the latest customer message for image + reply/ad context
+  const ctx = parseMessageContext(customerMessage);
+  const mainContent = ctx.textWithoutCtx;
+  const imageUrl = parseImageUrlFromMessageContent(mainContent);
+
+  const ctxHints: string[] = [];
+  if (ctx.adTitle || ctx.adId) {
+    ctxHints.push(
+      `The customer started this chat by clicking a Facebook/Instagram ad${
+        ctx.adTitle ? ` titled "${ctx.adTitle}"` : ""
+      }${ctx.adId ? ` (ad_id=${ctx.adId})` : ""}. Treat the ad creative image as the product they are interested in.`
+    );
+  } else if (ctx.contextImageUrl) {
+    ctxHints.push(
+      "The customer is replying to an image they were sent (a product photo, ad creative, or story). Treat that image as the product they are asking about."
+    );
+  }
+
+  if (imageUrl || ctx.contextImageUrl) {
+    const userParts: any[] = [];
+    const textHint =
+      (imageUrl
+        ? "The customer sent an image. "
+        : "The customer is asking about the image below (replied-to or ad creative). ") +
+      (ctxHints.length > 0 ? ctxHints.join(" ") + " " : "") +
+      "Identify the product: describe the visible item briefly (type, brand if visible, color, material, category). " +
+      "Then call search_products with the best keywords and/or category. " +
+      "After results return, suggest up to 3 closest matches and ask the customer to confirm." +
+      (mainContent && mainContent !== "[Image]" && !mainContent.startsWith("📷 ")
+        ? `\n\nThe customer also wrote: "${mainContent}"`
+        : "");
+    userParts.push({ type: "text", text: textHint });
+    if (imageUrl) {
+      userParts.push({
+        type: "image_url",
+        image_url: { url: imageUrl, detail: "auto" },
+      });
+    }
+    if (ctx.contextImageUrl) {
+      userParts.push({
+        type: "image_url",
+        image_url: { url: ctx.contextImageUrl, detail: "auto" },
+      });
+    }
+    chatMessages.push({ role: "user", content: userParts });
   } else {
-    chatMessages.push({ role: "user", content: customerMessage });
+    const finalText =
+      ctxHints.length > 0
+        ? `${ctxHints.join(" ")}\n\nCustomer message: ${mainContent}`
+        : mainContent;
+    chatMessages.push({ role: "user", content: finalText });
   }
 
   const allTools = [

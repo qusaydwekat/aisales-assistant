@@ -1537,6 +1537,32 @@ Deno.serve(async (req) => {
           let text: string = messaging.message?.text || "";
           let kind: "text" | "image" = "text";
           let imageUrl: string | undefined;
+          let contextImageUrl: string | undefined;
+          let adContext: any = undefined;
+
+          // Instagram Ad referral (CTM Instagram ads)
+          const ref = messaging.referral || messaging.message?.referral;
+          if (ref && (ref.ad_id || ref.source === "ADS" || ref.ref || ref.source_url)) {
+            adContext = {
+              adId: ref.ad_id,
+              adTitle: ref.ads_context_data?.ad_title,
+              adSourceUrl: ref.source_url,
+              adImageUrl: cleanUrl(ref.ads_context_data?.photo_url),
+              ref: ref.ref,
+            };
+          }
+
+          // Reply-to context (customer replying to a story / image / post)
+          const replyTo = messaging.message?.reply_to;
+          if (replyTo) {
+            const replyImg = (replyTo.attachments || []).find(
+              (a: any) => a?.type === "image"
+            );
+            if (replyImg) contextImageUrl = cleanUrl(replyImg?.payload?.url);
+            if (!contextImageUrl && replyTo.story?.url) {
+              contextImageUrl = cleanUrl(replyTo.story.url);
+            }
+          }
 
           // Handle non-text message types
           if (!text && messaging.message?.attachments?.length > 0) {
@@ -1552,10 +1578,8 @@ Deno.serve(async (req) => {
             else text = `[${att.type || "Attachment"}]`;
           }
 
-          // Handle story mentions and story replies
-          if (!text && messaging.message?.reply_to) {
-            text = "[Story Reply]";
-          }
+          if (!text && replyTo) text = "[Story Reply]";
+          if (!text && adContext) text = "[Started chat from ad]";
 
           if (!text) continue;
 
@@ -1571,6 +1595,8 @@ Deno.serve(async (req) => {
             platformMessageId: messaging.message?.mid || undefined,
             kind,
             imageUrl,
+            contextImageUrl,
+            adContext,
           });
         }
         // Also handle Instagram changes-based format (some API versions)

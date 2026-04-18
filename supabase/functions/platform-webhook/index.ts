@@ -1429,6 +1429,16 @@ Deno.serve(async (req) => {
       kind: "text" | "image";
       imageUrl?: string;
       mediaId?: string;
+      // Context: image the customer is replying to (e.g. an ad creative or a previous message image)
+      contextImageUrl?: string;
+      // Context: Facebook ad referral info (when message originates from clicking an ad)
+      adContext?: {
+        adId?: string;
+        adTitle?: string;
+        adSourceUrl?: string;
+        adImageUrl?: string;
+        ref?: string;
+      };
     }[] = [];
 
     if (platform === "facebook") {

@@ -2407,6 +2407,7 @@ Deno.serve(async (req) => {
       const aiSettings = aiSettingsRes.data;
       const history = historyRes.data || [];
       const existingOrders = ordersRes.data || [];
+      const initialBurstDepth = collectPendingCustomerBurst(history).length;
 
       // Build lightweight catalog summary (categories + counts) instead of full product list
       const catalogProducts = catalogRes.data || [];
@@ -2457,6 +2458,10 @@ Deno.serve(async (req) => {
       // timestamp, because webhook delivery can be delayed and would otherwise cause
       // newer customer messages to be skipped as "already answered".
       const QUIET_MS = 5000;
+      const DELIVERY_GRACE_MS =
+        platform === "facebook" || platform === "instagram" ? 18000 : QUIET_MS;
+      const requiredQuietMs =
+        initialBurstDepth <= 1 ? Math.max(QUIET_MS, DELIVERY_GRACE_MS) : QUIET_MS;
       const MAX_TOTAL_WAIT_MS = 30000;
       const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
@@ -2510,16 +2515,16 @@ Deno.serve(async (req) => {
         }
 
         quietForMs = Date.now() - myReceivedAtMs;
-        if (quietForMs >= QUIET_MS) break;
+        if (quietForMs >= requiredQuietMs) break;
 
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
 
       if (!shouldProceed) continue;
 
-      if (quietForMs < QUIET_MS) {
+      if (quietForMs < requiredQuietMs) {
         console.log(
-          `[${platform}] Quiet window not reached (${quietForMs}ms); skipping reply.`
+          `[${platform}] Quiet window not reached (${quietForMs}ms / required ${requiredQuietMs}ms); skipping reply.`
         );
         continue;
       }

@@ -34,7 +34,7 @@ export function CategoryCombobox({ value, onChange, options, placeholder }: Prop
       </PopoverTrigger>
       <PopoverContent className="p-0 w-[--radix-popover-trigger-width]" align="start">
         <Command>
-          <CommandInput placeholder="Search or create..." value={query} onValueChange={setQuery} />
+          <CommandInput placeholder={t("search_or_create")} value={query} onValueChange={setQuery} />
           <CommandList>
             <CommandEmpty>
               {trimmed ? (
@@ -47,10 +47,10 @@ export function CategoryCombobox({ value, onChange, options, placeholder }: Prop
                   }}
                   className="w-full px-3 py-2 text-sm text-start flex items-center gap-2 hover:bg-accent"
                 >
-                  <Plus className="h-4 w-4" /> Create "{trimmed}"
+                  <Plus className="h-4 w-4" /> {t("create_x")} "{trimmed}"
                 </button>
               ) : (
-                <span className="text-sm text-muted-foreground p-2">No categories yet</span>
+                <span className="text-sm text-muted-foreground p-2">{t("no_categories_yet")}</span>
               )}
             </CommandEmpty>
             <CommandGroup>
@@ -77,7 +77,7 @@ export function CategoryCombobox({ value, onChange, options, placeholder }: Prop
                     setQuery("");
                   }}
                 >
-                  <Plus className="me-2 h-4 w-4" /> Create "{trimmed}"
+                  <Plus className="me-2 h-4 w-4" /> {t("create_x")} "{trimmed}"
                 </CommandItem>
               )}
             </CommandGroup>

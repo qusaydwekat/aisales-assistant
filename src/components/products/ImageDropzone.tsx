@@ -12,13 +12,14 @@ import { SortableContext, arrayMove, useSortable, rectSortingStrategy } from "@d
 import { CSS } from "@dnd-kit/utilities";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Props {
   images: string[];
   onChange: (next: string[]) => void;
 }
 
-function SortableImage({ url, index, onRemove }: { url: string; index: number; onRemove: () => void }) {
+function SortableImage({ url, index, onRemove, coverLabel }: { url: string; index: number; onRemove: () => void; coverLabel: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: url });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -34,7 +35,7 @@ function SortableImage({ url, index, onRemove }: { url: string; index: number; o
       <img src={url} alt="" className="h-full w-full object-cover pointer-events-none" />
       {index === 0 && (
         <span className="absolute top-1 start-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary text-primary-foreground flex items-center gap-0.5">
-          <Star className="h-2.5 w-2.5" /> Cover
+          <Star className="h-2.5 w-2.5" /> {coverLabel}
         </span>
       )}
       <button
@@ -58,6 +59,7 @@ function SortableImage({ url, index, onRemove }: { url: string; index: number; o
 
 export function ImageDropzone({ images, onChange }: Props) {
   const { upload } = useFileUpload();
+  const { t } = useLanguage();
   const [uploadingCount, setUploadingCount] = useState(0);
   const [dragOver, setDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -123,9 +125,9 @@ export function ImageDropzone({ images, onChange }: Props) {
           <Upload className="h-8 w-8 mx-auto text-muted-foreground" />
         )}
         <p className="text-sm text-foreground mt-2 font-medium">
-          {uploadingCount > 0 ? `Uploading ${uploadingCount}...` : "Drop images, paste, or click to browse"}
+          {uploadingCount > 0 ? `${t("uploading_n")} ${uploadingCount}...` : t("drop_images_hint")}
         </p>
-        <p className="text-xs text-muted-foreground mt-1">Multiple images supported · drag to reorder</p>
+        <p className="text-xs text-muted-foreground mt-1">{t("multiple_images_hint")}</p>
         <input
           ref={inputRef}
           type="file"
@@ -141,7 +143,7 @@ export function ImageDropzone({ images, onChange }: Props) {
           <SortableContext items={images} strategy={rectSortingStrategy}>
             <div className="flex flex-wrap gap-2 mt-3">
               {images.map((url, i) => (
-                <SortableImage key={url} url={url} index={i} onRemove={() => removeAt(i)} />
+                <SortableImage key={url} url={url} index={i} onRemove={() => removeAt(i)} coverLabel={t("cover_badge")} />
               ))}
             </div>
           </SortableContext>

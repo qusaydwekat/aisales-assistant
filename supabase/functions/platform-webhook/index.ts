@@ -1314,14 +1314,18 @@ PRODUCT IMAGES RULES:
     });
   }
 
-  // Parse the latest customer message for image + reply/ad context
-  const ctx = parseMessageContext(customerMessage);
-  const mainContent = ctx.textWithoutCtx;
-  const imageUrl = parseImageUrlFromMessageContent(mainContent);
+  // Parse the latest customer burst for image + reply/ad context
+  const pendingBurst = collectPendingCustomerBurst(conversationHistory);
+  const burstInput = extractBurstInput(pendingBurst);
+  const ctx = burstInput.latestContext;
+  const mainContent = (burstInput.combinedText || customerMessage || "").trim();
+  const imageUrl = burstInput.imageUrls[0] || parseImageUrlFromMessageContent(mainContent);
   const recentReferenceImages =
-    !imageUrl && !ctx.contextImageUrl && looksLikeReferentialFollowUp(mainContent)
-      ? collectRecentReferenceImages(conversationHistory)
-      : [];
+    burstInput.imageUrls.length > 1
+      ? burstInput.imageUrls.slice(1, 4)
+      : !imageUrl && !ctx.contextImageUrl && looksLikeReferentialFollowUp(mainContent)
+        ? collectRecentReferenceImages(conversationHistory)
+        : [];
 
   const ctxHints: string[] = [];
   if (ctx.adTitle || ctx.adId) {
@@ -1376,10 +1380,10 @@ PRODUCT IMAGES RULES:
     }
     chatMessages.push({ role: "user", content: userParts });
   } else {
-    const finalText =
+      const finalText =
       ctxHints.length > 0
-        ? `${ctxHints.join(" ")}\n\nCustomer message: ${mainContent}`
-        : mainContent;
+          ? `${ctxHints.join(" ")}\n\nCustomer message: ${mainContent || customerMessage}`
+          : mainContent || customerMessage;
     chatMessages.push({ role: "user", content: finalText });
   }
 
@@ -1462,6 +1466,17 @@ PRODUCT IMAGES RULES:
             aiSettings?.fallback_message ||
             "Thanks for your message!"
         );
+        if (isFallbackLikeResponse(text, aiSettings?.fallback_message)) {
+          const retryPrompt =
+            "Reply naturally as a store assistant in the customer's language. Do not say you are unsure, do not escalate to the team, and do not use fallback wording. If the customer asked for product photos, answer briefly and use send_product_images when you already have products from previous tool results.";
+
+          currentMessages = [
+            ...currentMessages,
+            choice.message,
+            { role: "system", content: retryPrompt },
+          ];
+          continue;
+        }
         return { text, images: allImageesToSend };
       }
 

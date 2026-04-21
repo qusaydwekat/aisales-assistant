@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const lang = language === "ar" ? "Arabic" : "English";
+    const lang = language === "ar" ? "Arabic" : language === "en" ? "English" : "the same language as typically used by the store (default English unless image text suggests otherwise)";
 
     const resp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

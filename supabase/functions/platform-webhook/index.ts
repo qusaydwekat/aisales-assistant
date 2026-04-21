@@ -1041,6 +1041,81 @@ function stripMessageContext(content: string): string {
   return typeof content === "string" ? content.split("\n\n[CTX]")[0] : "";
 }
 
+function collectPendingCustomerBurst(conversationHistory: any[]): any[] {
+  const burst: any[] = [];
+
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const entry = conversationHistory[i];
+    if (entry?.sender !== "customer") break;
+    burst.unshift(entry);
+  }
+
+  return burst;
+}
+
+function extractBurstInput(burstMessages: any[]): {
+  combinedText: string;
+  imageUrls: string[];
+  latestContext: ReturnType<typeof parseMessageContext>;
+} {
+  const seen = new Set<string>();
+  const textParts: string[] = [];
+  let latestContext = parseMessageContext("");
+
+  for (const msg of burstMessages) {
+    const rawContent = typeof msg?.content === "string" ? msg.content : "";
+    if (!rawContent) continue;
+
+    const ctx = parseMessageContext(rawContent);
+    latestContext = ctx;
+
+    const visibleText = ctx.textWithoutCtx.trim();
+    if (
+      visibleText &&
+      visibleText !== "[Image]" &&
+      !visibleText.startsWith("📷 ")
+    ) {
+      textParts.push(visibleText);
+    }
+  }
+
+  const imageUrls = burstMessages.flatMap((msg) => {
+    const rawContent = typeof msg?.content === "string" ? msg.content : "";
+    if (!rawContent) return [] as string[];
+
+    const ctx = parseMessageContext(rawContent);
+    const directImage = parseImageUrlFromMessageContent(ctx.textWithoutCtx);
+    return [directImage, ctx.contextImageUrl].filter((url): url is string => {
+      if (!url || seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    });
+  });
+
+  return {
+    combinedText: textParts.join("\n"),
+    imageUrls,
+    latestContext,
+  };
+}
+
+function isFallbackLikeResponse(text: string, fallbackMessage?: string | null): boolean {
+  const normalized = (text || "").trim().toLowerCase();
+  if (!normalized) return true;
+
+  const knownFallbacks = [
+    fallbackMessage,
+    "i'm not sure about that. let me connect you with our team!",
+    "i’m not sure about that. let me connect you with our team!",
+    "thanks for your message! our team will get back to you shortly.",
+    "thanks for your message! we'll get back to you shortly.",
+  ]
+    .filter(Boolean)
+    .map((entry) => entry!.trim().toLowerCase());
+
+  return knownFallbacks.includes(normalized);
+}
+
 function looksLikeReferentialFollowUp(text: string): boolean {
   const normalized = (text || "").trim().toLowerCase();
   if (!normalized) return false;
@@ -1239,14 +1314,18 @@ PRODUCT IMAGES RULES:
     });
   }
 
-  // Parse the latest customer message for image + reply/ad context
-  const ctx = parseMessageContext(customerMessage);
-  const mainContent = ctx.textWithoutCtx;
-  const imageUrl = parseImageUrlFromMessageContent(mainContent);
+  // Parse the latest customer burst for image + reply/ad context
+  const pendingBurst = collectPendingCustomerBurst(conversationHistory);
+  const burstInput = extractBurstInput(pendingBurst);
+  const ctx = burstInput.latestContext;
+  const mainContent = (burstInput.combinedText || customerMessage || "").trim();
+  const imageUrl = burstInput.imageUrls[0] || parseImageUrlFromMessageContent(mainContent);
   const recentReferenceImages =
-    !imageUrl && !ctx.contextImageUrl && looksLikeReferentialFollowUp(mainContent)
-      ? collectRecentReferenceImages(conversationHistory)
-      : [];
+    burstInput.imageUrls.length > 1
+      ? burstInput.imageUrls.slice(1, 4)
+      : !imageUrl && !ctx.contextImageUrl && looksLikeReferentialFollowUp(mainContent)
+        ? collectRecentReferenceImages(conversationHistory)
+        : [];
 
   const ctxHints: string[] = [];
   if (ctx.adTitle || ctx.adId) {
@@ -1301,10 +1380,10 @@ PRODUCT IMAGES RULES:
     }
     chatMessages.push({ role: "user", content: userParts });
   } else {
-    const finalText =
+      const finalText =
       ctxHints.length > 0
-        ? `${ctxHints.join(" ")}\n\nCustomer message: ${mainContent}`
-        : mainContent;
+          ? `${ctxHints.join(" ")}\n\nCustomer message: ${mainContent || customerMessage}`
+          : mainContent || customerMessage;
     chatMessages.push({ role: "user", content: finalText });
   }
 
@@ -1387,6 +1466,17 @@ PRODUCT IMAGES RULES:
             aiSettings?.fallback_message ||
             "Thanks for your message!"
         );
+        if (isFallbackLikeResponse(text, aiSettings?.fallback_message)) {
+          const retryPrompt =
+            "Reply naturally as a store assistant in the customer's language. Do not say you are unsure, do not escalate to the team, and do not use fallback wording. If the customer asked for product photos, answer briefly and use send_product_images when you already have products from previous tool results.";
+
+          currentMessages = [
+            ...currentMessages,
+            choice.message,
+            { role: "system", content: retryPrompt },
+          ];
+          continue;
+        }
         return { text, images: allImageesToSend };
       }
 
@@ -2239,16 +2329,17 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Sliding-window Message Batching ───
-      // Let only the most recent customer message in a burst generate the reply,
-      // and skip if an AI reply was already sent after our customer message.
+      // ─── Per-customer quiet-window batching ───
+      // Keep waiting until THIS conversation has been quiet for 5s, then only the
+      // worker owning the latest customer message may answer.
       const QUIET_MS = 5000;
-      const MAX_TOTAL_WAIT_MS = 25000;
-      const POLL_MS = 700;
+      const MAX_TOTAL_WAIT_MS = 30000;
+      const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
       const myCreatedAt = insertedMsg?.created_at || msg.timestamp;
 
       let shouldProceed = true;
+      let quietForMs = 0;
       const startedAt = Date.now();
 
       while (Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
@@ -2275,30 +2366,38 @@ Deno.serve(async (req) => {
         if (latestAi?.id) {
           shouldProceed = false;
           console.log(
-            `[${platform}] AI reply already sent after customer burst; skipping duplicate response.`
+            `[${platform}] AI reply already sent for this burst; skipping duplicate response.`
           );
           break;
         }
 
-        if (!latestCustomer) break;
+        if (!latestCustomer?.id) {
+          shouldProceed = false;
+          break;
+        }
 
         if (latestCustomer.id !== myMsgId) {
           shouldProceed = false;
           console.log(
-            `[${platform}] Not the latest customer message (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding.`
+            `[${platform}] Newer customer message detected (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding to newer worker.`
           );
           break;
         }
 
-        const latestTs = new Date(latestCustomer.created_at).getTime();
-        if (Date.now() - latestTs >= QUIET_MS) {
-          break;
-        }
+        quietForMs = Date.now() - new Date(latestCustomer.created_at).getTime();
+        if (quietForMs >= QUIET_MS) break;
 
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
 
       if (!shouldProceed) continue;
+
+      if (quietForMs < QUIET_MS) {
+        console.log(
+          `[${platform}] Quiet window not reached (${quietForMs}ms); skipping reply.`
+        );
+        continue;
+      }
 
 
       // Re-fetch conversation history after debounce to include all batched messages
@@ -2309,19 +2408,16 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: true })
         .limit(20);
 
-      // Combine recent consecutive customer messages into one for the AI prompt
+      // Combine the latest consecutive customer messages into one prompt.
       const allHistory = freshHistory || history;
-      const recentCustomerTexts: string[] = [];
-      for (let i = allHistory.length - 1; i >= 0; i--) {
-        if (allHistory[i].sender === "customer") {
-          recentCustomerTexts.unshift(stripMessageContext(allHistory[i].content));
-        } else {
-          break; // stop at the last non-customer message
-        }
-      }
-      const combinedCustomerMessage = recentCustomerTexts
-        .filter((entry) => entry && entry.trim().length > 0)
-        .join("\n");
+      const pendingBurst = collectPendingCustomerBurst(allHistory);
+      const burstInput = extractBurstInput(pendingBurst);
+      const combinedCustomerMessage =
+        burstInput.combinedText ||
+        pendingBurst
+          .map((entry) => stripMessageContext(entry.content))
+          .filter((entry) => entry && entry.trim().length > 0)
+          .join("\n");
 
       const aiResult = await generateAIReply(
         combinedCustomerMessage,

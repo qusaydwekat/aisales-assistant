@@ -1851,6 +1851,7 @@ Deno.serve(async (req) => {
             kind,
             imageUrl,
             contextImageUrl,
+            replyToMid,
             adContext,
           });
         }

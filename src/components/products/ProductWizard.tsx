@@ -56,7 +56,7 @@ export function ProductWizard({
   saving,
   aiLanguage,
 }: Props) {
-  const { language } = useLanguage();
+  const { language, t, dir } = useLanguage();
   const [step, setStep] = useState<1 | 2 | 3>(initialStep);
   const [form, setForm] = useState<ProductForm>({ ...EMPTY, ...(initial || {}) });
   const [aiLoading, setAiLoading] = useState(false);
@@ -95,9 +95,9 @@ export function ProductWizard({
         price: f.price || (s.suggested_price ? Number(s.suggested_price) : 0),
       }));
       setAiHint(true);
-      toast.success("AI suggestions applied");
+      toast.success(t("ai_suggestions_applied"));
     } catch (e: any) {
-      toast.error(e.message || "AI autofill failed");
+      toast.error(e.message || t("ai_autofill_failed"));
     } finally {
       setAiLoading(false);
     }
@@ -105,7 +105,7 @@ export function ProductWizard({
 
   const submit = async (addAnother: boolean) => {
     if (!form.name.trim()) {
-      toast.error("Name is required");
+      toast.error(t("name_required"));
       setStep(2);
       return;
     }
@@ -116,7 +116,7 @@ export function ProductWizard({
     }
   };
 
-  const stepLabels = ["Photos", "Basics", "Details"];
+  const stepLabels = [t("step_photos"), t("step_basics"), t("step_details")];
   const progress = (step / 3) * 100;
 
   return (
@@ -126,6 +126,7 @@ export function ProductWizard({
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-2 md:p-4"
+        dir={dir}
         onClick={onClose}
       >
         <motion.div
@@ -139,7 +140,7 @@ export function ProductWizard({
           <div className="p-4 md:p-6 border-b border-border/50">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-lg md:text-xl font-heading font-bold text-foreground">
-                {editingId ? "Edit product" : "New product"}
+                {editingId ? t("edit_product_title") : t("new_product_title")}
               </h2>
               <button onClick={onClose} className="p-1 rounded-lg hover:bg-muted">
                 <X className="h-5 w-5 text-muted-foreground" />
@@ -202,11 +203,11 @@ export function ProductWizard({
                     className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-primary/10 text-primary font-medium text-sm hover:bg-primary/20 disabled:opacity-50 transition-colors"
                   >
                     {aiLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    {aiLoading ? "Analyzing image..." : "Autofill with AI"}
+                    {aiLoading ? t("analyzing_image") : t("autofill_with_ai")}
                   </button>
                 )}
                 {aiHint && (
-                  <p className="text-xs text-primary text-center">✨ AI suggested — edit anytime in next steps</p>
+                  <p className="text-xs text-primary text-center">{t("ai_hint")}</p>
                 )}
               </div>
             )}
@@ -214,18 +215,18 @@ export function ProductWizard({
             {step === 2 && (
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-muted-foreground">Name *</label>
+                  <label className="text-xs text-muted-foreground">{t("name_label")} *</label>
                   <input
                     autoFocus
                     value={form.name}
                     onChange={(e) => set("name", e.target.value)}
-                    placeholder="e.g. Classic Leather Wallet"
+                    placeholder={t("name_placeholder")}
                     className="w-full mt-1 rounded-lg bg-muted px-3 py-3 text-base text-foreground outline-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground">Price *</label>
+                    <label className="text-xs text-muted-foreground">{t("price_label")} *</label>
                     <input
                       type="number"
                       step="0.01"
@@ -236,7 +237,7 @@ export function ProductWizard({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Compare price</label>
+                    <label className="text-xs text-muted-foreground">{t("compare_price_label")}</label>
                     <input
                       type="number"
                       step="0.01"
@@ -249,7 +250,7 @@ export function ProductWizard({
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground">Stock</label>
+                    <label className="text-xs text-muted-foreground">{t("stock_label")}</label>
                     <input
                       type="number"
                       value={form.stock || ""}
@@ -259,11 +260,11 @@ export function ProductWizard({
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">SKU</label>
+                    <label className="text-xs text-muted-foreground">{t("sku_label")}</label>
                     <input
                       value={form.sku}
                       onChange={(e) => set("sku", e.target.value)}
-                      placeholder="optional"
+                      placeholder={t("sku_optional")}
                       className="w-full mt-1 rounded-lg bg-muted px-3 py-3 text-base text-foreground outline-none focus:ring-1 focus:ring-primary"
                     />
                   </div>
@@ -274,17 +275,17 @@ export function ProductWizard({
             {step === 3 && (
               <div className="space-y-4">
                 <div>
-                  <label className="text-xs text-muted-foreground">Description</label>
+                  <label className="text-xs text-muted-foreground">{t("description_label")}</label>
                   <textarea
                     value={form.description}
                     onChange={(e) => set("description", e.target.value)}
                     rows={5}
-                    placeholder="Tell customers what makes this product special..."
+                    placeholder={t("description_placeholder")}
                     className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary"
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Category</label>
+                  <label className="text-xs text-muted-foreground">{t("category_label")}</label>
                   <CategoryCombobox
                     value={form.category}
                     onChange={(v) => set("category", v)}
@@ -298,7 +299,7 @@ export function ProductWizard({
                     onChange={(e) => set("active", e.target.checked)}
                     className="accent-primary h-4 w-4"
                   />
-                  <span className="text-sm text-foreground">Active (visible in storefront)</span>
+                  <span className="text-sm text-foreground">{t("active_visible")}</span>
                 </label>
               </div>
             )}
@@ -312,7 +313,7 @@ export function ProductWizard({
                 className="px-3 py-2 rounded-lg text-sm text-destructive hover:bg-destructive/10 flex items-center gap-1.5 transition-colors"
               >
                 <Trash2 className="h-4 w-4" />
-                <span className="hidden sm:inline">Delete</span>
+                <span className="hidden sm:inline">{t("delete")}</span>
               </button>
             )}
             <div className="flex-1" />
@@ -321,7 +322,7 @@ export function ProductWizard({
                 onClick={() => setStep((s) => (s - 1) as 1 | 2 | 3)}
                 className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted flex items-center gap-1"
               >
-                <ChevronLeft className="h-4 w-4" /> Back
+                <ChevronLeft className="h-4 w-4 rtl:rotate-180" /> {t("back")}
               </button>
             )}
             {step < 3 ? (
@@ -330,7 +331,7 @@ export function ProductWizard({
                 disabled={step === 2 && !canNextFromBasics}
                 className="px-4 py-2 rounded-lg text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1"
               >
-                Next <ChevronRight className="h-4 w-4" />
+                {t("next")} <ChevronRight className="h-4 w-4 rtl:rotate-180" />
               </button>
             ) : (
               <>
@@ -340,7 +341,7 @@ export function ProductWizard({
                     disabled={saving}
                     className="px-3 py-2 rounded-lg text-sm border border-border text-foreground hover:bg-muted disabled:opacity-50"
                   >
-                    Save & add another
+                    {t("save_and_add_another")}
                   </button>
                 )}
                 <button
@@ -349,7 +350,7 @@ export function ProductWizard({
                   className="px-4 py-2 rounded-lg text-sm bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center gap-1.5"
                 >
                   {saving && <Loader2 className="h-4 w-4 animate-spin" />}
-                  {editingId ? "Save" : "Create"}
+                  {editingId ? t("save") : t("create")}
                 </button>
               </>
             )}

@@ -1037,6 +1037,44 @@ function parseMessageContext(content: string): {
   return result;
 }
 
+function stripMessageContext(content: string): string {
+  return typeof content === "string" ? content.split("\n\n[CTX]")[0] : "";
+}
+
+function looksLikeReferentialFollowUp(text: string): boolean {
+  const normalized = (text || "").trim().toLowerCase();
+  if (!normalized) return false;
+
+  return /^(this|that|it|these|those|price\??|how much\??|details\??|same one\??|which one\??|what about this\??|كم|بكم|سعرها|سعره|هاي|هاد|هذا|هذه|هذي|هاذي|شو سعرها|شو سعره|بدّي هاي|بدي هاي|يعني هاي|هاي قديش|هاي بكم|تفاصيلها|تفاصيله|أبغى هذا|ابي هذا|أبي هذا)/i.test(
+    normalized
+  );
+}
+
+function collectRecentReferenceImages(conversationHistory: any[]): string[] {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const rawContent = typeof conversationHistory[i]?.content === "string"
+      ? conversationHistory[i].content
+      : "";
+    if (!rawContent) continue;
+
+    const ctx = parseMessageContext(rawContent);
+    const mainImage = parseImageUrlFromMessageContent(ctx.textWithoutCtx);
+    const candidates = [mainImage, ctx.contextImageUrl].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      urls.push(candidate);
+      if (urls.length >= 3) return urls;
+    }
+  }
+
+  return urls;
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,

@@ -2233,31 +2233,82 @@ Deno.serve(async (req) => {
       // ─── Extra context: replied-to image OR Facebook/Instagram ad referral ───
       // Re-host so the AI vision pipeline can fetch them reliably.
       let contextImagePublicUrl: string | null = null;
-      const candidateContextUrl =
-        msg.contextImageUrl || msg.adContext?.adImageUrl;
-      if (candidateContextUrl) {
+      let resolvedReplyText: string | null = null;
+      let resolvedReplyImageUrl: string | null = null;
+
+      // If customer replied to a previous message (Meta only sends mid, not the content),
+      // look it up in our DB and pull its image / text for context.
+      if (msg.replyToMid) {
         try {
-          const safeId = safeStorageId(inferredPlatformMessageId) + "-ctx";
-          const downloaded = await downloadBytes(candidateContextUrl);
-          if (downloaded) {
-            const ext = fileExtFromContentType(downloaded.contentType);
-            const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
-            contextImagePublicUrl = await uploadToStoreAssets(
-              supabase,
-              filePath,
-              downloaded.bytes,
-              downloaded.contentType
-            );
+          const lookupId = `${msg.platform}:${msg.replyToMid}`;
+          const { data: original } = await supabase
+            .from("messages")
+            .select("content")
+            .eq("conversation_id", conversation.id)
+            .eq("platform_message_id", lookupId)
+            .maybeSingle();
+          if (original?.content) {
+            const visible = String(original.content).split("\n\n[CTX]")[0];
+            if (visible.startsWith("📷 ")) {
+              resolvedReplyImageUrl = visible.replace("📷 ", "").trim();
+            } else {
+              resolvedReplyText = visible.slice(0, 200);
+            }
+            // Also check if the original had its own context_image attached
+            if (!resolvedReplyImageUrl) {
+              const ctxMatch = String(original.content).match(
+                /context_image=(\S+)/
+              );
+              if (ctxMatch) resolvedReplyImageUrl = ctxMatch[1];
+            }
           }
         } catch (e) {
-          console.error(`[${platform}] Failed to rehost context image:`, e);
+          console.error(`[${platform}] Reply-to lookup failed:`, e);
         }
       }
 
-      // Append a hidden context block parsed by generateAIReply().
+      const candidateContextUrl =
+        msg.contextImageUrl || resolvedReplyImageUrl || msg.adContext?.adImageUrl;
+      if (candidateContextUrl) {
+        // If it's already a hosted store-assets URL (from our DB lookup), reuse it.
+        if (
+          resolvedReplyImageUrl &&
+          candidateContextUrl === resolvedReplyImageUrl &&
+          /\/storage\/v1\/object\/public\/store-assets\//.test(
+            candidateContextUrl
+          )
+        ) {
+          contextImagePublicUrl = candidateContextUrl;
+        } else {
+          try {
+            const safeId = safeStorageId(inferredPlatformMessageId) + "-ctx";
+            const downloaded = await downloadBytes(candidateContextUrl);
+            if (downloaded) {
+              const ext = fileExtFromContentType(downloaded.contentType);
+              const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
+              contextImagePublicUrl = await uploadToStoreAssets(
+                supabase,
+                filePath,
+                downloaded.bytes,
+                downloaded.contentType
+              );
+            }
+          } catch (e) {
+            console.error(`[${platform}] Failed to rehost context image:`, e);
+          }
+        }
+      }
+
+      // Append a hidden context block parsed by generateAIReply() and the inbox UI.
       const ctxParts: string[] = [];
       if (contextImagePublicUrl)
         ctxParts.push(`context_image=${contextImagePublicUrl}`);
+      if (msg.replyToMid)
+        ctxParts.push(`reply_to_mid=${msg.platform}:${msg.replyToMid}`);
+      if (resolvedReplyText)
+        ctxParts.push(
+          `reply_to_text=${resolvedReplyText.replace(/[|\n\r]/g, " ")}`
+        );
       if (msg.adContext?.adTitle)
         ctxParts.push(`ad_title=${msg.adContext.adTitle}`);
       if (msg.adContext?.adId) ctxParts.push(`ad_id=${msg.adContext.adId}`);

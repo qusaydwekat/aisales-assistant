@@ -1791,6 +1791,7 @@ Deno.serve(async (req) => {
           let kind: "text" | "image" = "text";
           let imageUrl: string | undefined;
           let contextImageUrl: string | undefined;
+          let replyToMid: string | undefined;
           let adContext: any = undefined;
 
           // Instagram Ad referral (CTM Instagram ads)
@@ -1808,6 +1809,7 @@ Deno.serve(async (req) => {
           // Reply-to context (customer replying to a story / image / post)
           const replyTo = messaging.message?.reply_to;
           if (replyTo) {
+            replyToMid = replyTo.mid || undefined;
             const replyImg = (replyTo.attachments || []).find(
               (a: any) => a?.type === "image"
             );

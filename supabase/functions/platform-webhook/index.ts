@@ -1053,6 +1053,29 @@ function collectPendingCustomerBurst(conversationHistory: any[]): any[] {
   return burst;
 }
 
+function hasLaterMessageInSameConversation(
+  parsedMessages: any[],
+  currentIndex: number
+): boolean {
+  const current = parsedMessages[currentIndex];
+  if (!current) return false;
+
+  for (let i = currentIndex + 1; i < parsedMessages.length; i++) {
+    const candidate = parsedMessages[i];
+    if (!candidate) continue;
+
+    if (
+      candidate.platform === current.platform &&
+      candidate.platformId === current.platformId &&
+      (candidate.pageId || "") === (current.pageId || "")
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function extractBurstInput(burstMessages: any[]): {
   combinedText: string;
   imageUrls: string[];

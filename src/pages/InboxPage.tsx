@@ -14,6 +14,14 @@ type Platform = "facebook" | "instagram" | "whatsapp";
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
 const platformLabels: Record<Platform, string> = { facebook: "Messenger", instagram: "Instagram", whatsapp: "WhatsApp" };
 
+const stripMessageContext = (content: string | null | undefined) =>
+  typeof content === "string" ? content.split("\n\n[CTX]")[0] : "";
+
+const getImageUrlFromContent = (content: string | null | undefined) => {
+  const visibleContent = stripMessageContext(content);
+  return visibleContent.startsWith("📷 ") ? visibleContent.replace("📷 ", "").trim() : null;
+};
+
 export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<Platform | 'all'>('all');
@@ -175,8 +183,9 @@ export default function InboxPage() {
         {filtered.map(c => {
           const Icon = platformIcons[c.platform as Platform];
           const pageName = getPageName(c);
-          const isLastImage = typeof c.last_message === "string" && c.last_message.startsWith("📷 ");
-          const lastImageUrl = isLastImage ? c.last_message.replace("📷 ", "") : null;
+          const lastMessageText = stripMessageContext(c.last_message);
+          const lastImageUrl = getImageUrlFromContent(c.last_message);
+          const isLastImage = !!lastImageUrl;
           return (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
               className={`w-full text-start px-3 py-3 border-b border-border/50 transition-colors ${c.id === selectedId ? 'bg-muted/60' : 'hover:bg-muted/30'} ${c.unread ? 'border-s-2 border-s-primary' : ''}`}>
@@ -211,7 +220,7 @@ export default function InboxPage() {
                     <p className="text-xs text-muted-foreground truncate">📷 Image</p>
                   </>
                 ) : (
-                  <p className="text-xs text-muted-foreground truncate">{c.last_message}</p>
+                  <p className="text-xs text-muted-foreground truncate">{lastMessageText}</p>
                 )}
               </div>
               {c.status !== 'open' && (
@@ -287,7 +296,11 @@ export default function InboxPage() {
           </div>
           <div className="flex-1 overflow-y-auto p-3 md:p-4 space-y-3">
             {messages.length === 0 && <p className="text-sm text-muted-foreground text-center mt-12">{t("no_messages")}</p>}
-            {messages.map(msg => (
+            {messages.map(msg => {
+              const visibleContent = stripMessageContext(msg.content);
+              const imageUrl = getImageUrlFromContent(msg.content);
+
+              return (
               <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                 className={`flex ${msg.sender === 'customer' ? 'justify-start' : 'justify-end'}`}>
                 <div className={`max-w-[85%] sm:max-w-[70%] rounded-2xl px-3 md:px-4 py-2.5 text-sm ${
@@ -300,17 +313,17 @@ export default function InboxPage() {
                       {msg.sender === 'ai' ? '🤖 AI' : msg.sender === 'owner' ? '👤 You' : ''}
                     </span>
                   </div>
-                  {msg.content.startsWith('📷 ') ? (
-                    <img src={msg.content.replace('📷 ', '')} alt="Shared image" className="rounded-lg max-w-full max-h-48 object-cover" />
+                  {imageUrl ? (
+                    <img src={imageUrl} alt="Shared image" className="rounded-lg max-w-full max-h-48 object-cover" />
                   ) : (
-                    <p className="whitespace-pre-line break-words">{msg.content}</p>
+                    <p className="whitespace-pre-line break-words">{visibleContent}</p>
                   )}
                   <p className="text-[10px] text-muted-foreground/60 mt-1 text-end">
                     {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               </motion.div>
-            ))}
+            )})}
             <div ref={messagesEndRef} />
           </div>
           <div className="p-2 md:p-3 border-t border-border">

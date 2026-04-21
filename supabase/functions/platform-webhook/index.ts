@@ -1037,6 +1037,44 @@ function parseMessageContext(content: string): {
   return result;
 }
 
+function stripMessageContext(content: string): string {
+  return typeof content === "string" ? content.split("\n\n[CTX]")[0] : "";
+}
+
+function looksLikeReferentialFollowUp(text: string): boolean {
+  const normalized = (text || "").trim().toLowerCase();
+  if (!normalized) return false;
+
+  return /^(this|that|it|these|those|price\??|how much\??|details\??|same one\??|which one\??|what about this\??|كم|بكم|سعرها|سعره|هاي|هاد|هذا|هذه|هذي|هاذي|شو سعرها|شو سعره|بدّي هاي|بدي هاي|يعني هاي|هاي قديش|هاي بكم|تفاصيلها|تفاصيله|أبغى هذا|ابي هذا|أبي هذا)/i.test(
+    normalized
+  );
+}
+
+function collectRecentReferenceImages(conversationHistory: any[]): string[] {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const rawContent = typeof conversationHistory[i]?.content === "string"
+      ? conversationHistory[i].content
+      : "";
+    if (!rawContent) continue;
+
+    const ctx = parseMessageContext(rawContent);
+    const mainImage = parseImageUrlFromMessageContent(ctx.textWithoutCtx);
+    const candidates = [mainImage, ctx.contextImageUrl].filter(Boolean) as string[];
+
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      urls.push(candidate);
+      if (urls.length >= 3) return urls;
+    }
+  }
+
+  return urls;
+}
+
 async function generateAIReply(
   customerMessage: string,
   storeInfo: any,
@@ -1205,6 +1243,10 @@ PRODUCT IMAGES RULES:
   const ctx = parseMessageContext(customerMessage);
   const mainContent = ctx.textWithoutCtx;
   const imageUrl = parseImageUrlFromMessageContent(mainContent);
+  const recentReferenceImages =
+    !imageUrl && !ctx.contextImageUrl && looksLikeReferentialFollowUp(mainContent)
+      ? collectRecentReferenceImages(conversationHistory)
+      : [];
 
   const ctxHints: string[] = [];
   if (ctx.adTitle || ctx.adId) {
@@ -1219,12 +1261,18 @@ PRODUCT IMAGES RULES:
     );
   }
 
-  if (imageUrl || ctx.contextImageUrl) {
+  if (recentReferenceImages.length > 0) {
+    ctxHints.push(
+      "The customer's message is a short follow-up like 'this' or 'how much'. Use the referenced product image(s) below as the primary context for identifying which product they mean."
+    );
+  }
+
+  if (imageUrl || ctx.contextImageUrl || recentReferenceImages.length > 0) {
     const userParts: any[] = [];
     const textHint =
       (imageUrl
         ? "The customer sent an image. "
-        : "The customer is asking about the image below (replied-to or ad creative). ") +
+        : "The customer is asking about the image below (replied-to, ad creative, or recent referenced product image). ") +
       (ctxHints.length > 0 ? ctxHints.join(" ") + " " : "") +
       "Identify the product: describe the visible item briefly (type, brand if visible, color, material, category). " +
       "Then call search_products with the best keywords and/or category. " +
@@ -1243,6 +1291,12 @@ PRODUCT IMAGES RULES:
       userParts.push({
         type: "image_url",
         image_url: { url: ctx.contextImageUrl, detail: "auto" },
+      });
+    }
+    for (const refUrl of recentReferenceImages) {
+      userParts.push({
+        type: "image_url",
+        image_url: { url: refUrl, detail: "auto" },
       });
     }
     chatMessages.push({ role: "user", content: userParts });
@@ -2186,48 +2240,61 @@ Deno.serve(async (req) => {
       }
 
       // ─── Sliding-window Message Batching ───
-      // Wait until there has been QUIET_MS of silence after the latest
-      // customer message. Only the webhook whose message ends up being the
-      // latest after the quiet period proceeds; all others yield silently.
+      // Let only the most recent customer message in a burst generate the reply,
+      // and skip if an AI reply was already sent after our customer message.
       const QUIET_MS = 5000;
       const MAX_TOTAL_WAIT_MS = 25000;
       const POLL_MS = 700;
       const myMsgId = insertedMsg?.id;
+      const myCreatedAt = insertedMsg?.created_at || msg.timestamp;
 
       let shouldProceed = true;
       const startedAt = Date.now();
-      let lastActivityAt = Date.now();
 
       while (Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
-        // Find the latest customer message in this conversation right now
-        const { data: latest } = await supabase
-          .from("messages")
-          .select("id, created_at")
-          .eq("conversation_id", conversation.id)
-          .eq("sender", "customer")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+        const [{ data: latestCustomer }, { data: latestAi }] = await Promise.all([
+          supabase
+            .from("messages")
+            .select("id, created_at")
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "customer")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("messages")
+            .select("id, created_at")
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "ai")
+            .gte("created_at", myCreatedAt)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
-        if (!latest) break;
-
-        // If I am NOT the latest message, yield — the latest message's webhook will reply
-        if (latest.id !== myMsgId) {
+        if (latestAi?.id) {
           shouldProceed = false;
           console.log(
-            `[${platform}] Not the latest customer message (latest=${latest.id}, mine=${myMsgId}) — yielding.`
+            `[${platform}] AI reply already sent after customer burst; skipping duplicate response.`
           );
           break;
         }
 
-        // I am the latest. Has it been quiet long enough?
-        const latestTs = new Date(latest.created_at).getTime();
-        if (Date.now() - latestTs >= QUIET_MS) {
-          // Quiet period elapsed → proceed to reply
+        if (!latestCustomer) break;
+
+        if (latestCustomer.id !== myMsgId) {
+          shouldProceed = false;
+          console.log(
+            `[${platform}] Not the latest customer message (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding.`
+          );
           break;
         }
 
-        lastActivityAt = latestTs;
+        const latestTs = new Date(latestCustomer.created_at).getTime();
+        if (Date.now() - latestTs >= QUIET_MS) {
+          break;
+        }
+
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
 
@@ -2247,12 +2314,14 @@ Deno.serve(async (req) => {
       const recentCustomerTexts: string[] = [];
       for (let i = allHistory.length - 1; i >= 0; i--) {
         if (allHistory[i].sender === "customer") {
-          recentCustomerTexts.unshift(allHistory[i].content);
+          recentCustomerTexts.unshift(stripMessageContext(allHistory[i].content));
         } else {
           break; // stop at the last non-customer message
         }
       }
-      const combinedCustomerMessage = recentCustomerTexts.join("\n");
+      const combinedCustomerMessage = recentCustomerTexts
+        .filter((entry) => entry && entry.trim().length > 0)
+        .join("\n");
 
       const aiResult = await generateAIReply(
         combinedCustomerMessage,

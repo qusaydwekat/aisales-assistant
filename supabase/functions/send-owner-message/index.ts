@@ -134,6 +134,7 @@ Deno.serve(async (req) => {
     // Check if content is an image
     const isImage = content.startsWith("📷 ");
     let sendResult: any;
+    let outboundPlatformMessageId: string | null = null;
 
     if (isImage) {
       const imageUrl = content.replace("📷 ", "");
@@ -153,6 +154,7 @@ Deno.serve(async (req) => {
           }),
         });
         sendResult = await res.json();
+        outboundPlatformMessageId = sendResult?.message_id || sendResult?.recipient_id || null;
         if (!res.ok) console.error(`[${platform}] Image send error:`, JSON.stringify(sendResult));
       } else if (platform === "whatsapp") {
         const res = await fetch(`https://graph.facebook.com/v21.0/${connectionPageId}/messages`, {
@@ -169,6 +171,7 @@ Deno.serve(async (req) => {
           }),
         });
         sendResult = await res.json();
+        outboundPlatformMessageId = sendResult?.messages?.[0]?.id || null;
         if (!res.ok) console.error(`[whatsapp] Image send error:`, JSON.stringify(sendResult));
       }
     } else {
@@ -187,6 +190,7 @@ Deno.serve(async (req) => {
           }),
         });
         sendResult = await res.json();
+        outboundPlatformMessageId = sendResult?.message_id || sendResult?.recipient_id || null;
         if (!res.ok) console.error(`[${platform}] Send error:`, JSON.stringify(sendResult));
         else console.log(`[${platform}] Owner message sent to ${recipientId}`);
       } else if (platform === "whatsapp") {
@@ -204,12 +208,30 @@ Deno.serve(async (req) => {
           }),
         });
         sendResult = await res.json();
+        outboundPlatformMessageId = sendResult?.messages?.[0]?.id || null;
         if (!res.ok) console.error(`[whatsapp] Send error:`, JSON.stringify(sendResult));
         else console.log(`[whatsapp] Owner message sent to ${recipientId}`);
       }
     }
 
-    return new Response(JSON.stringify({ success: true, result: sendResult }), {
+    if (outboundPlatformMessageId) {
+      const storedPlatformMessageId = `${platform}:${outboundPlatformMessageId}`;
+      const { error: updateErr } = await supabase
+        .from("messages")
+        .update({ platform_message_id: storedPlatformMessageId })
+        .eq("conversation_id", conversation_id)
+        .eq("sender", "owner")
+        .eq("content", content)
+        .is("platform_message_id", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (updateErr) {
+        console.error("Failed to persist owner platform message id:", updateErr);
+      }
+    }
+
+    return new Response(JSON.stringify({ success: true, result: sendResult, platform_message_id: outboundPlatformMessageId }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

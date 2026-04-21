@@ -22,6 +22,16 @@ const getImageUrlFromContent = (content: string | null | undefined) => {
   return visibleContent.startsWith("📷 ") ? visibleContent.replace("📷 ", "").trim() : null;
 };
 
+const getCtxField = (content: string | null | undefined, field: string): string | null => {
+  if (typeof content !== "string") return null;
+  const ctxIdx = content.indexOf("\n\n[CTX]");
+  if (ctxIdx === -1) return null;
+  const ctx = content.slice(ctxIdx + 7);
+  const re = new RegExp(`${field}=([^|]+?)(?:\\s\\||$)`);
+  const m = ctx.match(re);
+  return m ? m[1].trim() : null;
+};
+
 export default function InboxPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filterPlatform, setFilterPlatform] = useState<Platform | 'all'>('all');

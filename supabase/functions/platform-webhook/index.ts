@@ -1677,6 +1677,8 @@ Deno.serve(async (req) => {
       mediaId?: string;
       // Context: image the customer is replying to (e.g. an ad creative or a previous message image)
       contextImageUrl?: string;
+      // Platform message id (mid) of the message the customer replied to
+      replyToMid?: string;
       // Context: Facebook ad referral info (when message originates from clicking an ad)
       adContext?: {
         adId?: string;
@@ -1709,8 +1711,10 @@ Deno.serve(async (req) => {
 
           // Reply-to context: customer replying to a specific message (could be an image)
           let contextImageUrl: string | undefined;
+          let replyToMid: string | undefined;
           const replyTo = messaging.message?.reply_to;
           if (replyTo) {
+            replyToMid = replyTo.mid || undefined;
             const replyImg = (replyTo.attachments || []).find(
               (a: any) => a?.type === "image"
             );
@@ -1730,6 +1734,7 @@ Deno.serve(async (req) => {
               platformMessageId: messaging.message?.mid || undefined,
               kind: "text",
               contextImageUrl,
+              replyToMid,
               adContext,
             });
           } else if (messaging.message?.attachments?.length > 0) {
@@ -1750,10 +1755,11 @@ Deno.serve(async (req) => {
                 kind: "image",
                 imageUrl: cleanUrl(imgAtt?.payload?.url),
                 contextImageUrl,
+                replyToMid,
                 adContext,
               });
             }
-          } else if (adContext || contextImageUrl) {
+          } else if (adContext || contextImageUrl || replyToMid) {
             // Pure referral / reply with no text — still create an entry so AI can react
             messages.push({
               platform: "facebook",
@@ -1767,6 +1773,7 @@ Deno.serve(async (req) => {
               platformMessageId: messaging.message?.mid || `ref-${Date.now()}`,
               kind: "text",
               contextImageUrl,
+              replyToMid,
               adContext,
             });
           }
@@ -1784,6 +1791,7 @@ Deno.serve(async (req) => {
           let kind: "text" | "image" = "text";
           let imageUrl: string | undefined;
           let contextImageUrl: string | undefined;
+          let replyToMid: string | undefined;
           let adContext: any = undefined;
 
           // Instagram Ad referral (CTM Instagram ads)
@@ -1801,6 +1809,7 @@ Deno.serve(async (req) => {
           // Reply-to context (customer replying to a story / image / post)
           const replyTo = messaging.message?.reply_to;
           if (replyTo) {
+            replyToMid = replyTo.mid || undefined;
             const replyImg = (replyTo.attachments || []).find(
               (a: any) => a?.type === "image"
             );
@@ -1842,6 +1851,7 @@ Deno.serve(async (req) => {
             kind,
             imageUrl,
             contextImageUrl,
+            replyToMid,
             adContext,
           });
         }
@@ -2223,31 +2233,82 @@ Deno.serve(async (req) => {
       // ─── Extra context: replied-to image OR Facebook/Instagram ad referral ───
       // Re-host so the AI vision pipeline can fetch them reliably.
       let contextImagePublicUrl: string | null = null;
-      const candidateContextUrl =
-        msg.contextImageUrl || msg.adContext?.adImageUrl;
-      if (candidateContextUrl) {
+      let resolvedReplyText: string | null = null;
+      let resolvedReplyImageUrl: string | null = null;
+
+      // If customer replied to a previous message (Meta only sends mid, not the content),
+      // look it up in our DB and pull its image / text for context.
+      if (msg.replyToMid) {
         try {
-          const safeId = safeStorageId(inferredPlatformMessageId) + "-ctx";
-          const downloaded = await downloadBytes(candidateContextUrl);
-          if (downloaded) {
-            const ext = fileExtFromContentType(downloaded.contentType);
-            const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
-            contextImagePublicUrl = await uploadToStoreAssets(
-              supabase,
-              filePath,
-              downloaded.bytes,
-              downloaded.contentType
-            );
+          const lookupId = `${msg.platform}:${msg.replyToMid}`;
+          const { data: original } = await supabase
+            .from("messages")
+            .select("content")
+            .eq("conversation_id", conversation.id)
+            .eq("platform_message_id", lookupId)
+            .maybeSingle();
+          if (original?.content) {
+            const visible = String(original.content).split("\n\n[CTX]")[0];
+            if (visible.startsWith("📷 ")) {
+              resolvedReplyImageUrl = visible.replace("📷 ", "").trim();
+            } else {
+              resolvedReplyText = visible.slice(0, 200);
+            }
+            // Also check if the original had its own context_image attached
+            if (!resolvedReplyImageUrl) {
+              const ctxMatch = String(original.content).match(
+                /context_image=(\S+)/
+              );
+              if (ctxMatch) resolvedReplyImageUrl = ctxMatch[1];
+            }
           }
         } catch (e) {
-          console.error(`[${platform}] Failed to rehost context image:`, e);
+          console.error(`[${platform}] Reply-to lookup failed:`, e);
         }
       }
 
-      // Append a hidden context block parsed by generateAIReply().
+      const candidateContextUrl =
+        msg.contextImageUrl || resolvedReplyImageUrl || msg.adContext?.adImageUrl;
+      if (candidateContextUrl) {
+        // If it's already a hosted store-assets URL (from our DB lookup), reuse it.
+        if (
+          resolvedReplyImageUrl &&
+          candidateContextUrl === resolvedReplyImageUrl &&
+          /\/storage\/v1\/object\/public\/store-assets\//.test(
+            candidateContextUrl
+          )
+        ) {
+          contextImagePublicUrl = candidateContextUrl;
+        } else {
+          try {
+            const safeId = safeStorageId(inferredPlatformMessageId) + "-ctx";
+            const downloaded = await downloadBytes(candidateContextUrl);
+            if (downloaded) {
+              const ext = fileExtFromContentType(downloaded.contentType);
+              const filePath = `chat/${conversation.id}/${safeId}.${ext}`;
+              contextImagePublicUrl = await uploadToStoreAssets(
+                supabase,
+                filePath,
+                downloaded.bytes,
+                downloaded.contentType
+              );
+            }
+          } catch (e) {
+            console.error(`[${platform}] Failed to rehost context image:`, e);
+          }
+        }
+      }
+
+      // Append a hidden context block parsed by generateAIReply() and the inbox UI.
       const ctxParts: string[] = [];
       if (contextImagePublicUrl)
         ctxParts.push(`context_image=${contextImagePublicUrl}`);
+      if (msg.replyToMid)
+        ctxParts.push(`reply_to_mid=${msg.platform}:${msg.replyToMid}`);
+      if (resolvedReplyText)
+        ctxParts.push(
+          `reply_to_text=${resolvedReplyText.replace(/[|\n\r]/g, " ")}`
+        );
       if (msg.adContext?.adTitle)
         ctxParts.push(`ad_title=${msg.adContext.adTitle}`);
       if (msg.adContext?.adId) ctxParts.push(`ad_id=${msg.adContext.adId}`);

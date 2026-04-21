@@ -2453,11 +2453,15 @@ Deno.serve(async (req) => {
       // ─── Per-customer quiet-window batching ───
       // Keep waiting until THIS conversation has been quiet for 5s, then only the
       // worker owning the latest customer message may answer.
+      // IMPORTANT: use server receipt time here, not the platform-provided message
+      // timestamp, because webhook delivery can be delayed and would otherwise cause
+      // newer customer messages to be skipped as "already answered".
       const QUIET_MS = 5000;
       const MAX_TOTAL_WAIT_MS = 30000;
       const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
-      const myCreatedAt = msg.timestamp;
+      const myReceivedAtMs = Date.now();
+      const myReceivedAtIso = new Date(myReceivedAtMs).toISOString();
 
       let shouldProceed = true;
       let quietForMs = 0;
@@ -2478,7 +2482,7 @@ Deno.serve(async (req) => {
             .select("id, created_at")
             .eq("conversation_id", conversation.id)
             .eq("sender", "ai")
-            .gte("created_at", myCreatedAt)
+            .gte("created_at", myReceivedAtIso)
             .order("created_at", { ascending: false })
             .limit(1)
             .maybeSingle(),
@@ -2505,7 +2509,7 @@ Deno.serve(async (req) => {
           break;
         }
 
-        quietForMs = Date.now() - new Date(latestCustomer.created_at).getTime();
+        quietForMs = Date.now() - myReceivedAtMs;
         if (quietForMs >= QUIET_MS) break;
 
         await new Promise((r) => setTimeout(r, POLL_MS));

@@ -117,14 +117,14 @@ export default function ProductsPage() {
 
   const handleDelete = async () => {
     if (!editingId) return;
-    if (!confirm("Delete this product?")) return;
+    if (!confirm(t("confirm_delete_product"))) return;
     await deleteProduct.mutateAsync(editingId);
     setWizardOpen(false);
   };
 
   const handleExport = () => {
     if (filtered.length === 0) {
-      toast.error("No products to export");
+      toast.error(t("no_products_to_export"));
       return;
     }
     downloadCsv(`products-${Date.now()}.csv`, exportProductsCsv(filtered as any));
@@ -147,24 +147,24 @@ export default function ProductsPage() {
         <div>
           <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("products")}</h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-1">
-            {products.length} {t("products").toLowerCase()}
+            {products.length} {t("products_count_suffix")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="rounded-lg px-2.5 md:px-3 py-2 text-xs md:text-sm border border-border text-foreground hover:bg-muted flex items-center gap-1.5 transition-colors">
-                <span className="hidden sm:inline">Import / Export</span>
-                <span className="sm:hidden">CSV</span>
+                <span className="hidden sm:inline">{t("import_export")}</span>
+                <span className="sm:hidden">{t("csv_short")}</span>
                 <ChevronDown className="h-3.5 w-3.5" />
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => setCsvOpen(true)}>
-                <Upload className="h-4 w-4 me-2" /> Import CSV
+                <Upload className="h-4 w-4 me-2" /> {t("import_csv")}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={handleExport}>
-                <Download className="h-4 w-4 me-2" /> Export CSV
+                <Download className="h-4 w-4 me-2" /> {t("export_csv_action")}
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -174,7 +174,7 @@ export default function ProductsPage() {
           >
             <Plus className="h-4 w-4" />
             <span className="hidden sm:inline">{t("add_product")}</span>
-            <span className="sm:hidden">Add</span>
+            <span className="sm:hidden">{t("add_short")}</span>
           </button>
         </div>
       </div>
@@ -277,7 +277,7 @@ export default function ProductsPage() {
                       e.stopPropagation();
                       openEdit(p);
                     }}
-                    title="Edit"
+                    title={t("edit")}
                     className="p-1.5 rounded-md bg-background/90 text-foreground hover:bg-background"
                   >
                     <Edit3 className="h-3.5 w-3.5" />
@@ -287,7 +287,7 @@ export default function ProductsPage() {
                       e.stopPropagation();
                       duplicate(p);
                     }}
-                    title="Duplicate"
+                    title={t("duplicate")}
                     className="p-1.5 rounded-md bg-background/90 text-foreground hover:bg-background"
                   >
                     <Copy className="h-3.5 w-3.5" />
@@ -295,9 +295,9 @@ export default function ProductsPage() {
                   <button
                     onClick={async (e) => {
                       e.stopPropagation();
-                      if (confirm(`Delete "${p.name}"?`)) await deleteProduct.mutateAsync(p.id);
+                      if (confirm(`${t("delete")} "${p.name}"?`)) await deleteProduct.mutateAsync(p.id);
                     }}
-                    title="Delete"
+                    title={t("delete")}
                     className="p-1.5 rounded-md bg-background/90 text-destructive hover:bg-background"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
@@ -316,7 +316,7 @@ export default function ProductsPage() {
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Stock: {p.stock} · SKU: {p.sku || "—"}
+                  {t("stock_label")}: {p.stock} · {t("sku_label")}: {p.sku || "—"}
                 </p>
               </div>
             </motion.div>
@@ -327,11 +327,11 @@ export default function ProductsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border text-start">
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Product</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Category</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Price</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Stock</th>
-                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
+                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("product_col_h")}</th>
+                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("category_col_h")}</th>
+                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("price_col_h")}</th>
+                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("stock_col_h")}</th>
+                <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("status_col_h")}</th>
                 <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase w-10"></th>
               </tr>
             </thead>
@@ -373,18 +373,18 @@ export default function ProductsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(p)}>
-                          <Edit3 className="h-4 w-4 me-2" /> Edit
+                          <Edit3 className="h-4 w-4 me-2" /> {t("edit")}
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => duplicate(p)}>
-                          <Copy className="h-4 w-4 me-2" /> Duplicate
+                          <Copy className="h-4 w-4 me-2" /> {t("duplicate")}
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive"
                           onClick={async () => {
-                            if (confirm(`Delete "${p.name}"?`)) await deleteProduct.mutateAsync(p.id);
+                            if (confirm(`${t("delete")} "${p.name}"?`)) await deleteProduct.mutateAsync(p.id);
                           }}
                         >
-                          <Trash2 className="h-4 w-4 me-2" /> Delete
+                          <Trash2 className="h-4 w-4 me-2" /> {t("delete")}
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>

@@ -1243,6 +1243,10 @@ PRODUCT IMAGES RULES:
   const ctx = parseMessageContext(customerMessage);
   const mainContent = ctx.textWithoutCtx;
   const imageUrl = parseImageUrlFromMessageContent(mainContent);
+  const recentReferenceImages =
+    !imageUrl && !ctx.contextImageUrl && looksLikeReferentialFollowUp(mainContent)
+      ? collectRecentReferenceImages(conversationHistory)
+      : [];
 
   const ctxHints: string[] = [];
   if (ctx.adTitle || ctx.adId) {
@@ -1257,12 +1261,18 @@ PRODUCT IMAGES RULES:
     );
   }
 
-  if (imageUrl || ctx.contextImageUrl) {
+  if (recentReferenceImages.length > 0) {
+    ctxHints.push(
+      "The customer's message is a short follow-up like 'this' or 'how much'. Use the referenced product image(s) below as the primary context for identifying which product they mean."
+    );
+  }
+
+  if (imageUrl || ctx.contextImageUrl || recentReferenceImages.length > 0) {
     const userParts: any[] = [];
     const textHint =
       (imageUrl
         ? "The customer sent an image. "
-        : "The customer is asking about the image below (replied-to or ad creative). ") +
+        : "The customer is asking about the image below (replied-to, ad creative, or recent referenced product image). ") +
       (ctxHints.length > 0 ? ctxHints.join(" ") + " " : "") +
       "Identify the product: describe the visible item briefly (type, brand if visible, color, material, category). " +
       "Then call search_products with the best keywords and/or category. " +
@@ -1281,6 +1291,12 @@ PRODUCT IMAGES RULES:
       userParts.push({
         type: "image_url",
         image_url: { url: ctx.contextImageUrl, detail: "auto" },
+      });
+    }
+    for (const refUrl of recentReferenceImages) {
+      userParts.push({
+        type: "image_url",
+        image_url: { url: refUrl, detail: "auto" },
       });
     }
     chatMessages.push({ role: "user", content: userParts });

@@ -405,6 +405,7 @@ export default function ProductsPage() {
         categories={categoriesList}
         onSubmit={handleSubmit}
         onDelete={handleDelete}
+        aiLanguage={aiSettings?.language}
         saving={createProduct.isPending || updateProduct.isPending}
       />
 

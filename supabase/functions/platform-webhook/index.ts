@@ -1007,6 +1007,8 @@ function parseImageUrlFromMessageContent(content: string): string | null {
 // Parse the [CTX] block appended by the webhook with ad/reply context.
 function parseMessageContext(content: string): {
   contextImageUrl: string | null;
+  replyToText: string | null;
+  replyToMid: string | null;
   adTitle: string | null;
   adId: string | null;
   adUrl: string | null;
@@ -1014,6 +1016,8 @@ function parseMessageContext(content: string): {
 } {
   const result = {
     contextImageUrl: null as string | null,
+    replyToText: null as string | null,
+    replyToMid: null as string | null,
     adTitle: null as string | null,
     adId: null as string | null,
     adUrl: null as string | null,
@@ -1030,6 +1034,8 @@ function parseMessageContext(content: string): {
     const key = part.slice(0, eq).trim();
     const val = part.slice(eq + 1).trim();
     if (key === "context_image") result.contextImageUrl = val;
+    else if (key === "reply_to_text") result.replyToText = val;
+    else if (key === "reply_to_mid") result.replyToMid = val;
     else if (key === "ad_title") result.adTitle = val;
     else if (key === "ad_id") result.adId = val;
     else if (key === "ad_url") result.adUrl = val;
@@ -1370,6 +1376,10 @@ PRODUCT IMAGES RULES:
   } else if (ctx.contextImageUrl) {
     ctxHints.push(
       "The customer is replying to an image they were sent (a product photo, ad creative, or story). Treat that image as the product they are asking about."
+    );
+  } else if (ctx.replyToText) {
+    ctxHints.push(
+      `The customer is replying to this exact previous message: "${ctx.replyToText}". Use that replied-to message as primary context when deciding what product or detail they mean.`
     );
   }
 

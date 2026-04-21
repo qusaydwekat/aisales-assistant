@@ -323,7 +323,7 @@ export default function InboxPage() {
               const replyImageUrl = getCtxField(msg.content, 'context_image') || getImageUrlFromContent(repliedMessage?.content);
               const replyText = getCtxField(msg.content, 'reply_to_text') || stripMessageContext(repliedMessage?.content);
               const adTitle = getCtxField(msg.content, 'ad_title');
-              const hasReplyContext = !!(replyImageUrl || replyText || adTitle);
+              const hasReplyContext = !!(replyToMid || replyImageUrl || replyText || adTitle);
 
               return (
               <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -346,7 +346,7 @@ export default function InboxPage() {
                       <div className="min-w-0 flex-1">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("replying_to") || "Replying to"}</p>
                         <p className="text-xs text-foreground/80 truncate">
-                          {replyText || (adTitle ? `📢 ${adTitle}` : (replyImageUrl ? '📷 Image' : ''))}
+                           {replyText || (adTitle ? `📢 ${adTitle}` : (replyImageUrl ? '📷 Image' : '↩ Previous message'))}
                         </p>
                       </div>
                     </div>

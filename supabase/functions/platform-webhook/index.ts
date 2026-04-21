@@ -1711,8 +1711,10 @@ Deno.serve(async (req) => {
 
           // Reply-to context: customer replying to a specific message (could be an image)
           let contextImageUrl: string | undefined;
+          let replyToMid: string | undefined;
           const replyTo = messaging.message?.reply_to;
           if (replyTo) {
+            replyToMid = replyTo.mid || undefined;
             const replyImg = (replyTo.attachments || []).find(
               (a: any) => a?.type === "image"
             );

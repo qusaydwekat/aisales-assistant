@@ -76,6 +76,25 @@ export function useDeleteProduct() {
   });
 }
 
+export function useBulkCreateProducts() {
+  const qc = useQueryClient();
+  const { store } = useAuth();
+  return useMutation({
+    mutationFn: async (products: Array<{
+      name: string; description?: string; category?: string; price: number;
+      compare_price?: number; stock: number; sku?: string; images?: string[]; active?: boolean;
+    }>) => {
+      const rows = products.map((p) => ({ ...p, store_id: store!.id }));
+      const { error } = await supabase.from("products").insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["products"] });
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+}
+
 // ============ ORDERS ============
 export function useOrders() {
   const { store } = useAuth();

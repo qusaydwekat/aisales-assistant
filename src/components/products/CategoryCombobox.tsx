@@ -28,7 +28,7 @@ export function CategoryCombobox({ value, onChange, options, placeholder }: Prop
           type="button"
           className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary flex items-center justify-between gap-2"
         >
-          <span className={cn(!value && "text-muted-foreground")}>{value || placeholder}</span>
+          <span className={cn(!value && "text-muted-foreground")}>{value || ph}</span>
           <ChevronsUpDown className="h-4 w-4 text-muted-foreground shrink-0" />
         </button>
       </PopoverTrigger>

@@ -170,7 +170,8 @@ export function useMessages(conversationId: string | null) {
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId!)
-        .order("created_at", { ascending: true });
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true });
       if (error) throw error;
       return data;
     },

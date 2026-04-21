@@ -30,7 +30,7 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
   const { store, profile, role } = useAuth();
-  const { t, language, setLanguage } = useLanguage();
+  const { t, language, setLanguage, dir } = useLanguage();
   const { data: unreadInbox = 0 } = useUnreadConversationCount();
   const { data: unreadNotifs = 0 } = useUnreadNotificationCount();
 
@@ -45,7 +45,7 @@ export function AppSidebar() {
   ];
 
   return (
-    <Sidebar collapsible="icon" className="border-e border-border bg-sidebar">
+    <Sidebar side={dir === "rtl" ? "right" : "left"} collapsible="icon" className="border-e border-border bg-sidebar">
       <SidebarHeader className="p-4">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">

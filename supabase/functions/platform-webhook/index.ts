@@ -2240,48 +2240,61 @@ Deno.serve(async (req) => {
       }
 
       // ─── Sliding-window Message Batching ───
-      // Wait until there has been QUIET_MS of silence after the latest
-      // customer message. Only the webhook whose message ends up being the
-      // latest after the quiet period proceeds; all others yield silently.
+      // Let only the most recent customer message in a burst generate the reply,
+      // and skip if an AI reply was already sent after our customer message.
       const QUIET_MS = 5000;
       const MAX_TOTAL_WAIT_MS = 25000;
       const POLL_MS = 700;
       const myMsgId = insertedMsg?.id;
+      const myCreatedAt = insertedMsg?.created_at || msg.timestamp;
 
       let shouldProceed = true;
       const startedAt = Date.now();
-      let lastActivityAt = Date.now();
 
       while (Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
-        // Find the latest customer message in this conversation right now
-        const { data: latest } = await supabase
-          .from("messages")
-          .select("id, created_at")
-          .eq("conversation_id", conversation.id)
-          .eq("sender", "customer")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single();
+        const [{ data: latestCustomer }, { data: latestAi }] = await Promise.all([
+          supabase
+            .from("messages")
+            .select("id, created_at")
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "customer")
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+          supabase
+            .from("messages")
+            .select("id, created_at")
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "ai")
+            .gte("created_at", myCreatedAt)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
-        if (!latest) break;
-
-        // If I am NOT the latest message, yield — the latest message's webhook will reply
-        if (latest.id !== myMsgId) {
+        if (latestAi?.id) {
           shouldProceed = false;
           console.log(
-            `[${platform}] Not the latest customer message (latest=${latest.id}, mine=${myMsgId}) — yielding.`
+            `[${platform}] AI reply already sent after customer burst; skipping duplicate response.`
           );
           break;
         }
 
-        // I am the latest. Has it been quiet long enough?
-        const latestTs = new Date(latest.created_at).getTime();
-        if (Date.now() - latestTs >= QUIET_MS) {
-          // Quiet period elapsed → proceed to reply
+        if (!latestCustomer) break;
+
+        if (latestCustomer.id !== myMsgId) {
+          shouldProceed = false;
+          console.log(
+            `[${platform}] Not the latest customer message (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding.`
+          );
           break;
         }
 
-        lastActivityAt = latestTs;
+        const latestTs = new Date(latestCustomer.created_at).getTime();
+        if (Date.now() - latestTs >= QUIET_MS) {
+          break;
+        }
+
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
 
@@ -2301,12 +2314,14 @@ Deno.serve(async (req) => {
       const recentCustomerTexts: string[] = [];
       for (let i = allHistory.length - 1; i >= 0; i--) {
         if (allHistory[i].sender === "customer") {
-          recentCustomerTexts.unshift(allHistory[i].content);
+          recentCustomerTexts.unshift(stripMessageContext(allHistory[i].content));
         } else {
           break; // stop at the last non-customer message
         }
       }
-      const combinedCustomerMessage = recentCustomerTexts.join("\n");
+      const combinedCustomerMessage = recentCustomerTexts
+        .filter((entry) => entry && entry.trim().length > 0)
+        .join("\n");
 
       const aiResult = await generateAIReply(
         combinedCustomerMessage,

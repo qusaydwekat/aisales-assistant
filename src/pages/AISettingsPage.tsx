@@ -4,8 +4,10 @@ import { motion } from "framer-motion";
 import { useAISettings, useUpsertAISettings } from "@/hooks/useSupabaseData";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function AISettingsPage() {
+  const { dir } = useLanguage();
   const { data: settings, isLoading } = useAISettings();
   const upsert = useUpsertAISettings();
 
@@ -69,7 +71,7 @@ export default function AISettingsPage() {
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 space-y-6 pb-20 md:pb-6" dir={dir}>
       <div>
         <h1 className="text-2xl font-heading font-bold text-foreground">AI Settings</h1>
         <p className="text-sm text-muted-foreground mt-1">Configure your AI sales assistant</p>

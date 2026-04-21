@@ -3,6 +3,7 @@ import { Check, ChevronsUpDown, Plus } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 interface Props {
   value: string;
@@ -11,7 +12,9 @@ interface Props {
   placeholder?: string;
 }
 
-export function CategoryCombobox({ value, onChange, options, placeholder = "Select category" }: Props) {
+export function CategoryCombobox({ value, onChange, options, placeholder }: Props) {
+  const { t } = useLanguage();
+  const ph = placeholder ?? t("select_category_placeholder");
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
 

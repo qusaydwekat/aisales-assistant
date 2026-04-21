@@ -22,6 +22,7 @@ import {
   useUpdateProduct,
   useDeleteProduct,
   useBulkCreateProducts,
+  useAISettings,
 } from "@/hooks/useSupabaseData";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ProductWizard, ProductForm } from "@/components/products/ProductWizard";
@@ -47,6 +48,7 @@ export default function ProductsPage() {
 
   const { t, dir } = useLanguage();
   const { data: products = [], isLoading } = useProducts();
+  const { data: aiSettings } = useAISettings();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();

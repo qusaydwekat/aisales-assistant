@@ -53,6 +53,7 @@ export function ProductWizard({
   onSubmit,
   onDelete,
   saving,
+  aiLanguage,
 }: Props) {
   const { language } = useLanguage();
   const [step, setStep] = useState<1 | 2 | 3>(initialStep);
@@ -78,8 +79,10 @@ export function ProductWizard({
     if (!form.images[0]) return;
     setAiLoading(true);
     try {
+      // Prefer the store's AI language setting; fall back to UI language
+      const lang = aiLanguage && aiLanguage !== "both" ? aiLanguage : language;
       const { data, error } = await supabase.functions.invoke("ai-product-autofill", {
-        body: { image_url: form.images[0], language },
+        body: { image_url: form.images[0], language: lang },
       });
       if (error) throw error;
       const s = data?.suggestion || {};

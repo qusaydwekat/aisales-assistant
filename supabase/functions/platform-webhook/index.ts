@@ -2329,16 +2329,17 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Sliding-window Message Batching ───
-      // Let only the most recent customer message in a burst generate the reply,
-      // and skip if an AI reply was already sent after our customer message.
+      // ─── Per-customer quiet-window batching ───
+      // Keep waiting until THIS conversation has been quiet for 5s, then only the
+      // worker owning the latest customer message may answer.
       const QUIET_MS = 5000;
-      const MAX_TOTAL_WAIT_MS = 25000;
-      const POLL_MS = 700;
+      const MAX_TOTAL_WAIT_MS = 30000;
+      const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
       const myCreatedAt = insertedMsg?.created_at || msg.timestamp;
 
       let shouldProceed = true;
+      let quietForMs = 0;
       const startedAt = Date.now();
 
       while (Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
@@ -2365,30 +2366,38 @@ Deno.serve(async (req) => {
         if (latestAi?.id) {
           shouldProceed = false;
           console.log(
-            `[${platform}] AI reply already sent after customer burst; skipping duplicate response.`
+            `[${platform}] AI reply already sent for this burst; skipping duplicate response.`
           );
           break;
         }
 
-        if (!latestCustomer) break;
+        if (!latestCustomer?.id) {
+          shouldProceed = false;
+          break;
+        }
 
         if (latestCustomer.id !== myMsgId) {
           shouldProceed = false;
           console.log(
-            `[${platform}] Not the latest customer message (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding.`
+            `[${platform}] Newer customer message detected (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding to newer worker.`
           );
           break;
         }
 
-        const latestTs = new Date(latestCustomer.created_at).getTime();
-        if (Date.now() - latestTs >= QUIET_MS) {
-          break;
-        }
+        quietForMs = Date.now() - new Date(latestCustomer.created_at).getTime();
+        if (quietForMs >= QUIET_MS) break;
 
         await new Promise((r) => setTimeout(r, POLL_MS));
       }
 
       if (!shouldProceed) continue;
+
+      if (quietForMs < QUIET_MS) {
+        console.log(
+          `[${platform}] Quiet window not reached (${quietForMs}ms); skipping reply.`
+        );
+        continue;
+      }
 
 
       // Re-fetch conversation history after debounce to include all batched messages
@@ -2399,19 +2408,16 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: true })
         .limit(20);
 
-      // Combine recent consecutive customer messages into one for the AI prompt
+      // Combine the latest consecutive customer messages into one prompt.
       const allHistory = freshHistory || history;
-      const recentCustomerTexts: string[] = [];
-      for (let i = allHistory.length - 1; i >= 0; i--) {
-        if (allHistory[i].sender === "customer") {
-          recentCustomerTexts.unshift(stripMessageContext(allHistory[i].content));
-        } else {
-          break; // stop at the last non-customer message
-        }
-      }
-      const combinedCustomerMessage = recentCustomerTexts
-        .filter((entry) => entry && entry.trim().length > 0)
-        .join("\n");
+      const pendingBurst = collectPendingCustomerBurst(allHistory);
+      const burstInput = extractBurstInput(pendingBurst);
+      const combinedCustomerMessage =
+        burstInput.combinedText ||
+        pendingBurst
+          .map((entry) => stripMessageContext(entry.content))
+          .filter((entry) => entry && entry.trim().length > 0)
+          .join("\n");
 
       const aiResult = await generateAIReply(
         combinedCustomerMessage,

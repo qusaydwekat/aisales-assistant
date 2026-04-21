@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
           }),
         });
         sendResult = await res.json();
-        outboundPlatformMessageId = sendResult?.message_id || sendResult?.recipient_id || null;
+        outboundPlatformMessageId = sendResult?.message_id || null;
         if (!res.ok) console.error(`[${platform}] Image send error:`, JSON.stringify(sendResult));
       } else if (platform === "whatsapp") {
         const res = await fetch(`https://graph.facebook.com/v21.0/${connectionPageId}/messages`, {
@@ -190,7 +190,7 @@ Deno.serve(async (req) => {
           }),
         });
         sendResult = await res.json();
-        outboundPlatformMessageId = sendResult?.message_id || sendResult?.recipient_id || null;
+        outboundPlatformMessageId = sendResult?.message_id || null;
         if (!res.ok) console.error(`[${platform}] Send error:`, JSON.stringify(sendResult));
         else console.log(`[${platform}] Owner message sent to ${recipientId}`);
       } else if (platform === "whatsapp") {
@@ -216,18 +216,28 @@ Deno.serve(async (req) => {
 
     if (outboundPlatformMessageId) {
       const storedPlatformMessageId = `${platform}:${outboundPlatformMessageId}`;
-      const { error: updateErr } = await supabase
+      const { data: targetMessage, error: lookupErr } = await supabase
         .from("messages")
-        .update({ platform_message_id: storedPlatformMessageId })
+        .select("id")
         .eq("conversation_id", conversation_id)
         .eq("sender", "owner")
         .eq("content", content)
         .is("platform_message_id", null)
         .order("created_at", { ascending: false })
-        .limit(1);
+        .limit(1)
+        .maybeSingle();
 
-      if (updateErr) {
-        console.error("Failed to persist owner platform message id:", updateErr);
+      if (lookupErr) {
+        console.error("Failed to locate owner message for platform id persistence:", lookupErr);
+      } else if (targetMessage?.id) {
+        const { error: updateErr } = await supabase
+          .from("messages")
+          .update({ platform_message_id: storedPlatformMessageId })
+          .eq("id", targetMessage.id);
+
+        if (updateErr) {
+          console.error("Failed to persist owner platform message id:", updateErr);
+        }
       }
     }
 

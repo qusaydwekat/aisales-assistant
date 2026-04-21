@@ -104,6 +104,15 @@ export default function InboxPage() {
     (searchText === '' || c.customer_name.toLowerCase().includes(searchText.toLowerCase()))
   );
   const selected = conversations.find(c => c.id === selectedId);
+  const messageByPlatformId = useMemo(() => {
+    const map = new Map<string, typeof messages[number]>();
+    messages.forEach((message) => {
+      if (message.platform_message_id) {
+        map.set(message.platform_message_id, message);
+      }
+    });
+    return map;
+  }, [messages]);
 
   const getPageName = (convo: typeof conversations[0]) => {
     const conn = connections.find(c => c.page_id === convo.page_id && c.status === 'connected');
@@ -309,8 +318,10 @@ export default function InboxPage() {
             {messages.map(msg => {
               const visibleContent = stripMessageContext(msg.content);
               const imageUrl = getImageUrlFromContent(msg.content);
-              const replyImageUrl = getCtxField(msg.content, 'context_image');
-              const replyText = getCtxField(msg.content, 'reply_to_text');
+              const replyToMid = getCtxField(msg.content, 'reply_to_mid');
+              const repliedMessage = replyToMid ? messageByPlatformId.get(replyToMid) : null;
+              const replyImageUrl = getCtxField(msg.content, 'context_image') || getImageUrlFromContent(repliedMessage?.content);
+              const replyText = getCtxField(msg.content, 'reply_to_text') || stripMessageContext(repliedMessage?.content);
               const adTitle = getCtxField(msg.content, 'ad_title');
               const hasReplyContext = !!(replyImageUrl || replyText || adTitle);
 

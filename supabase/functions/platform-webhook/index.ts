@@ -2536,12 +2536,20 @@ Deno.serve(async (req) => {
         existingOrders
       );
 
-      await supabase.from("messages").insert({
+      const { data: insertedAiText, error: insertedAiTextError } = await supabase
+        .from("messages")
+        .insert({
         conversation_id: conversation.id,
         sender: "ai",
         content: aiResult.text,
         platform_message_id: null,
-      });
+      })
+        .select("id")
+        .maybeSingle();
+
+      if (insertedAiTextError) {
+        console.error(`[${platform}] Failed to store AI text message:`, insertedAiTextError);
+      }
 
       await supabase
         .from("conversations")
@@ -2556,7 +2564,7 @@ Deno.serve(async (req) => {
         console.log(
           `[${platform}] Sending reply to ${msg.sender} using stored page token`
         );
-        await sendMetaReply(
+        const replySendResult = await sendMetaReply(
           msg.platform,
           msg.sender,
           aiResult.text,
@@ -2564,10 +2572,26 @@ Deno.serve(async (req) => {
           connectionPageId || msg.pageId || ""
         );
 
+        const sentTextPlatformMessageId =
+          replySendResult?.message_id || replySendResult?.messages?.[0]?.id || null;
+
+        if (insertedAiText?.id && sentTextPlatformMessageId) {
+          const { error: aiUpdateError } = await supabase
+            .from("messages")
+            .update({
+              platform_message_id: `${msg.platform}:${sentTextPlatformMessageId}`,
+            })
+            .eq("id", insertedAiText.id);
+
+          if (aiUpdateError) {
+            console.error(`[${platform}] Failed to persist AI text platform message id:`, aiUpdateError);
+          }
+        }
+
         // Send product images if any
         for (const img of aiResult.images) {
           try {
-            await sendMetaImage(
+            const imageSendResult = await sendMetaImage(
               msg.platform,
               msg.sender,
               img.url,
@@ -2575,6 +2599,22 @@ Deno.serve(async (req) => {
               pageAccessToken,
               connectionPageId || msg.pageId || ""
             );
+
+            const sentImagePlatformMessageId =
+              imageSendResult?.message_id || imageSendResult?.messages?.[0]?.id || null;
+
+            const { error: imageInsertError } = await supabase.from("messages").insert({
+              conversation_id: conversation.id,
+              sender: "ai",
+              content: `📷 ${img.url}`,
+              platform_message_id: sentImagePlatformMessageId
+                ? `${msg.platform}:${sentImagePlatformMessageId}`
+                : null,
+            });
+
+            if (imageInsertError) {
+              console.error(`[${platform}] Failed to store AI image message:`, imageInsertError);
+            }
           } catch (imgErr) {
             console.error(`[${platform}] Failed to send image:`, imgErr);
           }

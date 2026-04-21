@@ -1041,6 +1041,81 @@ function stripMessageContext(content: string): string {
   return typeof content === "string" ? content.split("\n\n[CTX]")[0] : "";
 }
 
+function collectPendingCustomerBurst(conversationHistory: any[]): any[] {
+  const burst: any[] = [];
+
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    const entry = conversationHistory[i];
+    if (entry?.sender !== "customer") break;
+    burst.unshift(entry);
+  }
+
+  return burst;
+}
+
+function extractBurstInput(burstMessages: any[]): {
+  combinedText: string;
+  imageUrls: string[];
+  latestContext: ReturnType<typeof parseMessageContext>;
+} {
+  const seen = new Set<string>();
+  const textParts: string[] = [];
+  let latestContext = parseMessageContext("");
+
+  for (const msg of burstMessages) {
+    const rawContent = typeof msg?.content === "string" ? msg.content : "";
+    if (!rawContent) continue;
+
+    const ctx = parseMessageContext(rawContent);
+    latestContext = ctx;
+
+    const visibleText = ctx.textWithoutCtx.trim();
+    if (
+      visibleText &&
+      visibleText !== "[Image]" &&
+      !visibleText.startsWith("📷 ")
+    ) {
+      textParts.push(visibleText);
+    }
+  }
+
+  const imageUrls = burstMessages.flatMap((msg) => {
+    const rawContent = typeof msg?.content === "string" ? msg.content : "";
+    if (!rawContent) return [] as string[];
+
+    const ctx = parseMessageContext(rawContent);
+    const directImage = parseImageUrlFromMessageContent(ctx.textWithoutCtx);
+    return [directImage, ctx.contextImageUrl].filter((url): url is string => {
+      if (!url || seen.has(url)) return false;
+      seen.add(url);
+      return true;
+    });
+  });
+
+  return {
+    combinedText: textParts.join("\n"),
+    imageUrls,
+    latestContext,
+  };
+}
+
+function isFallbackLikeResponse(text: string, fallbackMessage?: string | null): boolean {
+  const normalized = (text || "").trim().toLowerCase();
+  if (!normalized) return true;
+
+  const knownFallbacks = [
+    fallbackMessage,
+    "i'm not sure about that. let me connect you with our team!",
+    "i’m not sure about that. let me connect you with our team!",
+    "thanks for your message! our team will get back to you shortly.",
+    "thanks for your message! we'll get back to you shortly.",
+  ]
+    .filter(Boolean)
+    .map((entry) => entry!.trim().toLowerCase());
+
+  return knownFallbacks.includes(normalized);
+}
+
 function looksLikeReferentialFollowUp(text: string): boolean {
   const normalized = (text || "").trim().toLowerCase();
   if (!normalized) return false;

@@ -1007,6 +1007,8 @@ function parseImageUrlFromMessageContent(content: string): string | null {
 // Parse the [CTX] block appended by the webhook with ad/reply context.
 function parseMessageContext(content: string): {
   contextImageUrl: string | null;
+  replyToText: string | null;
+  replyToMid: string | null;
   adTitle: string | null;
   adId: string | null;
   adUrl: string | null;
@@ -1014,6 +1016,8 @@ function parseMessageContext(content: string): {
 } {
   const result = {
     contextImageUrl: null as string | null,
+    replyToText: null as string | null,
+    replyToMid: null as string | null,
     adTitle: null as string | null,
     adId: null as string | null,
     adUrl: null as string | null,
@@ -1030,6 +1034,8 @@ function parseMessageContext(content: string): {
     const key = part.slice(0, eq).trim();
     const val = part.slice(eq + 1).trim();
     if (key === "context_image") result.contextImageUrl = val;
+    else if (key === "reply_to_text") result.replyToText = val;
+    else if (key === "reply_to_mid") result.replyToMid = val;
     else if (key === "ad_title") result.adTitle = val;
     else if (key === "ad_id") result.adId = val;
     else if (key === "ad_url") result.adUrl = val;
@@ -1370,6 +1376,10 @@ PRODUCT IMAGES RULES:
   } else if (ctx.contextImageUrl) {
     ctxHints.push(
       "The customer is replying to an image they were sent (a product photo, ad creative, or story). Treat that image as the product they are asking about."
+    );
+  } else if (ctx.replyToText) {
+    ctxHints.push(
+      `The customer is replying to this exact previous message: "${ctx.replyToText}". Use that replied-to message as primary context when deciding what product or detail they mean.`
     );
   }
 
@@ -2536,12 +2546,20 @@ Deno.serve(async (req) => {
         existingOrders
       );
 
-      await supabase.from("messages").insert({
+      const { data: insertedAiText, error: insertedAiTextError } = await supabase
+        .from("messages")
+        .insert({
         conversation_id: conversation.id,
         sender: "ai",
         content: aiResult.text,
         platform_message_id: null,
-      });
+      })
+        .select("id")
+        .maybeSingle();
+
+      if (insertedAiTextError) {
+        console.error(`[${platform}] Failed to store AI text message:`, insertedAiTextError);
+      }
 
       await supabase
         .from("conversations")
@@ -2556,7 +2574,7 @@ Deno.serve(async (req) => {
         console.log(
           `[${platform}] Sending reply to ${msg.sender} using stored page token`
         );
-        await sendMetaReply(
+        const replySendResult = await sendMetaReply(
           msg.platform,
           msg.sender,
           aiResult.text,
@@ -2564,10 +2582,26 @@ Deno.serve(async (req) => {
           connectionPageId || msg.pageId || ""
         );
 
+        const sentTextPlatformMessageId =
+          replySendResult?.message_id || replySendResult?.messages?.[0]?.id || null;
+
+        if (insertedAiText?.id && sentTextPlatformMessageId) {
+          const { error: aiUpdateError } = await supabase
+            .from("messages")
+            .update({
+              platform_message_id: `${msg.platform}:${sentTextPlatformMessageId}`,
+            })
+            .eq("id", insertedAiText.id);
+
+          if (aiUpdateError) {
+            console.error(`[${platform}] Failed to persist AI text platform message id:`, aiUpdateError);
+          }
+        }
+
         // Send product images if any
         for (const img of aiResult.images) {
           try {
-            await sendMetaImage(
+            const imageSendResult = await sendMetaImage(
               msg.platform,
               msg.sender,
               img.url,
@@ -2575,6 +2609,22 @@ Deno.serve(async (req) => {
               pageAccessToken,
               connectionPageId || msg.pageId || ""
             );
+
+            const sentImagePlatformMessageId =
+              imageSendResult?.message_id || imageSendResult?.messages?.[0]?.id || null;
+
+            const { error: imageInsertError } = await supabase.from("messages").insert({
+              conversation_id: conversation.id,
+              sender: "ai",
+              content: `📷 ${img.url}`,
+              platform_message_id: sentImagePlatformMessageId
+                ? `${msg.platform}:${sentImagePlatformMessageId}`
+                : null,
+            });
+
+            if (imageInsertError) {
+              console.error(`[${platform}] Failed to store AI image message:`, imageInsertError);
+            }
           } catch (imgErr) {
             console.error(`[${platform}] Failed to send image:`, imgErr);
           }

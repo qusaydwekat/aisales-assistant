@@ -1734,6 +1734,7 @@ Deno.serve(async (req) => {
               platformMessageId: messaging.message?.mid || undefined,
               kind: "text",
               contextImageUrl,
+              replyToMid,
               adContext,
             });
           } else if (messaging.message?.attachments?.length > 0) {
@@ -1754,10 +1755,11 @@ Deno.serve(async (req) => {
                 kind: "image",
                 imageUrl: cleanUrl(imgAtt?.payload?.url),
                 contextImageUrl,
+                replyToMid,
                 adContext,
               });
             }
-          } else if (adContext || contextImageUrl) {
+          } else if (adContext || contextImageUrl || replyToMid) {
             // Pure referral / reply with no text — still create an entry so AI can react
             messages.push({
               platform: "facebook",
@@ -1771,6 +1773,7 @@ Deno.serve(async (req) => {
               platformMessageId: messaging.message?.mid || `ref-${Date.now()}`,
               kind: "text",
               contextImageUrl,
+              replyToMid,
               adContext,
             });
           }

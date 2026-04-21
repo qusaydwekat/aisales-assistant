@@ -1076,6 +1076,16 @@ function hasLaterMessageInSameConversation(
   return false;
 }
 
+function compareIncomingMessages(a: any, b: any): number {
+  const timeDiff =
+    new Date(a?.timestamp || 0).getTime() - new Date(b?.timestamp || 0).getTime();
+  if (timeDiff !== 0) return timeDiff;
+
+  const aKey = `${a?.platform || ""}:${a?.platformId || ""}:${a?.pageId || ""}:${a?.platformMessageId || ""}`;
+  const bKey = `${b?.platform || ""}:${b?.platformId || ""}:${b?.pageId || ""}:${b?.platformMessageId || ""}`;
+  return aKey.localeCompare(bKey);
+}
+
 function extractBurstInput(burstMessages: any[]): {
   combinedText: string;
   imageUrls: string[];
@@ -1919,6 +1929,8 @@ Deno.serve(async (req) => {
       }
     }
 
+    messages.sort(compareIncomingMessages);
+
     console.log(`[${platform}] Parsed ${messages.length} message(s)`);
 
     // Process each incoming message
@@ -2251,6 +2263,7 @@ Deno.serve(async (req) => {
           conversation_id: conversation.id,
           sender: "customer",
           content: storedContent,
+          created_at: msg.timestamp,
           platform_message_id: inferredPlatformMessageId,
         })
         .select("id, created_at")

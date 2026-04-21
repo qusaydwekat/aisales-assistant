@@ -1677,6 +1677,8 @@ Deno.serve(async (req) => {
       mediaId?: string;
       // Context: image the customer is replying to (e.g. an ad creative or a previous message image)
       contextImageUrl?: string;
+      // Platform message id (mid) of the message the customer replied to
+      replyToMid?: string;
       // Context: Facebook ad referral info (when message originates from clicking an ad)
       adContext?: {
         adId?: string;

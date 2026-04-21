@@ -309,6 +309,10 @@ export default function InboxPage() {
             {messages.map(msg => {
               const visibleContent = stripMessageContext(msg.content);
               const imageUrl = getImageUrlFromContent(msg.content);
+              const replyImageUrl = getCtxField(msg.content, 'context_image');
+              const replyText = getCtxField(msg.content, 'reply_to_text');
+              const adTitle = getCtxField(msg.content, 'ad_title');
+              const hasReplyContext = !!(replyImageUrl || replyText || adTitle);
 
               return (
               <motion.div key={msg.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
@@ -323,6 +327,19 @@ export default function InboxPage() {
                       {msg.sender === 'ai' ? '🤖 AI' : msg.sender === 'owner' ? '👤 You' : ''}
                     </span>
                   </div>
+                  {hasReplyContext && (
+                    <div className="mb-2 ps-2 border-s-2 border-primary/40 bg-background/40 rounded-md p-1.5 flex items-center gap-2">
+                      {replyImageUrl && (
+                        <img src={replyImageUrl} alt="Replying to" className="h-10 w-10 rounded object-cover shrink-0" />
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{t("replying_to") || "Replying to"}</p>
+                        <p className="text-xs text-foreground/80 truncate">
+                          {replyText || (adTitle ? `📢 ${adTitle}` : (replyImageUrl ? '📷 Image' : ''))}
+                        </p>
+                      </div>
+                    </div>
+                  )}
                   {imageUrl ? (
                     <img src={imageUrl} alt="Shared image" className="rounded-lg max-w-full max-h-48 object-cover" />
                   ) : (

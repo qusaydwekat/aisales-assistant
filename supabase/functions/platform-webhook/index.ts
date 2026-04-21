@@ -1922,7 +1922,7 @@ Deno.serve(async (req) => {
     console.log(`[${platform}] Parsed ${messages.length} message(s)`);
 
     // Process each incoming message
-    for (const msg of messages) {
+    for (const [msgIndex, msg] of messages.entries()) {
       // Find store + connection by page_id
       let storeId: string | null = null;
       let pageAccessToken: string | null = null;
@@ -2264,6 +2264,13 @@ Deno.serve(async (req) => {
         continue;
       }
 
+      if (hasLaterMessageInSameConversation(messages, msgIndex)) {
+        console.log(
+          `[${platform}] Deferring AI reply for ${msg.sender}; a later message in the same burst is still being processed.`
+        );
+        continue;
+      }
+
       // Ensure conversation list reflects images (not just "[Image]")
       await supabase
         .from("conversations")
@@ -2359,7 +2366,7 @@ Deno.serve(async (req) => {
       const MAX_TOTAL_WAIT_MS = 30000;
       const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
-      const myCreatedAt = insertedMsg?.created_at || msg.timestamp;
+      const myCreatedAt = msg.timestamp;
 
       let shouldProceed = true;
       let quietForMs = 0;

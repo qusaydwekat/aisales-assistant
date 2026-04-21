@@ -41,6 +41,7 @@ interface Props {
   onSubmit: (form: ProductForm, opts: { addAnother: boolean }) => Promise<void>;
   onDelete?: () => Promise<void>;
   saving?: boolean;
+  aiLanguage?: string;
 }
 
 export function ProductWizard({

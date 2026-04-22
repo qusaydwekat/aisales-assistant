@@ -35,17 +35,31 @@ You help customers with product inquiries, order placement, and general question
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ error: "Rate limited. Please try again shortly." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "Credits exhausted. Please add funds." }), {
+      const errText = await response.text();
+      console.error("OpenAI API error:", response.status, errText);
+      let parsedErr: any = {};
+      try { parsedErr = JSON.parse(errText); } catch { /* ignore */ }
+      const code = parsedErr?.error?.code || parsedErr?.error?.type || "";
+      const detailMsg = parsedErr?.error?.message || errText || `OpenAI error ${response.status}`;
+
+      if (code === "insufficient_quota" || /quota/i.test(detailMsg)) {
+        return new Response(JSON.stringify({ error: "OpenAI quota exceeded. Add billing/credits to your OpenAI account.", detail: detailMsg }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      throw new Error(`OpenAI error: ${response.status}`);
+      if (code === "invalid_api_key" || response.status === 401) {
+        return new Response(JSON.stringify({ error: "Invalid OpenAI API key. Update OPENAI_API_KEY secret.", detail: detailMsg }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (response.status === 429) {
+        return new Response(JSON.stringify({ error: "OpenAI rate limited. Try again shortly.", detail: detailMsg }), {
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ error: `OpenAI error ${response.status}`, detail: detailMsg }), {
+        status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const data = await response.json();

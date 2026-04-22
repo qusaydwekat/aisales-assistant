@@ -1485,7 +1485,10 @@ PRODUCT IMAGES RULES:
 
 
       if (response.status === 429 || response.status === 402) {
-        console.warn("AI rate limited or credits exhausted, using fallback");
+        const errBody = await response.text().catch(() => "");
+        console.warn(
+          `OpenAI rate limited / quota exhausted (status ${response.status}): ${errBody}`
+        );
         return emptyResult(
           aiSettings?.fallback_message ||
             "Thanks for your message! We'll get back to you shortly."

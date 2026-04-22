@@ -1491,7 +1491,7 @@ PRODUCT IMAGES RULES:
       const isFinalRound = round === maxRounds - 1;
       // On the final round, force a text-only response (no more tool calls)
       const requestBody: any = {
-        model: "gpt-4o",
+        model: aiModel,
         temperature: 0.3,
         messages: isFinalRound
           ? [
@@ -1521,11 +1521,11 @@ PRODUCT IMAGES RULES:
       }
 
       const response = await fetch(
-        "https://api.openai.com/v1/chat/completions",
+        AI_ENDPOINT,
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${OPENAI_API_KEY}`,
+            Authorization: `Bearer ${AI_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),

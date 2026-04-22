@@ -2,7 +2,7 @@ import { useState } from "react";
 import { 
   Users, ShoppingCart, MessageSquare, Package, Check, X as XIcon, 
   Loader2, Shield, BarChart3, Store, Link2, Eye, TrendingUp,
-  ArrowUpRight, Clock, AlertCircle, CreditCard, CalendarCheck
+  ArrowUpRight, Clock, AlertCircle, CreditCard, CalendarCheck, Sparkles
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
@@ -13,8 +13,9 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { format } from "date-fns";
+import AIProviderSettings from "@/components/admin/AIProviderSettings";
 
-type Tab = 'overview' | 'users' | 'pending' | 'subscriptions' | 'stores' | 'orders' | 'conversations';
+type Tab = 'overview' | 'users' | 'pending' | 'subscriptions' | 'stores' | 'orders' | 'conversations' | 'ai';
 
 const tabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'overview', label: 'Overview', icon: BarChart3 },
@@ -24,6 +25,7 @@ const tabs: { key: Tab; label: string; icon: any }[] = [
   { key: 'stores', label: 'Stores', icon: Store },
   { key: 'orders', label: 'Orders', icon: ShoppingCart },
   { key: 'conversations', label: 'Conversations', icon: MessageSquare },
+  { key: 'ai', label: 'AI Provider', icon: Sparkles },
 ];
 
 const statusColors: Record<string, string> = {
@@ -626,6 +628,13 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </motion.div>
+        )}
+
+        {/* ═══════════ AI PROVIDER ═══════════ */}
+        {tab === 'ai' && (
+          <motion.div key="ai" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <AIProviderSettings />
           </motion.div>
         )}
       </AnimatePresence>

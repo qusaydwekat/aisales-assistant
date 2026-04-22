@@ -1,5 +1,7 @@
 // Edge function: ai-product-autofill
-// Accepts an image URL, returns suggested product fields via Gemini Vision.
+// Accepts an image URL, returns suggested product fields. Provider/model controlled by admin.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -18,9 +20,32 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("OPENAI_API_KEY");
+    let provider = "openai";
+    let model = "gpt-4o-mini";
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      const { data: cfg } = await supabase
+        .from("platform_ai_config")
+        .select("provider, autofill_model")
+        .limit(1)
+        .maybeSingle();
+      if (cfg?.provider) provider = cfg.provider;
+      if (cfg?.autofill_model) model = cfg.autofill_model;
+    } catch (e) {
+      console.warn("platform_ai_config fetch failed:", e);
+    }
+
+    const isLovable = provider === "lovable";
+    const apiKey = isLovable ? Deno.env.get("LOVABLE_API_KEY") : Deno.env.get("OPENAI_API_KEY");
+    const endpoint = isLovable
+      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+      : "https://api.openai.com/v1/chat/completions";
+
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "OPENAI_API_KEY missing" }), {
+      return new Response(JSON.stringify({ error: `${isLovable ? "LOVABLE_API_KEY" : "OPENAI_API_KEY"} missing` }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -28,14 +53,14 @@ Deno.serve(async (req) => {
 
     const lang = language === "ar" ? "Arabic" : language === "en" ? "English" : "the same language as typically used by the store (default English unless image text suggests otherwise)";
 
-    const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    const resp = await fetch(endpoint, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model,
         messages: [
           {
             role: "system",

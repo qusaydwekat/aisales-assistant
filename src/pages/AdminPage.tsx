@@ -13,6 +13,7 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { Navigate } from "react-router-dom";
 import { format } from "date-fns";
+import AIProviderSettings from "@/components/admin/AIProviderSettings";
 
 type Tab = 'overview' | 'users' | 'pending' | 'subscriptions' | 'stores' | 'orders' | 'conversations' | 'ai';
 
@@ -627,6 +628,13 @@ export default function AdminPage() {
                 </div>
               </div>
             )}
+          </motion.div>
+        )}
+
+        {/* ═══════════ AI PROVIDER ═══════════ */}
+        {tab === 'ai' && (
+          <motion.div key="ai" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+            <AIProviderSettings />
           </motion.div>
         )}
       </AnimatePresence>

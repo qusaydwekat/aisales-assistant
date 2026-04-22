@@ -1205,9 +1205,9 @@ async function generateAIReply(
     text: sanitizeAIResponse(text),
     images: [],
   });
-  const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-  if (!LOVABLE_API_KEY) {
-    console.warn("LOVABLE_API_KEY not set, using fallback message");
+  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+  if (!OPENAI_API_KEY) {
+    console.warn("OPENAI_API_KEY not set, using fallback message");
     return emptyResult(
       aiSettings?.fallback_message ||
         "Thanks for your message! Our team will get back to you shortly."
@@ -1457,7 +1457,7 @@ PRODUCT IMAGES RULES:
       const isFinalRound = round === maxRounds - 1;
       // On the final round, force a text-only response (no more tool calls)
       const requestBody: any = {
-        model: "google/gemini-3-flash-preview",
+        model: "gpt-4o-mini",
         messages: isFinalRound
           ? [
               ...currentMessages,
@@ -1472,11 +1472,11 @@ PRODUCT IMAGES RULES:
       if (!isFinalRound) requestBody.tools = allTools;
 
       const response = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        "https://api.openai.com/v1/chat/completions",
         {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${LOVABLE_API_KEY}`,
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify(requestBody),

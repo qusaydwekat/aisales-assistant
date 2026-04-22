@@ -1205,9 +1205,31 @@ async function generateAIReply(
     text: sanitizeAIResponse(text),
     images: [],
   });
-  const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
-  if (!OPENAI_API_KEY) {
-    console.warn("OPENAI_API_KEY not set, using fallback message");
+  // Load platform AI provider config (admin-controlled). Falls back to OpenAI/gpt-4o.
+  let aiProvider = "openai";
+  let aiModel = "gpt-4o";
+  try {
+    const { data: cfg } = await supabase
+      .from("platform_ai_config")
+      .select("provider, model")
+      .limit(1)
+      .maybeSingle();
+    if (cfg?.provider) aiProvider = cfg.provider;
+    if (cfg?.model) aiModel = cfg.model;
+  } catch (e) {
+    console.warn("platform_ai_config fetch failed, using defaults:", e);
+  }
+
+  const isLovable = aiProvider === "lovable";
+  const AI_API_KEY = isLovable
+    ? Deno.env.get("LOVABLE_API_KEY")
+    : Deno.env.get("OPENAI_API_KEY");
+  const AI_ENDPOINT = isLovable
+    ? "https://ai.gateway.lovable.dev/v1/chat/completions"
+    : "https://api.openai.com/v1/chat/completions";
+
+  if (!AI_API_KEY) {
+    console.warn(`${isLovable ? "LOVABLE_API_KEY" : "OPENAI_API_KEY"} not set, using fallback message`);
     return emptyResult(
       aiSettings?.fallback_message ||
         "Thanks for your message! Our team will get back to you shortly."

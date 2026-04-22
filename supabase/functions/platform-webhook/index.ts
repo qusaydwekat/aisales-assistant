@@ -1351,11 +1351,25 @@ PRODUCT IMAGES RULES:
     const rawContent = typeof msg.content === "string" ? msg.content : "";
     const histCtx = parseMessageContext(rawContent);
     const histMain = histCtx.textWithoutCtx;
-    const isImg = histMain.startsWith("📷 ");
-    chatMessages.push({
-      role: msg.sender === "customer" ? "user" : "assistant",
-      content: isImg ? "Customer sent an image." : histMain,
-    });
+    const histImg = parseImageUrlFromMessageContent(histMain);
+    const role = msg.sender === "customer" ? "user" : "assistant";
+    if (histImg && role === "user") {
+      // Preserve actual image so the model retains visual context across turns
+      chatMessages.push({
+        role,
+        content: [
+          { type: "text", text: "(image sent by customer)" },
+          { type: "image_url", image_url: { url: histImg, detail: "low" } },
+        ],
+      });
+    } else if (histImg && role === "assistant") {
+      chatMessages.push({
+        role,
+        content: `[sent product image: ${histImg}]`,
+      });
+    } else {
+      chatMessages.push({ role, content: histMain });
+    }
   }
 
   // Parse the latest customer burst for image + reply/ad context
@@ -1470,7 +1484,18 @@ PRODUCT IMAGES RULES:
       };
       if (!isFinalRound) {
         requestBody.tools = allTools;
-        requestBody.tool_choice = "auto";
+        // Force product search on round 0 when an image is present so the AI
+        // identifies the product from the catalog instead of guessing.
+        const hasImageContext =
+          !!imageUrl || !!ctx.contextImageUrl || recentReferenceImages.length > 0;
+        if (round === 0 && hasImageContext) {
+          requestBody.tool_choice = {
+            type: "function",
+            function: { name: "search_products" },
+          };
+        } else {
+          requestBody.tool_choice = "auto";
+        }
       }
 
       const response = await fetch(

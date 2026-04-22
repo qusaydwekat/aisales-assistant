@@ -272,6 +272,39 @@ export type Database = {
           },
         ]
       }
+      platform_ai_config: {
+        Row: {
+          autofill_model: string
+          id: string
+          model: string
+          provider: string
+          singleton: boolean
+          test_model: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          autofill_model?: string
+          id?: string
+          model?: string
+          provider?: string
+          singleton?: boolean
+          test_model?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          autofill_model?: string
+          id?: string
+          model?: string
+          provider?: string
+          singleton?: boolean
+          test_model?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       platform_connections: {
         Row: {
           created_at: string

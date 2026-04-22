@@ -1297,17 +1297,15 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 - Always confirm the detected quantity with the customer before creating the order.
 - Include the correct quantity in the order items — do NOT default everything to 1.
 
-**PROGRESSIVE DATA COLLECTION — CRITICAL**:
-- Customers may provide their information (name, phone, address) across MULTIPLE messages, not all at once.
-- You MUST track and remember all details shared across the conversation history.
-- Example flow:
-  - Message 1: "I want 2 red shoes" → AI identifies product + quantity, asks for name
-  - Message 2: "Ahmed" → AI stores name, asks for phone
-  - Message 3: "0501234567" → AI stores phone, asks for address
-  - Message 4: "Riyadh, King Fahd Road" → AI now has all info → calls create_order with ALL collected data
-- NEVER ask for information the customer has already provided in earlier messages.
-- Before calling create_order, summarize the full order (items + quantities + prices + customer info) and ask for final confirmation.
-- If the customer provides partial info in one message (e.g., "my name is Sara, deliver to Jeddah"), extract ALL pieces from that single message.
+**SMART DATA COLLECTION — CRITICAL**:
+- ALWAYS ask for ALL missing customer details (full name, phone number, AND delivery address) in ONE SINGLE message. Do NOT ask for them one by one across multiple turns.
+- Example (good): "To confirm your order I just need: your full name, phone number, and delivery address. 🙂"
+- Example (BAD — never do this): asking only for name, then only for phone, then only for address in separate messages.
+- When the customer replies, EXTRACT ALL pieces of info from their message at once (name + phone + address can all appear in a single message — parse them intelligently even if unlabeled).
+- If the customer's reply is missing one or two fields, ask ONLY for the specific missing field(s) in a single short message — never re-ask for fields already provided.
+- Track and remember every detail shared across the entire conversation history. NEVER ask for information already provided.
+- Before calling create_order, briefly summarize the full order (items + quantities + prices + customer info) and ask for final confirmation in ONE message.
+- Once the customer confirms, you MUST immediately call the create_order tool — do not just say "order created" without calling it.
 
 1. **Check existing orders FIRST**: Before creating a new order, check the "Existing Orders" section above. If there is an active order (pending/confirmed/processing), use update_order instead of creating a duplicate.
 2. **Create order**: Use create_order ONLY when there is NO active order AND you have collected: items with quantities, full name, phone, and address (gathered progressively from conversation). YOU MUST CALL THE TOOL.
@@ -1457,7 +1455,8 @@ PRODUCT IMAGES RULES:
       const isFinalRound = round === maxRounds - 1;
       // On the final round, force a text-only response (no more tool calls)
       const requestBody: any = {
-        model: "gpt-4o-mini",
+        model: "gpt-4o",
+        temperature: 0.3,
         messages: isFinalRound
           ? [
               ...currentMessages,
@@ -1469,7 +1468,10 @@ PRODUCT IMAGES RULES:
             ]
           : currentMessages,
       };
-      if (!isFinalRound) requestBody.tools = allTools;
+      if (!isFinalRound) {
+        requestBody.tools = allTools;
+        requestBody.tool_choice = "auto";
+      }
 
       const response = await fetch(
         "https://api.openai.com/v1/chat/completions",

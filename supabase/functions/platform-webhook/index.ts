@@ -1138,6 +1138,43 @@ function extractBurstInput(burstMessages: any[]): {
   };
 }
 
+function looksLikeCancelOrderRequest(text: string): boolean {
+  const normalized = (text || "")
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .trim();
+
+  if (!normalized) return false;
+
+  return /\b(cancel|cancelled|canceled|abort|nevermind)\b/.test(normalized) ||
+    /(الغي|الغاء|بدي الغي|بدي الغاء|كنسل|كانسل|بطل الطلب|ما بدي الطلب|مش بدي الطلب|لغي الطلب|الغي الطلب|الغى الطلب|الغاء الطلب)/.test(normalized);
+}
+
+function buildCancelOrderReply(rawResult: string, customerText: string): string {
+  const isArabic = /[\u0600-\u06FF]/.test(customerText || "");
+  let result: any = null;
+
+  try {
+    result = JSON.parse(rawResult);
+  } catch {
+    result = { success: false, error: "Unable to cancel the order." };
+  }
+
+  if (result?.success) {
+    return isArabic
+      ? `تم إلغاء طلبك ${result.order_number} ✅`
+      : `Your order ${result.order_number} has been cancelled ✅`;
+  }
+
+  const error = result?.error || "No active order found to cancel.";
+  return isArabic
+    ? `ما قدرت ألغي الطلب: ${error}`
+    : `I couldn't cancel the order: ${error}`;
+}
+
 function isFallbackLikeResponse(text: string, fallbackMessage?: string | null): boolean {
   const normalized = (text || "").trim().toLowerCase();
   if (!normalized) return true;
@@ -2640,18 +2677,30 @@ Deno.serve(async (req) => {
           .filter((entry) => entry && entry.trim().length > 0)
           .join("\n");
 
-      const aiResult = await generateAIReply(
-        combinedCustomerMessage,
-        storeInfo,
-        catalogSummary,
-        aiSettings,
-        allHistory,
-        supabase,
-        storeId,
-        conversation.id,
-        msg.platform,
-        existingOrders
+      const isCancelRequest = looksLikeCancelOrderRequest(combinedCustomerMessage);
+      const cancellableOrders = (existingOrders || []).filter((order: any) =>
+        ["pending", "confirmed", "processing"].includes(order?.status)
       );
+      const aiResult = isCancelRequest && cancellableOrders.length > 0
+        ? {
+            text: buildCancelOrderReply(
+              await executeCancelOrder(supabase, storeId, conversation.id, {}),
+              combinedCustomerMessage
+            ),
+            images: [],
+          }
+        : await generateAIReply(
+            combinedCustomerMessage,
+            storeInfo,
+            catalogSummary,
+            aiSettings,
+            allHistory,
+            supabase,
+            storeId,
+            conversation.id,
+            msg.platform,
+            existingOrders
+          );
 
       const { data: insertedAiText, error: insertedAiTextError } = await supabase
         .from("messages")

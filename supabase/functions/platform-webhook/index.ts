@@ -1348,7 +1348,10 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 
 1. **Check existing orders FIRST**: Before creating a new order, check the "Existing Orders" section above. If there is an active order (pending/confirmed/processing), use update_order instead of creating a duplicate.
 2. **Create order**: Use create_order ONLY when there is NO active order AND you have collected: items with quantities, full name, phone, and address (gathered progressively from conversation). YOU MUST CALL THE TOOL.
-3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order.
+3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order. **TRIGGER WORDS** (in any language) that REQUIRE you to immediately call update_order — never just reply with text:
+   - Arabic: "بدي اعدل", "اعدل", "بدي اغير", "غير", "تعديل", "بدل", "بدي يكون", "خليه", "ممكن اعدل"
+   - English: "change", "update", "modify", "edit", "make it", "switch to", "I want to change", "can you update"
+   When the customer mentions a NEW address, NEW phone, NEW name, NEW item, or NEW quantity AND there is an active order in "Existing Orders" above → CALL update_order IMMEDIATELY in the same turn. Pass ONLY the fields that changed (e.g. just the address field if only address changed — items/phone/name are optional). Do NOT ask for confirmation first. Do NOT just reply with text saying "I updated it" — you MUST call the tool.
 4. **Cancel order**: Use cancel_order when the customer explicitly wants to cancel.
 5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
 6. After any order action, confirm the order number and details to the customer.

@@ -2520,18 +2520,19 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Per-customer quiet-window batching ───
-      // Keep waiting until THIS conversation has been quiet for 5s, then only the
-      // worker owning the latest customer message may answer.
+      // ─── Per-customer quiet-window batching (10s debounce) ───
+      // Wait until THIS conversation has been quiet for 10s before responding.
+      // Only the worker owning the latest customer message will answer; others yield.
+      // All messages received in the window are combined into one unified prompt.
       // IMPORTANT: use server receipt time here, not the platform-provided message
       // timestamp, because webhook delivery can be delayed and would otherwise cause
       // newer customer messages to be skipped as "already answered".
-      const QUIET_MS = 5000;
+      const QUIET_MS = 10000;
       const DELIVERY_GRACE_MS =
         platform === "facebook" || platform === "instagram" ? 18000 : QUIET_MS;
       const requiredQuietMs =
         initialBurstDepth <= 1 ? Math.max(QUIET_MS, DELIVERY_GRACE_MS) : QUIET_MS;
-      const MAX_TOTAL_WAIT_MS = 30000;
+      const MAX_TOTAL_WAIT_MS = 45000;
       const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
       const myReceivedAtMs = Date.now();

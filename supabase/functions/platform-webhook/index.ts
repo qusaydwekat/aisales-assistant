@@ -2530,48 +2530,74 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Per-customer quiet-window batching (10s debounce) ───
-      // Wait until THIS conversation has been quiet for 10s before responding.
-      // Only the worker owning the latest customer message will answer; others yield.
-      // All messages received in the window are combined into one unified prompt.
-      // IMPORTANT: use server receipt time here, not the platform-provided message
-      // timestamp, because webhook delivery can be delayed and would otherwise cause
-      // newer customer messages to be skipped as "already answered".
+      // ─── Per-customer fixed 10s collection window ───
+      // From the FIRST unanswered customer message, wait a fixed 10s and
+      // collect every message that arrives in that window. Then reply ONCE
+      // covering all of them. Newer-message workers yield to the original
+      // worker (the one that owns the earliest unanswered message).
       const QUIET_MS = 10000;
       const DELIVERY_GRACE_MS =
         platform === "facebook" || platform === "instagram" ? 18000 : QUIET_MS;
-      const requiredQuietMs =
-        initialBurstDepth <= 1 ? Math.max(QUIET_MS, DELIVERY_GRACE_MS) : QUIET_MS;
-      const MAX_TOTAL_WAIT_MS = 45000;
+      const MAX_TOTAL_WAIT_MS = 60000;
       const POLL_MS = 500;
       const myMsgId = insertedMsg?.id;
       const myReceivedAtMs = Date.now();
       const myReceivedAtIso = new Date(myReceivedAtMs).toISOString();
 
+      // Find the earliest unanswered customer message in this conversation.
+      // "Unanswered" = created after the last AI message (or all of them if none).
+      const { data: lastAiBefore } = await supabase
+        .from("messages")
+        .select("created_at")
+        .eq("conversation_id", conversation.id)
+        .eq("sender", "ai")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let earliestQuery = supabase
+        .from("messages")
+        .select("id, created_at")
+        .eq("conversation_id", conversation.id)
+        .eq("sender", "customer")
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (lastAiBefore?.created_at) {
+        earliestQuery = earliestQuery.gt("created_at", lastAiBefore.created_at);
+      }
+      const { data: earliestUnansweredArr } = await earliestQuery;
+      const earliestUnanswered = earliestUnansweredArr?.[0];
+
+      // Only the worker that owns the earliest unanswered message handles the
+      // window. Later messages' workers yield immediately.
+      if (!earliestUnanswered?.id || earliestUnanswered.id !== myMsgId) {
+        console.log(
+          `[${platform}] Not the earliest unanswered worker (earliest=${earliestUnanswered?.id}, mine=${myMsgId}) — yielding.`
+        );
+        continue;
+      }
+
+      const windowStartMs = earliestUnanswered.created_at
+        ? new Date(earliestUnanswered.created_at).getTime()
+        : myReceivedAtMs;
+      const requiredWindowMs = Math.max(QUIET_MS, DELIVERY_GRACE_MS);
+      const windowEndsAt = windowStartMs + requiredWindowMs;
+
       let shouldProceed = true;
-      let quietForMs = 0;
       const startedAt = Date.now();
 
-      while (Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
-        const [{ data: latestCustomer }, { data: latestAi }] = await Promise.all([
-          supabase
-            .from("messages")
-            .select("id, created_at")
-            .eq("conversation_id", conversation.id)
-            .eq("sender", "customer")
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-          supabase
-            .from("messages")
-            .select("id, created_at")
-            .eq("conversation_id", conversation.id)
-            .eq("sender", "ai")
-            .gte("created_at", myReceivedAtIso)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
-        ]);
+      // Wait until the fixed window elapses, polling for an AI reply that may
+      // have been sent by another concurrent worker (defense-in-depth).
+      while (Date.now() < windowEndsAt && Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
+        const { data: latestAi } = await supabase
+          .from("messages")
+          .select("id, created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("sender", "ai")
+          .gte("created_at", new Date(windowStartMs).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
         if (latestAi?.id) {
           shouldProceed = false;
@@ -2581,33 +2607,12 @@ Deno.serve(async (req) => {
           break;
         }
 
-        if (!latestCustomer?.id) {
-          shouldProceed = false;
-          break;
-        }
-
-        if (latestCustomer.id !== myMsgId) {
-          shouldProceed = false;
-          console.log(
-            `[${platform}] Newer customer message detected (latest=${latestCustomer.id}, mine=${myMsgId}) — yielding to newer worker.`
-          );
-          break;
-        }
-
-        quietForMs = Date.now() - myReceivedAtMs;
-        if (quietForMs >= requiredQuietMs) break;
-
-        await new Promise((r) => setTimeout(r, POLL_MS));
+        const remaining = windowEndsAt - Date.now();
+        if (remaining <= 0) break;
+        await new Promise((r) => setTimeout(r, Math.min(POLL_MS, remaining)));
       }
 
       if (!shouldProceed) continue;
-
-      if (quietForMs < requiredQuietMs) {
-        console.log(
-          `[${platform}] Quiet window not reached (${quietForMs}ms / required ${requiredQuietMs}ms); skipping reply.`
-        );
-        continue;
-      }
 
 
       // Re-fetch conversation history after debounce to include all batched messages

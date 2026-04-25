@@ -1507,9 +1507,19 @@ PRODUCT IMAGES RULES:
     for (let round = 0; round < maxRounds; round++) {
       const isFinalRound = round === maxRounds - 1;
       // On the final round, force a text-only response (no more tool calls)
+      // Some newer OpenAI models (gpt-5.x, o1/o3, etc.) only support the
+      // default temperature (1). Only send a custom temperature for models
+      // that accept it, otherwise the gateway returns 400 and we fall back
+      // to the canned "let me connect you with our team" message.
+      const modelLower = String(aiModel || "").toLowerCase();
+      const supportsCustomTemperature =
+        !modelLower.startsWith("gpt-5") &&
+        !modelLower.startsWith("o1") &&
+        !modelLower.startsWith("o3") &&
+        !modelLower.startsWith("o4");
       const requestBody: any = {
         model: aiModel,
-        temperature: 0.3,
+        ...(supportsCustomTemperature ? { temperature: 0.3 } : {}),
         messages: isFinalRound
           ? [
               ...currentMessages,

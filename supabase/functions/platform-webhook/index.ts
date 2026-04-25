@@ -2677,18 +2677,30 @@ Deno.serve(async (req) => {
           .filter((entry) => entry && entry.trim().length > 0)
           .join("\n");
 
-      const aiResult = await generateAIReply(
-        combinedCustomerMessage,
-        storeInfo,
-        catalogSummary,
-        aiSettings,
-        allHistory,
-        supabase,
-        storeId,
-        conversation.id,
-        msg.platform,
-        existingOrders
+      const isCancelRequest = looksLikeCancelOrderRequest(combinedCustomerMessage);
+      const cancellableOrders = (existingOrders || []).filter((order: any) =>
+        ["pending", "confirmed", "processing"].includes(order?.status)
       );
+      const aiResult = isCancelRequest && cancellableOrders.length > 0
+        ? {
+            text: buildCancelOrderReply(
+              await executeCancelOrder(supabase, storeId, conversation.id, {}),
+              combinedCustomerMessage
+            ),
+            images: [],
+          }
+        : await generateAIReply(
+            combinedCustomerMessage,
+            storeInfo,
+            catalogSummary,
+            aiSettings,
+            allHistory,
+            supabase,
+            storeId,
+            conversation.id,
+            msg.platform,
+            existingOrders
+          );
 
       const { data: insertedAiText, error: insertedAiTextError } = await supabase
         .from("messages")

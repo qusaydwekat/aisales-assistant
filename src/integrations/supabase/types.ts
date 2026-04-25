@@ -206,6 +206,36 @@ export type Database = {
         }
         Relationships: []
       }
+      openai_webhook_events: {
+        Row: {
+          created_at: string
+          event_id: string | null
+          event_type: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          received_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id?: string | null
+          event_type: string
+          id?: string
+          payload: Json
+          processed_at?: string | null
+          received_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string | null
+          event_type?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          received_at?: string
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           address: string | null

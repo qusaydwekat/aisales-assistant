@@ -35,14 +35,15 @@ const PROVIDERS: ProviderOption[] = [
     label: "Lovable AI",
     description: "Managed gateway. No API key needed — billed via workspace credits.",
     models: [
+      { value: "openai/gpt-5.5", label: "GPT-5.5 (via gateway)", hint: "Latest - best agentic coding" },
+      { value: "openai/gpt-5", label: "GPT-5 (via gateway)" },
+      { value: "openai/gpt-5-mini", label: "GPT-5 Mini (via gateway)" },
+      { value: "openai/gpt-5-nano", label: "GPT-5 Nano (via gateway)" },
       { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro", hint: "Top-tier multimodal" },
       { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", hint: "Balanced" },
       { value: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", hint: "Fastest & cheapest" },
       { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)" },
       { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Preview)" },
-      { value: "openai/gpt-5", label: "GPT-5 (via gateway)" },
-      { value: "openai/gpt-5-mini", label: "GPT-5 Mini (via gateway)" },
-      { value: "openai/gpt-5-nano", label: "GPT-5 Nano (via gateway)" },
     ],
   },
 ];

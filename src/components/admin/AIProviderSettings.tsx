@@ -20,8 +20,13 @@ const PROVIDERS: ProviderOption[] = [
     models: [
       { value: "gpt-4o", label: "GPT-4o", hint: "Best reasoning + vision" },
       { value: "gpt-4o-mini", label: "GPT-4o Mini", hint: "Fast & cheap" },
-      { value: "gpt-4.1", label: "GPT-4.1" },
-      { value: "gpt-4.1-mini", label: "GPT-4.1 Mini" },
+      { value: "gpt-4.1", label: "GPT-4.1", hint: "Latest flagship" },
+      { value: "gpt-4.1-mini", label: "GPT-4.1 Mini", hint: "Balanced performance" },
+      { value: "gpt-4.1-nano", label: "GPT-4.1 Nano", hint: "Fastest & cheapest" },
+      { value: "o3", label: "o3", hint: "Reasoning model" },
+      { value: "o3-mini", label: "o3 Mini", hint: "Fast reasoning" },
+      { value: "o1", label: "o1", hint: "Advanced reasoning" },
+      { value: "o1-mini", label: "o1 Mini", hint: "Quick reasoning" },
     ],
   },
   {

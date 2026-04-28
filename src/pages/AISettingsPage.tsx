@@ -17,6 +17,8 @@ export default function AISettingsPage() {
   const [autoReply, setAutoReply] = useState(true);
   const [delay, setDelay] = useState(2);
   const [escalationThreshold, setEscalationThreshold] = useState(5);
+  const [collectionWindow, setCollectionWindow] = useState(5);
+  const [silenceFollowup, setSilenceFollowup] = useState(false);
   const [fallbackMessage, setFallbackMessage] = useState("I'm not sure about that. Let me connect you with our team!");
   const [aiInstructions, setAiInstructions] = useState('You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
   const [testMessage, setTestMessage] = useState('');
@@ -31,6 +33,8 @@ export default function AISettingsPage() {
       setAutoReply(settings.auto_reply);
       setDelay(settings.response_delay);
       setEscalationThreshold(settings.escalation_threshold);
+      setCollectionWindow((settings as any).collection_window_seconds ?? 5);
+      setSilenceFollowup((settings as any).silence_followup_enabled ?? false);
       setFallbackMessage(settings.fallback_message || '');
       setAiInstructions((settings as any).ai_instructions || 'You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
     }
@@ -41,7 +45,9 @@ export default function AISettingsPage() {
       persona_name: personaName, language, tone, auto_reply: autoReply,
       response_delay: delay, escalation_threshold: escalationThreshold,
       fallback_message: fallbackMessage, ai_instructions: aiInstructions,
-    });
+      collection_window_seconds: collectionWindow,
+      silence_followup_enabled: silenceFollowup,
+    } as any);
   };
 
   const handleTestSend = async () => {
@@ -104,6 +110,17 @@ export default function AISettingsPage() {
             </div>
             <div><label className="text-xs text-muted-foreground">Response delay: {delay}s</label><input type="range" min={0} max={10} value={delay} onChange={e => setDelay(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
             <div><label className="text-xs text-muted-foreground">Escalation after {escalationThreshold} messages</label><input type="range" min={2} max={10} value={escalationThreshold} onChange={e => setEscalationThreshold(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
+            <div>
+              <label className="text-xs text-muted-foreground">Message batching window: {collectionWindow}s</label>
+              <input type="range" min={3} max={10} value={collectionWindow} onChange={e => setCollectionWindow(Number(e.target.value))} className="w-full mt-1 accent-primary" />
+              <p className="text-[11px] text-muted-foreground mt-1">AI waits this long after the customer's last message (timer resets on each new message) before replying.</p>
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <div><p className="text-sm text-foreground">Silence follow-up</p><p className="text-xs text-muted-foreground">Send a soft check-in if the customer goes quiet for 10+ minutes</p></div>
+              <button onClick={() => setSilenceFollowup(!silenceFollowup)} className={`w-11 h-6 rounded-full transition-colors ${silenceFollowup ? 'bg-primary' : 'bg-muted'}`}>
+                <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${silenceFollowup ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">

@@ -14,10 +14,47 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_message_batch_log: {
+        Row: {
+          ai_reply: string
+          conversation_id: string
+          created_at: string
+          customer_messages: Json
+          id: string
+          image_count: number
+          platform: string
+          store_id: string
+          window_seconds: number
+        }
+        Insert: {
+          ai_reply?: string
+          conversation_id: string
+          created_at?: string
+          customer_messages?: Json
+          id?: string
+          image_count?: number
+          platform: string
+          store_id: string
+          window_seconds?: number
+        }
+        Update: {
+          ai_reply?: string
+          conversation_id?: string
+          created_at?: string
+          customer_messages?: Json
+          id?: string
+          image_count?: number
+          platform?: string
+          store_id?: string
+          window_seconds?: number
+        }
+        Relationships: []
+      }
       ai_settings: {
         Row: {
           ai_instructions: string | null
           auto_reply: boolean
+          collection_window_seconds: number
           created_at: string
           escalation_threshold: number
           fallback_message: string | null
@@ -29,6 +66,7 @@ export type Database = {
           order_confirmation_template: string | null
           persona_name: string
           response_delay: number
+          silence_followup_enabled: boolean
           store_id: string
           tone: string
           updated_at: string
@@ -36,6 +74,7 @@ export type Database = {
         Insert: {
           ai_instructions?: string | null
           auto_reply?: boolean
+          collection_window_seconds?: number
           created_at?: string
           escalation_threshold?: number
           fallback_message?: string | null
@@ -47,6 +86,7 @@ export type Database = {
           order_confirmation_template?: string | null
           persona_name?: string
           response_delay?: number
+          silence_followup_enabled?: boolean
           store_id: string
           tone?: string
           updated_at?: string
@@ -54,6 +94,7 @@ export type Database = {
         Update: {
           ai_instructions?: string | null
           auto_reply?: boolean
+          collection_window_seconds?: number
           created_at?: string
           escalation_threshold?: number
           fallback_message?: string | null
@@ -65,6 +106,7 @@ export type Database = {
           order_confirmation_template?: string | null
           persona_name?: string
           response_delay?: number
+          silence_followup_enabled?: boolean
           store_id?: string
           tone?: string
           updated_at?: string

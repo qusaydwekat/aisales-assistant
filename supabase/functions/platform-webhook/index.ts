@@ -167,6 +167,73 @@ function detectPlatform(body: any, queryPlatform: string | null): string {
   return "facebook"; // default
 }
 
+// Send a Messenger/IG "typing_on" or "typing_off" sender_action so the customer
+// sees the human-like typing bubble before our reply lands. Best-effort only.
+async function sendTypingIndicator(
+  platform: string,
+  recipientId: string,
+  pageAccessToken: string,
+  action: "typing_on" | "typing_off" | "mark_seen" = "typing_on"
+) {
+  if (platform !== "facebook" && platform !== "instagram") return;
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/me/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        sender_action: action,
+      }),
+    });
+  } catch (err) {
+    console.warn(`[${platform}] sender_action ${action} failed:`, err);
+  }
+}
+
+// Split a long AI reply into 2-3 shorter chunks so it lands like a real
+// person typing several short messages instead of one wall of text.
+// Splits on paragraph breaks first, then sentences, never breaking words.
+function splitReplyIntoChunks(text: string, maxChunks = 3): string[] {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return [];
+  // Short replies stay as one message.
+  if (trimmed.length <= 180) return [trimmed];
+
+  // Prefer paragraph splits.
+  const paragraphs = trimmed
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  let parts: string[] = paragraphs.length > 1 ? paragraphs : [];
+  if (parts.length === 0) {
+    // Fall back to sentence-based grouping (~150 chars per chunk).
+    const sentences = trimmed.match(/[^.!?\n]+[.!?]?(\s+|$)/g) || [trimmed];
+    const target = Math.max(120, Math.ceil(trimmed.length / maxChunks));
+    let buf = "";
+    for (const s of sentences) {
+      if ((buf + s).length > target && buf.length > 0) {
+        parts.push(buf.trim());
+        buf = s;
+      } else {
+        buf += s;
+      }
+    }
+    if (buf.trim()) parts.push(buf.trim());
+  }
+
+  // Cap at maxChunks by merging the tail.
+  if (parts.length > maxChunks) {
+    const head = parts.slice(0, maxChunks - 1);
+    const tail = parts.slice(maxChunks - 1).join(" ");
+    parts = [...head, tail];
+  }
+  return parts.filter((p) => p && p.trim().length > 0);
+}
+
 async function sendMetaReply(
   platform: string,
   recipientId: string,
@@ -1335,6 +1402,14 @@ SALES BEHAVIOR RULES — STRICTLY ENFORCED:
 - If the customer is just browsing, nudge gently: "Want me to show you our bestsellers?"
 - If the customer goes quiet on details, re-engage with a helpful question — don't drop the lead.
 - Treat every customer as a real buyer. Be confident, warm, and solution-focused.
+
+HUMAN-LIKE REPLY STYLE — IMPORTANT:
+- Vary your phrasing turn to turn. Do NOT reuse the same opener ("Hi there!", "Sure thing!", "Of course!") on consecutive replies.
+- Match the customer's energy: short and casual for short messages, more detailed for detailed asks.
+- If the customer sent text AND an image in the same burst, address BOTH in one cohesive reply (acknowledge what's in the image, then answer their text).
+- For one-word or emoji-only messages, reply naturally and briefly — don't over-explain.
+- If you receive an image but cannot tell what product it is (blurry, dark, partial, or no close match in catalog), politely ask for a clearer photo or a hint about what they're looking for. Never reply with nothing.
+- When you ARE confident about an image match, say something like "this looks like our [Product Name]" rather than asserting it as fact.
 
 Store Information:
 - Name: ${storeInfo.name}
@@ -2634,19 +2709,27 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Per-customer fixed 10s collection window ───
-      // From the FIRST unanswered customer message, wait a fixed 10s and
-      // collect every message that arrives in that window. Then reply ONCE
-      // covering all of them. Newer-message workers yield to the original
-      // worker (the one that owns the earliest unanswered message).
-      const QUIET_MS = 10000;
+      // ─── Per-customer ROLLING collection window ───
+      // When the FIRST unanswered message arrives we start a window. Each new
+      // customer message that lands during the window RESETS the timer. After
+      // N seconds of silence we process the whole batch as ONE reply.
+      // Window duration is configurable per store via ai_settings (3-10s, default 5).
+      const configuredWindowSec = Math.min(
+        10,
+        Math.max(3, Number(aiSettings?.collection_window_seconds) || 5)
+      );
+      const QUIET_MS = configuredWindowSec * 1000;
+      // Meta sometimes delivers webhooks for a single customer burst out of
+      // order; keep a small extra grace for FB/IG so reply-attachments aren't
+      // missed, but never less than the configured quiet window.
       const DELIVERY_GRACE_MS =
-        platform === "facebook" || platform === "instagram" ? 18000 : QUIET_MS;
+        platform === "facebook" || platform === "instagram"
+          ? Math.max(QUIET_MS, 6000)
+          : QUIET_MS;
       const MAX_TOTAL_WAIT_MS = 60000;
-      const POLL_MS = 500;
+      const POLL_MS = 400;
       const myMsgId = insertedMsg?.id;
       const myReceivedAtMs = Date.now();
-      const myReceivedAtIso = new Date(myReceivedAtMs).toISOString();
 
       // Find the earliest unanswered customer message in this conversation.
       // "Unanswered" = created after the last AI message (or all of them if none).
@@ -2673,32 +2756,43 @@ Deno.serve(async (req) => {
       const earliestUnanswered = earliestUnansweredArr?.[0];
 
       // Only the worker that owns the earliest unanswered message handles the
-      // window. Later messages' workers yield immediately.
+      // window. Later messages' workers yield immediately — their content will
+      // simply extend the active worker's rolling timer via DB polling.
       if (!earliestUnanswered?.id || earliestUnanswered.id !== myMsgId) {
         console.log(
-          `[${platform}] Not the earliest unanswered worker (earliest=${earliestUnanswered?.id}, mine=${myMsgId}) — yielding.`
+          `[${platform}] Not the earliest unanswered worker (earliest=${earliestUnanswered?.id}, mine=${myMsgId}) — yielding to active batcher.`
         );
         continue;
       }
 
-      const windowStartMs = earliestUnanswered.created_at
+      // Track the latest customer message timestamp we've seen; the rolling
+      // window expires QUIET_MS after this value, and we extend it whenever a
+      // new customer message lands.
+      let latestCustomerMs = earliestUnanswered.created_at
         ? new Date(earliestUnanswered.created_at).getTime()
         : myReceivedAtMs;
-      const requiredWindowMs = Math.max(QUIET_MS, DELIVERY_GRACE_MS);
-      const windowEndsAt = windowStartMs + requiredWindowMs;
+      let windowEndsAt = latestCustomerMs + Math.max(QUIET_MS, DELIVERY_GRACE_MS);
 
       let shouldProceed = true;
       const startedAt = Date.now();
 
-      // Wait until the fixed window elapses, polling for an AI reply that may
-      // have been sent by another concurrent worker (defense-in-depth).
+      // Best-effort: show typing bubble while we batch.
+      if (pageAccessToken) {
+        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "mark_seen");
+        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+      }
+
       while (Date.now() < windowEndsAt && Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
+        // 1) Bail if another worker already replied for this burst.
         const { data: latestAi } = await supabase
           .from("messages")
           .select("id, created_at")
           .eq("conversation_id", conversation.id)
           .eq("sender", "ai")
-          .gte("created_at", new Date(windowStartMs).toISOString())
+          .gte(
+            "created_at",
+            new Date(latestCustomerMs - 1000).toISOString()
+          )
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -2709,6 +2803,32 @@ Deno.serve(async (req) => {
             `[${platform}] AI reply already sent for this burst; skipping duplicate response.`
           );
           break;
+        }
+
+        // 2) Check for newer customer messages — they extend (reset) the window.
+        const { data: newerCustomer } = await supabase
+          .from("messages")
+          .select("created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("sender", "customer")
+          .gt("created_at", new Date(latestCustomerMs).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (newerCustomer?.created_at) {
+          const newerMs = new Date(newerCustomer.created_at).getTime();
+          if (newerMs > latestCustomerMs) {
+            latestCustomerMs = newerMs;
+            windowEndsAt = latestCustomerMs + QUIET_MS;
+            console.log(
+              `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
+            );
+            // Re-assert typing while we keep batching.
+            if (pageAccessToken) {
+              sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+            }
+          }
         }
 
         const remaining = windowEndsAt - Date.now();
@@ -2763,12 +2883,41 @@ Deno.serve(async (req) => {
             existingOrders
           );
 
+      // Lightly personalize: prepend customer first name on the first chunk
+      // when the AI didn't already greet them by name. Keeps tone human.
+      const customerFirstName = (() => {
+        const raw = (conversation.customer_name || "").trim();
+        if (!raw) return "";
+        const first = raw.split(/\s+/)[0];
+        if (!first || first.length < 2) return "";
+        if (/^Customer\s*$/i.test(first) || first.toLowerCase() === "unknown") return "";
+        return first;
+      })();
+
+      let personalizedReply = (aiResult.text || "").trim();
+      if (
+        customerFirstName &&
+        personalizedReply &&
+        !new RegExp(`\\b${customerFirstName}\\b`, "i").test(personalizedReply.slice(0, 80))
+      ) {
+        // Only prepend on the first reply in a conversation, or roughly every
+        // ~6 messages, so we don't spam the name on every turn.
+        const aiCount = (allHistory || []).filter((m: any) => m.sender === "ai").length;
+        if (aiCount === 0 || aiCount % 6 === 0) {
+          personalizedReply = `${customerFirstName}, ${personalizedReply.charAt(0).toLowerCase()}${personalizedReply.slice(1)}`;
+        }
+      }
+
+      // Split long replies into 2-3 short chunks for a more human cadence.
+      const replyChunks = splitReplyIntoChunks(personalizedReply, 3);
+      const finalCombinedReply = replyChunks.join("\n\n") || personalizedReply;
+
       const { data: insertedAiText, error: insertedAiTextError } = await supabase
         .from("messages")
         .insert({
         conversation_id: conversation.id,
         sender: "ai",
-        content: aiResult.text,
+        content: finalCombinedReply,
         platform_message_id: null,
       })
         .select("id")
@@ -2781,23 +2930,56 @@ Deno.serve(async (req) => {
       await supabase
         .from("conversations")
         .update({
-          last_message: aiResult.text,
+          last_message: finalCombinedReply,
           last_message_time: new Date().toISOString(),
         })
         .eq("id", conversation.id);
 
+      // Write the admin-visible batch log (best-effort, never blocks reply).
+      try {
+        await supabase.from("ai_message_batch_log").insert({
+          store_id: storeId,
+          conversation_id: conversation.id,
+          platform: msg.platform,
+          customer_messages: pendingBurst.map((entry: any) => ({
+            content: entry.content,
+            created_at: entry.created_at,
+          })),
+          ai_reply: finalCombinedReply,
+          image_count: (aiResult.images || []).length,
+          window_seconds: configuredWindowSec,
+        });
+      } catch (logErr) {
+        console.warn(`[${platform}] Failed to write batch log:`, logErr);
+      }
+
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
         console.log(
-          `[${platform}] Sending reply to ${msg.sender} using stored page token`
+          `[${platform}] Sending reply to ${msg.sender} (${replyChunks.length} chunk(s)) using stored page token`
         );
-        const replySendResult = await sendMetaReply(
-          msg.platform,
-          msg.sender,
-          aiResult.text,
-          pageAccessToken,
-          connectionPageId || msg.pageId || ""
-        );
+
+        let lastSendResult: any = null;
+        for (let i = 0; i < replyChunks.length; i++) {
+          const chunk = replyChunks[i];
+          // Per-chunk typing simulation: 1-3 seconds based on chunk length.
+          const typingMs = Math.max(
+            900,
+            Math.min(3000, Math.round(chunk.length * 22))
+          );
+          sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+          await new Promise((r) => setTimeout(r, typingMs));
+
+          lastSendResult = await sendMetaReply(
+            msg.platform,
+            msg.sender,
+            chunk,
+            pageAccessToken,
+            connectionPageId || msg.pageId || ""
+          );
+        }
+        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_off");
+        const replySendResult = lastSendResult;
 
         const sentTextPlatformMessageId =
           replySendResult?.message_id || replySendResult?.messages?.[0]?.id || null;

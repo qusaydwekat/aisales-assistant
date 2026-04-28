@@ -859,22 +859,26 @@ const SEARCH_PRODUCTS_TOOL = {
   function: {
     name: "search_products",
     description:
-      "Search the product catalog by keyword, category, or price range. Use this whenever the customer asks about specific products, searches for something, or you need product details. Returns up to 10 matching products with full details including images and prices. ALWAYS use this tool before answering product-related questions.",
+      "Visual-first product search. The store sells items WITHOUT product names — match by visual attributes. " +
+      "Pass any attributes you can infer from the customer's text or photo (type, color, pattern, style, fit, material, occasion). " +
+      "When the customer sent an image, the system has already pre-extracted its visual attributes for you and will blend them with whatever you pass. " +
+      "Returns ranked matches with `confidence` ('high' | 'medium' | 'low' | 'none') and `top_match_score`. " +
+      "Use the `note` field in the response to decide your reply: high → present the one item; medium → ask 'is it one of these?' with up to 3; low → ask ONE clarifying question; none → show closest alternatives honestly.",
     parameters: {
       type: "object",
       properties: {
-        query: {
-          type: "string",
-          description:
-            "Search keyword to match against product name or description (e.g. 'shoes', 'red dress', 'laptop')",
-        },
-        category: {
-          type: "string",
-          description:
-            "Filter by product category (use exact category names from the catalog summary)",
-        },
-        min_price: { type: "number", description: "Minimum price filter" },
-        max_price: { type: "number", description: "Maximum price filter" },
+        query: { type: "string", description: "Free-text fallback (e.g. 'red dress', 'puzzle'). Optional when attributes are provided." },
+        category: { type: "string", description: "Category prefilter (e.g. 'Dresses')" },
+        min_price: { type: "number" },
+        max_price: { type: "number" },
+        // Visual attributes
+        type: { type: "string", description: "dress | top | pants | jacket | skirt | shoes | bag | accessory | ..." },
+        color: { type: "array", items: { type: "string" }, description: "Lowercase English color names, e.g. ['red','white']" },
+        pattern: { type: "string", description: "solid | floral | striped | checkered | polka | graphic | ..." },
+        style: { type: "string", description: "casual | formal | sporty | bohemian | streetwear | ..." },
+        fit: { type: "string", description: "slim | regular | oversized | tailored | loose | fitted" },
+        material: { type: "string", description: "cotton | chiffon | denim | leather | knit | ..." },
+        occasion: { type: "array", items: { type: "string" } },
       },
       required: [],
     },

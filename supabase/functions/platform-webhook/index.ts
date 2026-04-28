@@ -1810,13 +1810,55 @@ PRODUCT IMAGES RULES:
               args
             );
           } else if (tc.function?.name === "update_order") {
-            console.log("AI triggered update_order:", JSON.stringify(args));
-            result = await executeUpdateOrder(
-              supabase,
-              storeId,
-              conversationId,
-              args
-            );
+            // Server-side intent guard: prevent the model from misclassifying
+            // intent or hallucinating fields the user didn't actually mention.
+            const cancelRe = /(الغي|إلغاء|الغاء|كنسل|بطل|بطلت|ما بدي الطلب|ما عاد بدي|ما بقا بدي|تراجعت|cancel|abort|nevermind|changed my mind|don'?t want it|no longer want)/i;
+            if (cancelRe.test(customerMessage || "")) {
+              console.log(
+                "Intent guard: cancel intent detected in latest message; redirecting update_order -> cancel_order"
+              );
+              result = await executeCancelOrder(
+                supabase,
+                storeId,
+                conversationId,
+                {}
+              );
+            } else {
+              const addressRe = /(عنوان|مكان التوصيل|وصلولي|address|deliver to|location|street)/i;
+              const phoneRe = /(رقمي|تلفوني|موبايل|هاتف|phone|mobile|number)/i;
+              const nameRe = /(اسمي|my name|i am called|name is)/i;
+              const sanitized: any = { ...args };
+              if (sanitized.address && !addressRe.test(customerMessage || "")) {
+                console.log("Intent guard: dropping address from update_order (not mentioned)");
+                delete sanitized.address;
+              }
+              if (sanitized.phone && !phoneRe.test(customerMessage || "")) {
+                console.log("Intent guard: dropping phone from update_order (not mentioned)");
+                delete sanitized.phone;
+              }
+              if (sanitized.customer_name && !nameRe.test(customerMessage || "")) {
+                console.log("Intent guard: dropping customer_name from update_order (not mentioned)");
+                delete sanitized.customer_name;
+              }
+              const hasUpdate = Object.keys(sanitized).some(
+                (k) => k !== "order_number" && sanitized[k] !== undefined
+              );
+              if (!hasUpdate) {
+                console.log("Intent guard: update_order has no valid fields after sanitization");
+                result = JSON.stringify({
+                  success: false,
+                  error: "Could not determine which field to update. Ask the customer to clarify what exactly they want to change.",
+                });
+              } else {
+                console.log("AI triggered update_order:", JSON.stringify(sanitized));
+                result = await executeUpdateOrder(
+                  supabase,
+                  storeId,
+                  conversationId,
+                  sanitized
+                );
+              }
+            }
           } else if (tc.function?.name === "check_order_status") {
             console.log("AI triggered check_order_status:", JSON.stringify(args));
             result = await executeCheckOrderStatus(

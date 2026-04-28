@@ -2103,10 +2103,11 @@ PRODUCT IMAGES RULES:
 
       // If no tool calls, return the text response
       if (!choice?.message?.tool_calls?.length) {
+        const hasImages = allImageesToSend.length > 0;
         const text = sanitizeAIResponse(
           choice?.message?.content ||
-            aiSettings?.fallback_message ||
-            "Thanks for your message!"
+            (hasImages ? "" : aiSettings?.fallback_message || "Thanks for your message!"),
+          hasImages
         );
         if (isFallbackLikeResponse(text, aiSettings?.fallback_message)) {
           const retryPrompt =

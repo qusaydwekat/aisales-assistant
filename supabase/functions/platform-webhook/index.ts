@@ -447,9 +447,9 @@ const CANCEL_ORDER_TOOL = {
 const UPDATE_ORDER_TOOL = {
   type: "function" as const,
   function: {
-    name: "update_order",
-    description:
-      "Update an existing order. Use this to modify items, address, phone, name, or notes on an order that is still pending, confirmed, or processing. Always prefer updating an existing order over creating a new one when the customer wants to change something. Parse quantities from natural language.",
+     name: "update_order",
+     description:
+       "Update an existing order. CRITICAL: Pass ONLY the fields the customer EXPLICITLY mentioned changing in their CURRENT message. Do NOT pass address unless the customer literally gave a new address in this turn. Do NOT pass phone unless they gave a new phone. Do NOT pass items unless they explicitly asked to change items/quantities. NEVER copy values from previous turns or from the existing order — only fields the user just changed. If the user is changing QUANTITY only, pass the full updated items array (with new quantity) and nothing else. If the user only wants to change one field, pass ONLY that field.",
     parameters: {
       type: "object",
       properties: {

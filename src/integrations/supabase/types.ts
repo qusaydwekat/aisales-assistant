@@ -20,9 +20,11 @@ export type Database = {
           conversation_id: string
           created_at: string
           customer_messages: Json
+          detected_emotion: string | null
           detected_language: string | null
           flagged_high_volume: boolean
           id: string
+          image_confidence: number | null
           image_count: number
           platform: string
           store_id: string
@@ -33,9 +35,11 @@ export type Database = {
           conversation_id: string
           created_at?: string
           customer_messages?: Json
+          detected_emotion?: string | null
           detected_language?: string | null
           flagged_high_volume?: boolean
           id?: string
+          image_confidence?: number | null
           image_count?: number
           platform: string
           store_id: string
@@ -46,9 +50,11 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           customer_messages?: Json
+          detected_emotion?: string | null
           detected_language?: string | null
           flagged_high_volume?: boolean
           id?: string
+          image_confidence?: number | null
           image_count?: number
           platform?: string
           store_id?: string
@@ -58,6 +64,7 @@ export type Database = {
       }
       ai_settings: {
         Row: {
+          abuse_auto_escalate_enabled: boolean
           ai_instructions: string | null
           auto_language_detect_enabled: boolean
           auto_reply: boolean
@@ -67,12 +74,14 @@ export type Database = {
           created_at: string
           duplicate_order_guard_enabled: boolean
           duplicate_order_window_seconds: number
+          emotion_detection_enabled: boolean
           escalation_threshold: number
           fallback_message: string | null
           greeting_facebook: string | null
           greeting_instagram: string | null
           greeting_whatsapp: string | null
           id: string
+          image_confidence_threshold: number
           language: string
           meta_retry_enabled: boolean
           order_confirmation_template: string | null
@@ -80,13 +89,17 @@ export type Database = {
           out_of_hours_message_ar: string | null
           out_of_hours_message_en: string | null
           persona_name: string
+          proactive_followup_enabled: boolean
+          quality_score_enabled: boolean
           response_delay: number
           silence_followup_enabled: boolean
           store_id: string
           tone: string
           updated_at: string
+          upsell_enabled: boolean
         }
         Insert: {
+          abuse_auto_escalate_enabled?: boolean
           ai_instructions?: string | null
           auto_language_detect_enabled?: boolean
           auto_reply?: boolean
@@ -96,12 +109,14 @@ export type Database = {
           created_at?: string
           duplicate_order_guard_enabled?: boolean
           duplicate_order_window_seconds?: number
+          emotion_detection_enabled?: boolean
           escalation_threshold?: number
           fallback_message?: string | null
           greeting_facebook?: string | null
           greeting_instagram?: string | null
           greeting_whatsapp?: string | null
           id?: string
+          image_confidence_threshold?: number
           language?: string
           meta_retry_enabled?: boolean
           order_confirmation_template?: string | null
@@ -109,13 +124,17 @@ export type Database = {
           out_of_hours_message_ar?: string | null
           out_of_hours_message_en?: string | null
           persona_name?: string
+          proactive_followup_enabled?: boolean
+          quality_score_enabled?: boolean
           response_delay?: number
           silence_followup_enabled?: boolean
           store_id: string
           tone?: string
           updated_at?: string
+          upsell_enabled?: boolean
         }
         Update: {
+          abuse_auto_escalate_enabled?: boolean
           ai_instructions?: string | null
           auto_language_detect_enabled?: boolean
           auto_reply?: boolean
@@ -125,12 +144,14 @@ export type Database = {
           created_at?: string
           duplicate_order_guard_enabled?: boolean
           duplicate_order_window_seconds?: number
+          emotion_detection_enabled?: boolean
           escalation_threshold?: number
           fallback_message?: string | null
           greeting_facebook?: string | null
           greeting_instagram?: string | null
           greeting_whatsapp?: string | null
           id?: string
+          image_confidence_threshold?: number
           language?: string
           meta_retry_enabled?: boolean
           order_confirmation_template?: string | null
@@ -138,11 +159,14 @@ export type Database = {
           out_of_hours_message_ar?: string | null
           out_of_hours_message_en?: string | null
           persona_name?: string
+          proactive_followup_enabled?: boolean
+          quality_score_enabled?: boolean
           response_delay?: number
           silence_followup_enabled?: boolean
           store_id?: string
           tone?: string
           updated_at?: string
+          upsell_enabled?: boolean
         }
         Relationships: [
           {
@@ -157,19 +181,29 @@ export type Database = {
       conversations: {
         Row: {
           ai_auto_reply: boolean
+          closed_at: string | null
           created_at: string
+          current_emotion: string
           customer_address: string | null
           customer_name: string
           customer_phone: string | null
           delivery_attempts: number
           delivery_status: string
+          escalated: boolean
+          escalated_at: string | null
+          escalation_reason: string | null
+          handoff_summary: string | null
           id: string
+          last_customer_activity_at: string | null
           last_delivery_error: string | null
           last_message: string | null
           last_message_time: string | null
+          last_proactive_at: string | null
           page_id: string | null
           platform: Database["public"]["Enums"]["platform_type"]
           platform_conversation_id: string | null
+          quality_breakdown: Json | null
+          quality_score: number | null
           status: Database["public"]["Enums"]["conversation_status"]
           store_id: string
           unread: boolean
@@ -177,19 +211,29 @@ export type Database = {
         }
         Insert: {
           ai_auto_reply?: boolean
+          closed_at?: string | null
           created_at?: string
+          current_emotion?: string
           customer_address?: string | null
           customer_name?: string
           customer_phone?: string | null
           delivery_attempts?: number
           delivery_status?: string
+          escalated?: boolean
+          escalated_at?: string | null
+          escalation_reason?: string | null
+          handoff_summary?: string | null
           id?: string
+          last_customer_activity_at?: string | null
           last_delivery_error?: string | null
           last_message?: string | null
           last_message_time?: string | null
+          last_proactive_at?: string | null
           page_id?: string | null
           platform: Database["public"]["Enums"]["platform_type"]
           platform_conversation_id?: string | null
+          quality_breakdown?: Json | null
+          quality_score?: number | null
           status?: Database["public"]["Enums"]["conversation_status"]
           store_id: string
           unread?: boolean
@@ -197,19 +241,29 @@ export type Database = {
         }
         Update: {
           ai_auto_reply?: boolean
+          closed_at?: string | null
           created_at?: string
+          current_emotion?: string
           customer_address?: string | null
           customer_name?: string
           customer_phone?: string | null
           delivery_attempts?: number
           delivery_status?: string
+          escalated?: boolean
+          escalated_at?: string | null
+          escalation_reason?: string | null
+          handoff_summary?: string | null
           id?: string
+          last_customer_activity_at?: string | null
           last_delivery_error?: string | null
           last_message?: string | null
           last_message_time?: string | null
+          last_proactive_at?: string | null
           page_id?: string | null
           platform?: Database["public"]["Enums"]["platform_type"]
           platform_conversation_id?: string | null
+          quality_breakdown?: Json | null
+          quality_score?: number | null
           status?: Database["public"]["Enums"]["conversation_status"]
           store_id?: string
           unread?: boolean

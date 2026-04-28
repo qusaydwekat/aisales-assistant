@@ -346,6 +346,188 @@ async function sendMetaImage(
   }
 }
 
+// ─── Phase 1 reliability helpers ───────────────────────────────────────────
+
+/**
+ * Detect Arabic vs English from a piece of text.
+ * Returns "ar" if any Arabic letter is present, otherwise "en".
+ * Falls back to undefined for empty input.
+ */
+function detectLanguage(text: string | null | undefined): "ar" | "en" | undefined {
+  if (!text || typeof text !== "string") return undefined;
+  // Strip image URLs / file extensions so they don't bias detection
+  const stripped = text.replace(/https?:\/\/\S+/g, "").trim();
+  if (!stripped) return undefined;
+  // U+0600–U+06FF is the Arabic block; U+0750–U+077F supplementary
+  if (/[\u0600-\u06FF\u0750-\u077F]/.test(stripped)) return "ar";
+  // Require at least one A–Z letter to call something English
+  if (/[A-Za-z]/.test(stripped)) return "en";
+  return undefined;
+}
+
+/**
+ * Determine if the store is currently open based on `working_hours` JSON.
+ * Expected shape (best-effort tolerant):
+ *   { monday: { open: "09:00", close: "18:00", closed?: false }, ... }
+ * Returns { isOpen, todayHours } — when no schedule is set we assume open
+ * so we never block legitimate orders.
+ */
+function isStoreOpenNow(workingHours: any): { isOpen: boolean; hasSchedule: boolean } {
+  if (!workingHours || typeof workingHours !== "object") {
+    return { isOpen: true, hasSchedule: false };
+  }
+  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const now = new Date();
+  const dayKey = days[now.getDay()];
+  const today = workingHours[dayKey] || workingHours[dayKey?.toLowerCase()];
+  if (!today || today.closed === true) {
+    // If we have a schedule but today isn't listed → closed
+    const hasAnyDay = days.some((d) => workingHours[d]);
+    if (hasAnyDay) return { isOpen: false, hasSchedule: true };
+    return { isOpen: true, hasSchedule: false };
+  }
+  const open = String(today.open || today.from || "").trim();
+  const close = String(today.close || today.to || "").trim();
+  if (!open || !close) return { isOpen: true, hasSchedule: false };
+  const [oh, om] = open.split(":").map((n) => parseInt(n, 10));
+  const [ch, cm] = close.split(":").map((n) => parseInt(n, 10));
+  if (isNaN(oh) || isNaN(ch)) return { isOpen: true, hasSchedule: false };
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const openMin = oh * 60 + (om || 0);
+  const closeMin = ch * 60 + (cm || 0);
+  // Handle overnight hours (e.g. 18:00 → 02:00)
+  const isOpen = closeMin > openMin
+    ? nowMin >= openMin && nowMin < closeMin
+    : nowMin >= openMin || nowMin < closeMin;
+  return { isOpen, hasSchedule: true };
+}
+
+/**
+ * Wrap a Meta Send call in retry with exponential backoff (2s, 6s, 18s).
+ * Returns { ok, data, attempts, lastError }.
+ * Logs a `meta_send_failures` row when all retries fail.
+ */
+async function sendMetaReplyWithRetry(
+  supabase: any,
+  storeId: string,
+  conversationId: string | null,
+  platform: string,
+  recipientId: string,
+  text: string,
+  pageAccessToken: string,
+  pageId: string,
+  retryEnabled: boolean
+): Promise<{ ok: boolean; data: any; attempts: number; lastError?: string }> {
+  const maxAttempts = retryEnabled ? 3 : 1;
+  const backoffsMs = [2000, 6000, 18000];
+  let lastError: string | undefined;
+  let lastData: any = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const data = await sendMetaReply(platform, recipientId, text, pageAccessToken, pageId);
+      lastData = data;
+      // sendMetaReply returns the parsed JSON; Meta errors come back with `error`
+      if (data && !data.error && (data.message_id || data.messages?.[0]?.id)) {
+        if (attempt > 1) {
+          console.log(`[${platform}] Meta send succeeded on retry attempt ${attempt}`);
+        }
+        return { ok: true, data, attempts: attempt };
+      }
+      lastError = data?.error?.message || data?.error?.error_user_msg || JSON.stringify(data?.error || data);
+      console.warn(`[${platform}] Meta send attempt ${attempt}/${maxAttempts} failed:`, lastError);
+    } catch (e: any) {
+      lastError = e?.message || String(e);
+      console.warn(`[${platform}] Meta send attempt ${attempt}/${maxAttempts} threw:`, lastError);
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, backoffsMs[attempt - 1] || 18000));
+    }
+  }
+
+  // All attempts failed → log + flag conversation
+  try {
+    await supabase.from("meta_send_failures").insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      platform,
+      recipient_id: recipientId,
+      attempt_count: maxAttempts,
+      last_error: (lastError || "unknown").slice(0, 1000),
+      payload_preview: (text || "").slice(0, 500),
+    });
+    if (conversationId) {
+      await supabase
+        .from("conversations")
+        .update({
+          delivery_status: "delivery_failed",
+          delivery_attempts: maxAttempts,
+          last_delivery_error: (lastError || "unknown").slice(0, 500),
+        })
+        .eq("id", conversationId);
+
+      // Real-time alert for the store owner
+      const { data: store } = await supabase
+        .from("stores")
+        .select("user_id, name")
+        .eq("id", storeId)
+        .single();
+      if (store?.user_id) {
+        await supabase.from("notifications").insert({
+          user_id: store.user_id,
+          type: "delivery_failure",
+          title: `Reply failed to deliver`,
+          description: `Could not send a reply on ${platform} after ${maxAttempts} attempts. Open the inbox to take over manually.`,
+        });
+      }
+    }
+  } catch (logErr) {
+    console.error(`[${platform}] Failed to log send failure:`, logErr);
+  }
+
+  return { ok: false, data: lastData, attempts: maxAttempts, lastError };
+}
+
+/**
+ * Check if a near-duplicate order was created very recently for this conversation.
+ * "Near-duplicate" = same conversation_id, same set of (product name, qty),
+ * created within `windowSeconds` ago, and not cancelled.
+ */
+async function findRecentDuplicateOrder(
+  supabase: any,
+  conversationId: string,
+  items: any[],
+  windowSeconds: number
+): Promise<{ order_number: string; status: string; total: number } | null> {
+  if (!conversationId || !Array.isArray(items) || items.length === 0) return null;
+  const sinceIso = new Date(Date.now() - windowSeconds * 1000).toISOString();
+  const { data: recent } = await supabase
+    .from("orders")
+    .select("order_number, status, total, items, created_at")
+    .eq("conversation_id", conversationId)
+    .gte("created_at", sinceIso)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (!recent?.length) return null;
+
+  const sig = (arr: any[]) =>
+    (arr || [])
+      .map((i: any) => `${(i.product_name || i.name || "").toLowerCase().trim()}|${Number(i.quantity || 1)}`)
+      .sort()
+      .join("::");
+
+  const incomingSig = sig(items);
+  if (!incomingSig) return null;
+
+  for (const o of recent) {
+    if (sig(o.items || []) === incomingSig) {
+      return { order_number: o.order_number, status: o.status, total: o.total };
+    }
+  }
+  return null;
+}
+
 async function fetchMetaDisplayName(
   platform: string,
   senderId: string,

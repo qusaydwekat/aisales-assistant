@@ -33,6 +33,8 @@ export default function AISettingsPage() {
       setAutoReply(settings.auto_reply);
       setDelay(settings.response_delay);
       setEscalationThreshold(settings.escalation_threshold);
+      setCollectionWindow((settings as any).collection_window_seconds ?? 5);
+      setSilenceFollowup((settings as any).silence_followup_enabled ?? false);
       setFallbackMessage(settings.fallback_message || '');
       setAiInstructions((settings as any).ai_instructions || 'You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
     }

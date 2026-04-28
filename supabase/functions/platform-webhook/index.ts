@@ -3708,7 +3708,7 @@ Deno.serve(async (req) => {
 
       // Combine the latest consecutive customer messages into one prompt.
       const allHistory = freshHistory || history;
-      const pendingBurst = collectPendingCustomerBurst(allHistory);
+      const pendingBurst = collectUnansweredCustomerMessages(allHistory);
       const burstInput = extractBurstInput(pendingBurst);
       const combinedCustomerMessage =
         burstInput.combinedText ||

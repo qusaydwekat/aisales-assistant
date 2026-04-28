@@ -3292,6 +3292,8 @@ Deno.serve(async (req) => {
             (entry.content.includes("📷 ") || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(entry.content))
           ).length,
           window_seconds: configuredWindowSec,
+          detected_language: detectedLang || null,
+          flagged_high_volume: highVolumeFlagged,
         });
       } catch (logErr) {
         console.warn(`[${platform}] Failed to write batch log:`, logErr);

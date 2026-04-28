@@ -167,6 +167,73 @@ function detectPlatform(body: any, queryPlatform: string | null): string {
   return "facebook"; // default
 }
 
+// Send a Messenger/IG "typing_on" or "typing_off" sender_action so the customer
+// sees the human-like typing bubble before our reply lands. Best-effort only.
+async function sendTypingIndicator(
+  platform: string,
+  recipientId: string,
+  pageAccessToken: string,
+  action: "typing_on" | "typing_off" | "mark_seen" = "typing_on"
+) {
+  if (platform !== "facebook" && platform !== "instagram") return;
+  try {
+    await fetch(`https://graph.facebook.com/v21.0/me/messages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${pageAccessToken}`,
+      },
+      body: JSON.stringify({
+        recipient: { id: recipientId },
+        sender_action: action,
+      }),
+    });
+  } catch (err) {
+    console.warn(`[${platform}] sender_action ${action} failed:`, err);
+  }
+}
+
+// Split a long AI reply into 2-3 shorter chunks so it lands like a real
+// person typing several short messages instead of one wall of text.
+// Splits on paragraph breaks first, then sentences, never breaking words.
+function splitReplyIntoChunks(text: string, maxChunks = 3): string[] {
+  const trimmed = (text || "").trim();
+  if (!trimmed) return [];
+  // Short replies stay as one message.
+  if (trimmed.length <= 180) return [trimmed];
+
+  // Prefer paragraph splits.
+  const paragraphs = trimmed
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  let parts: string[] = paragraphs.length > 1 ? paragraphs : [];
+  if (parts.length === 0) {
+    // Fall back to sentence-based grouping (~150 chars per chunk).
+    const sentences = trimmed.match(/[^.!?\n]+[.!?]?(\s+|$)/g) || [trimmed];
+    const target = Math.max(120, Math.ceil(trimmed.length / maxChunks));
+    let buf = "";
+    for (const s of sentences) {
+      if ((buf + s).length > target && buf.length > 0) {
+        parts.push(buf.trim());
+        buf = s;
+      } else {
+        buf += s;
+      }
+    }
+    if (buf.trim()) parts.push(buf.trim());
+  }
+
+  // Cap at maxChunks by merging the tail.
+  if (parts.length > maxChunks) {
+    const head = parts.slice(0, maxChunks - 1);
+    const tail = parts.slice(maxChunks - 1).join(" ");
+    parts = [...head, tail];
+  }
+  return parts.filter((p) => p && p.trim().length > 0);
+}
+
 async function sendMetaReply(
   platform: string,
   recipientId: string,

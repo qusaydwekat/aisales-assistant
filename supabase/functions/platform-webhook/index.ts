@@ -3305,10 +3305,12 @@ Deno.serve(async (req) => {
           `[${platform}] Sending reply to ${msg.sender} (${replyChunks.length} chunk(s)) using stored page token`
         );
 
+        // Fix 4: wrap each chunk send in retry-with-backoff
+        const metaRetryEnabled = aiSettings?.meta_retry_enabled !== false;
         let lastSendResult: any = null;
+        let anyChunkFailed = false;
         for (let i = 0; i < replyChunks.length; i++) {
           const chunk = replyChunks[i];
-          // Per-chunk typing simulation: 1-3 seconds based on chunk length.
           const typingMs = Math.max(
             900,
             Math.min(3000, Math.round(chunk.length * 22))
@@ -3316,16 +3318,38 @@ Deno.serve(async (req) => {
           sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
           await new Promise((r) => setTimeout(r, typingMs));
 
-          lastSendResult = await sendMetaReply(
+          const sendOutcome = await sendMetaReplyWithRetry(
+            supabase,
+            storeId,
+            conversation.id,
             msg.platform,
             msg.sender,
             chunk,
             pageAccessToken,
-            connectionPageId || msg.pageId || ""
+            connectionPageId || msg.pageId || "",
+            metaRetryEnabled
           );
+          lastSendResult = sendOutcome.data;
+          if (!sendOutcome.ok) {
+            anyChunkFailed = true;
+            console.error(
+              `[${platform}] Reply chunk ${i + 1}/${replyChunks.length} failed after ${sendOutcome.attempts} attempts: ${sendOutcome.lastError}`
+            );
+            break;
+          }
         }
         sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_off");
         const replySendResult = lastSendResult;
+
+        // Clear delivery_failed flag if reply landed cleanly
+        if (!anyChunkFailed) {
+          await supabase
+            .from("conversations")
+            .update({ delivery_status: "ok", delivery_attempts: 0, last_delivery_error: null })
+            .eq("id", conversation.id)
+            .neq("delivery_status", "ok");
+        }
+
 
         const sentTextPlatformMessageId =
           replySendResult?.message_id || replySendResult?.messages?.[0]?.id || null;

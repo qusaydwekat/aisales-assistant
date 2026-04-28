@@ -1492,14 +1492,29 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 
 1. **Check existing orders FIRST**: Before creating a new order, check the "Existing Orders" section above. If there is an active order (pending/confirmed/processing), use update_order instead of creating a duplicate.
 2. **Create order**: Use create_order ONLY when there is NO active order AND you have collected: items with quantities, full name, phone, and address (gathered progressively from conversation). YOU MUST CALL THE TOOL.
-3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order. **TRIGGER WORDS** (in any language) that REQUIRE you to immediately call update_order — never just reply with text:
-   - Arabic: "بدي اعدل", "اعدل", "بدي اغير", "غير", "تعديل", "بدل", "بدي يكون", "خليه", "ممكن اعدل"
-   - English: "change", "update", "modify", "edit", "make it", "switch to", "I want to change", "can you update"
-   When the customer mentions a NEW address, NEW phone, NEW name, NEW item, or NEW quantity AND there is an active order in "Existing Orders" above → CALL update_order IMMEDIATELY in the same turn. Pass ONLY the fields that changed (e.g. just the address field if only address changed — items/phone/name are optional). Do NOT ask for confirmation first. Do NOT just reply with text saying "I updated it" — you MUST call the tool.
-4. **Cancel order**: CALL cancel_order IMMEDIATELY when the customer wants to cancel an active order. **TRIGGER WORDS** (in any language) that REQUIRE you to immediately call cancel_order — never just reply with text, never ask for confirmation first:
-   - Arabic: "الغي", "إلغاء", "بدي الغي", "بدي إلغاء", "ألغي الطلب", "الغي الطلب", "كنسل", "بطل الطلب", "ما بدي الطلب", "الغاء"
-   - English: "cancel", "cancel order", "cancel my order", "I want to cancel", "abort", "stop the order", "nevermind the order"
-   When ANY of these appear AND there is an active order in "Existing Orders" above → CALL cancel_order IMMEDIATELY in the same turn. If the customer did not specify which order, pass no order_number and the system will cancel the most recent pending order. Do NOT just reply with text saying "I cancelled it" — you MUST call the tool. After the tool returns, confirm the cancellation by referencing the returned order_number.
+3. **Update order**: Use update_order when the customer wants to change items, address, phone, name, or notes on an existing active order.
+
+   **STRICT FIELD ISOLATION — READ THIS TWICE**:
+   When calling update_order, pass ONLY the field(s) the customer LITERALLY mentioned in their CURRENT latest message. Forbidden: passing address when the user talked about quantity. Forbidden: passing items when the user only changed address. Forbidden: re-passing values that were already saved on the order. The existing order in "Existing Orders" above is REFERENCE ONLY — never echo its address/phone/name/items into update_order unless the user just asked to change that exact field in this turn.
+
+   **INTENT MAPPING — match the customer's words to the right field BEFORE calling the tool**:
+   - QUANTITY/AMOUNT/NUMBER words ("كمية", "قطعتين", "٢", "اثنين", "ثلاثة", "بدي ٣", "اعدل الكمية", "quantity", "make it 2", "change to 3 pieces") → update_order with `items` ONLY (rebuild the items array using the existing order's items but with the new quantity). DO NOT pass address/phone/name.
+   - ADDRESS/LOCATION words ("عنوان", "مكان التوصيل", "وصلولي ع", "address", "deliver to", "location") → update_order with `address` ONLY.
+   - PHONE words ("رقمي", "تلفوني", "phone", "number") → update_order with `phone` ONLY.
+   - NAME words ("اسمي", "my name") → update_order with `customer_name` ONLY.
+   - ITEM SWAP words ("بدل المنتج", "زيد", "احذف", "add", "remove", "swap", "instead of") → update_order with `items` ONLY.
+
+   Arabic update triggers: "بدي اعدل", "اعدل", "بدي اغير", "غير", "تعديل", "بدل", "بدي يكون", "خليه", "ممكن اعدل", "اعدل الكمية".
+   English update triggers: "change", "update", "modify", "edit", "make it", "switch to", "I want to change", "can you update".
+   Trigger AND there is an active order in "Existing Orders" above → CALL update_order IMMEDIATELY with ONLY the matching field. Do NOT ask for confirmation first. Do NOT just reply with text — you MUST call the tool.
+
+4. **Cancel order**: CALL cancel_order IMMEDIATELY when the customer wants to cancel an active order or no longer wants to buy. **TRIGGER WORDS** (in any language) that REQUIRE you to immediately call cancel_order — never just reply with text, never ask for confirmation first:
+   - Arabic: "الغي", "إلغاء", "بدي الغي", "بدي إلغاء", "ألغي الطلب", "الغي الطلب", "كنسل", "بطل الطلب", "بطلت", "بطلت اشتري", "ما بدي الطلب", "ما عاد بدي", "ما بقا بدي", "تراجعت", "الغاء"
+   - English: "cancel", "cancel order", "cancel my order", "I want to cancel", "abort", "stop the order", "nevermind the order", "I changed my mind", "don't want it anymore", "no longer want"
+   When ANY of these appear AND there is an active order in "Existing Orders" above → CALL cancel_order IMMEDIATELY in the same turn. NEVER call update_order when the user wants to cancel. If the customer did not specify which order, pass no order_number and the system will cancel the most recent pending order. Do NOT just reply with text saying "I cancelled it" — you MUST call the tool. After the tool returns, confirm the cancellation by referencing the returned order_number.
+
+**INTENT-FIRST PROCESSING — DO THIS BEFORE EVERY TOOL CALL**:
+Before calling any order tool, silently classify the customer's CURRENT (latest) message into ONE intent: [cancel | update_quantity | update_address | update_phone | update_name | update_items | new_order | question | other]. Then call the matching tool with ONLY the matching field. If the intent is `cancel`, you MUST call cancel_order, never update_order. If you are unsure between two intents, ask one short clarifying question instead of guessing.
 5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
 6. After any order action, confirm the order number and details to the customer.
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.

@@ -3466,13 +3466,91 @@ Deno.serve(async (req) => {
         console.error(`[${platform}] Failed to store AI text message:`, insertedAiTextError);
       }
 
+      // ─── Phase 2: handoff context pack & escalation ───
+      let handoffSummary: string | null = null;
+      let escalationReason: string | null = null;
+      if (shouldAutoEscalate) {
+        escalationReason = "Abusive language detected";
+        handoffSummary = buildHandoffSummary({
+          customerName: conversation.customer_name,
+          platform: msg.platform,
+          history: allHistory,
+          existingOrders: existingOrders || [],
+          reason: escalationReason,
+          detectedLang,
+        });
+      }
+
+      // ─── Phase 2: lazy quality score recompute ───
+      let qualityScore: number | null = null;
+      let qualityBreakdown: any = null;
+      const qualityEnabled = aiSettings?.quality_score_enabled !== false;
+      if (qualityEnabled) {
+        // Find emotion at start (first customer msg) by reusing detector
+        const firstCustomer = (allHistory || []).find((m: any) => m.sender === "customer");
+        const emotionStart = firstCustomer ? detectEmotion(firstCustomer.content) : "neutral";
+        // Average reply ms between consecutive (customer → ai) pairs
+        let totalMs = 0; let pairs = 0; let prev: any = null;
+        for (const m of allHistory || []) {
+          if (prev && prev.sender === "customer" && m.sender === "ai") {
+            totalMs += new Date(m.created_at).getTime() - new Date(prev.created_at).getTime();
+            pairs++;
+          }
+          prev = m;
+        }
+        const avgReplyMs = pairs ? totalMs / pairs : 0;
+        const q = computeQualityScore({
+          history: allHistory,
+          emotionStart,
+          emotionEnd: detectedEmotion,
+          ordersCount: (existingOrders || []).length,
+          escalated: shouldAutoEscalate || conversation.escalated || false,
+          avgReplyMs,
+        });
+        qualityScore = q.score;
+        qualityBreakdown = q.breakdown;
+      }
+
+      const convoUpdate: any = {
+        last_message: finalCombinedReply,
+        last_message_time: new Date().toISOString(),
+        last_customer_activity_at: new Date().toISOString(),
+        current_emotion: detectedEmotion,
+      };
+      if (qualityScore !== null) {
+        convoUpdate.quality_score = qualityScore;
+        convoUpdate.quality_breakdown = qualityBreakdown;
+      }
+      if (shouldAutoEscalate) {
+        convoUpdate.escalated = true;
+        convoUpdate.escalated_at = new Date().toISOString();
+        convoUpdate.escalation_reason = escalationReason;
+        convoUpdate.handoff_summary = handoffSummary;
+        convoUpdate.ai_auto_reply = false; // pause AI after handoff
+      }
+
       await supabase
         .from("conversations")
-        .update({
-          last_message: finalCombinedReply,
-          last_message_time: new Date().toISOString(),
-        })
+        .update(convoUpdate)
         .eq("id", conversation.id);
+
+      // Notify owner of escalation
+      if (shouldAutoEscalate) {
+        try {
+          const { data: storeRow } = await supabase
+            .from("stores").select("user_id, name").eq("id", storeId).maybeSingle();
+          if (storeRow?.user_id) {
+            await supabase.from("notifications").insert({
+              user_id: storeRow.user_id,
+              type: "escalation",
+              title: `Conversation needs you — ${conversation.customer_name || "Customer"}`,
+              description: escalationReason || "Human handoff requested",
+            });
+          }
+        } catch (notifyErr) {
+          console.warn(`[${platform}] Failed to write escalation notification:`, notifyErr);
+        }
+      }
 
       // Write the admin-visible batch log (best-effort, never blocks reply).
       try {
@@ -3492,6 +3570,8 @@ Deno.serve(async (req) => {
           window_seconds: configuredWindowSec,
           detected_language: detectedLang || null,
           flagged_high_volume: highVolumeFlagged,
+          detected_emotion: detectedEmotion,
+          image_confidence: burstHasImage ? imgThreshold : null,
         });
       } catch (logErr) {
         console.warn(`[${platform}] Failed to write batch log:`, logErr);

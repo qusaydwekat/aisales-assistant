@@ -261,8 +261,72 @@ export default function AISettingsPage() {
             </div>
           </div>
 
+          {/* AI Intelligence (Phase 2) */}
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> AI Instructions</h2>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Sparkles className="h-4 w-4 text-accent" /> AI Intelligence</h2>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex items-start gap-2">
+                <Heart className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Emotion & urgency detection</p>
+                  <p className="text-xs text-muted-foreground">Detect frustrated, urgent, happy, or abusive tone and adjust the reply style.</p>
+                </div>
+              </div>
+              <Toggle value={emotionEnabled} onChange={() => setEmotionEnabled(!emotionEnabled)} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0 flex items-start gap-2">
+                <AlertOctagon className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Auto-escalate abusive customers</p>
+                  <p className="text-xs text-muted-foreground">When abusive language is detected, AI sends ONE polite reply, pauses, and notifies you with a handoff summary.</p>
+                </div>
+              </div>
+              <Toggle value={abuseEscalateEnabled} onChange={() => setAbuseEscalateEnabled(!abuseEscalateEnabled)} />
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-start gap-2">
+                <ImageIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-foreground">Image confidence threshold: {imgConfidence}%</p>
+                  <p className="text-xs text-muted-foreground">Below this, AI asks for a clearer photo instead of guessing the product.</p>
+                </div>
+              </div>
+              <input type="range" min={50} max={80} value={imgConfidence} onChange={e => setImgConfidence(Number(e.target.value))} className="w-full mt-1 accent-primary" />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">Proactive follow-up</p>
+                <p className="text-xs text-muted-foreground">Allow the AI to softly re-engage when a hot lead goes quiet.</p>
+              </div>
+              <Toggle value={proactiveEnabled} onChange={() => setProactiveEnabled(!proactiveEnabled)} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">Upsell suggestions</p>
+                <p className="text-xs text-muted-foreground">Suggest one complementary or higher-value item per conversation, never pushy.</p>
+              </div>
+              <Toggle value={upsellEnabled} onChange={() => setUpsellEnabled(!upsellEnabled)} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0 flex items-start gap-2">
+                <BarChart3 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Conversation quality score</p>
+                  <p className="text-xs text-muted-foreground">Score each conversation 0–100 based on resolution, speed, sentiment shift, and conversion.</p>
+                </div>
+              </div>
+              <Toggle value={qualityScoreEnabled} onChange={() => setQualityScoreEnabled(!qualityScoreEnabled)} />
+            </div>
+          </div>
+
+          <div className="glass rounded-xl p-6 space-y-4">
             <p className="text-xs text-muted-foreground">Custom instructions that guide how the AI behaves with your customers</p>
             <textarea value={aiInstructions} onChange={e => setAiInstructions(e.target.value)} rows={5} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" placeholder="Enter custom AI instructions..." />
           </div>

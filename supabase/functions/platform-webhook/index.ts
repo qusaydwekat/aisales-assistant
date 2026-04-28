@@ -793,6 +793,44 @@ async function executeCreateOrder(
     0
   );
 
+  // ─── Fix 5: Duplicate-order prevention ───
+  // Look up store's settings + working hours in one go.
+  const [aiSettingsRes, storeRes] = await Promise.all([
+    supabase
+      .from("ai_settings")
+      .select("duplicate_order_guard_enabled, duplicate_order_window_seconds, out_of_hours_enabled")
+      .eq("store_id", storeId)
+      .maybeSingle(),
+    supabase
+      .from("stores")
+      .select("user_id, name, working_hours")
+      .eq("id", storeId)
+      .single(),
+  ]);
+
+  const dupGuardEnabled = aiSettingsRes?.data?.duplicate_order_guard_enabled !== false;
+  const dupWindow = Math.max(30, Number(aiSettingsRes?.data?.duplicate_order_window_seconds) || 300);
+
+  if (dupGuardEnabled) {
+    const dup = await findRecentDuplicateOrder(supabase, conversationId, args.items || [], dupWindow);
+    if (dup) {
+      console.log(`Duplicate order skipped — existing ${dup.order_number} (${dup.status})`);
+      return JSON.stringify({
+        success: true,
+        order_number: dup.order_number,
+        total: dup.total,
+        items_count: (args.items || []).length,
+        duplicate_of: dup.order_number,
+        message: `An identical order was just created (${dup.order_number}) — confirming that one instead of creating a duplicate.`,
+      });
+    }
+  }
+
+  // ─── Fix 9: Out-of-hours flagging ───
+  const ooEnabled = aiSettingsRes?.data?.out_of_hours_enabled !== false;
+  const { isOpen, hasSchedule } = isStoreOpenNow(storeRes?.data?.working_hours);
+  const outsideHours = ooEnabled && hasSchedule && !isOpen;
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
@@ -806,6 +844,8 @@ async function executeCreateOrder(
       notes: args.notes || "",
       platform,
       status: "pending",
+      out_of_hours: outsideHours,
+      pending_confirmation: outsideHours,
     })
     .select("order_number")
     .single();
@@ -826,28 +866,25 @@ async function executeCreateOrder(
     })
     .eq("id", conversationId);
 
-  // Create notification for store owner
-  const { data: store } = await supabase
-    .from("stores")
-    .select("user_id, name")
-    .eq("id", storeId)
-    .single();
-
-  if (store) {
+  const store = storeRes?.data;
+  if (store?.user_id) {
     await supabase.from("notifications").insert({
       user_id: store.user_id,
-      title: `New order ${order.order_number}`,
-      description: `${args.customer_name} placed an order for ${args.items.length} item(s) — Total: ${total}`,
+      title: `New order ${order.order_number}${outsideHours ? " (after-hours)" : ""}`,
+      description: outsideHours
+        ? `${args.customer_name} placed an after-hours order — needs your confirmation. Total: ${total}`
+        : `${args.customer_name} placed an order for ${args.items.length} item(s) — Total: ${total}`,
       type: "order",
     });
   }
 
-  console.log(`Order created: ${order.order_number}, total: ${total}`);
+  console.log(`Order created: ${order.order_number}, total: ${total}, outside_hours: ${outsideHours}`);
   return JSON.stringify({
     success: true,
     order_number: order.order_number,
     total,
     items_count: args.items.length,
+    pending_confirmation: outsideHours,
   });
 }
 

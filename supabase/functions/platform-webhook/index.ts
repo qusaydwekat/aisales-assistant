@@ -2701,19 +2701,27 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // ─── Per-customer fixed 10s collection window ───
-      // From the FIRST unanswered customer message, wait a fixed 10s and
-      // collect every message that arrives in that window. Then reply ONCE
-      // covering all of them. Newer-message workers yield to the original
-      // worker (the one that owns the earliest unanswered message).
-      const QUIET_MS = 10000;
+      // ─── Per-customer ROLLING collection window ───
+      // When the FIRST unanswered message arrives we start a window. Each new
+      // customer message that lands during the window RESETS the timer. After
+      // N seconds of silence we process the whole batch as ONE reply.
+      // Window duration is configurable per store via ai_settings (3-10s, default 5).
+      const configuredWindowSec = Math.min(
+        10,
+        Math.max(3, Number(aiSettings?.collection_window_seconds) || 5)
+      );
+      const QUIET_MS = configuredWindowSec * 1000;
+      // Meta sometimes delivers webhooks for a single customer burst out of
+      // order; keep a small extra grace for FB/IG so reply-attachments aren't
+      // missed, but never less than the configured quiet window.
       const DELIVERY_GRACE_MS =
-        platform === "facebook" || platform === "instagram" ? 18000 : QUIET_MS;
+        platform === "facebook" || platform === "instagram"
+          ? Math.max(QUIET_MS, 6000)
+          : QUIET_MS;
       const MAX_TOTAL_WAIT_MS = 60000;
-      const POLL_MS = 500;
+      const POLL_MS = 400;
       const myMsgId = insertedMsg?.id;
       const myReceivedAtMs = Date.now();
-      const myReceivedAtIso = new Date(myReceivedAtMs).toISOString();
 
       // Find the earliest unanswered customer message in this conversation.
       // "Unanswered" = created after the last AI message (or all of them if none).
@@ -2740,32 +2748,43 @@ Deno.serve(async (req) => {
       const earliestUnanswered = earliestUnansweredArr?.[0];
 
       // Only the worker that owns the earliest unanswered message handles the
-      // window. Later messages' workers yield immediately.
+      // window. Later messages' workers yield immediately — their content will
+      // simply extend the active worker's rolling timer via DB polling.
       if (!earliestUnanswered?.id || earliestUnanswered.id !== myMsgId) {
         console.log(
-          `[${platform}] Not the earliest unanswered worker (earliest=${earliestUnanswered?.id}, mine=${myMsgId}) — yielding.`
+          `[${platform}] Not the earliest unanswered worker (earliest=${earliestUnanswered?.id}, mine=${myMsgId}) — yielding to active batcher.`
         );
         continue;
       }
 
-      const windowStartMs = earliestUnanswered.created_at
+      // Track the latest customer message timestamp we've seen; the rolling
+      // window expires QUIET_MS after this value, and we extend it whenever a
+      // new customer message lands.
+      let latestCustomerMs = earliestUnanswered.created_at
         ? new Date(earliestUnanswered.created_at).getTime()
         : myReceivedAtMs;
-      const requiredWindowMs = Math.max(QUIET_MS, DELIVERY_GRACE_MS);
-      const windowEndsAt = windowStartMs + requiredWindowMs;
+      let windowEndsAt = latestCustomerMs + Math.max(QUIET_MS, DELIVERY_GRACE_MS);
 
       let shouldProceed = true;
       const startedAt = Date.now();
 
-      // Wait until the fixed window elapses, polling for an AI reply that may
-      // have been sent by another concurrent worker (defense-in-depth).
+      // Best-effort: show typing bubble while we batch.
+      if (pageAccessToken) {
+        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "mark_seen");
+        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+      }
+
       while (Date.now() < windowEndsAt && Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
+        // 1) Bail if another worker already replied for this burst.
         const { data: latestAi } = await supabase
           .from("messages")
           .select("id, created_at")
           .eq("conversation_id", conversation.id)
           .eq("sender", "ai")
-          .gte("created_at", new Date(windowStartMs).toISOString())
+          .gte(
+            "created_at",
+            new Date(latestCustomerMs - 1000).toISOString()
+          )
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
@@ -2776,6 +2795,32 @@ Deno.serve(async (req) => {
             `[${platform}] AI reply already sent for this burst; skipping duplicate response.`
           );
           break;
+        }
+
+        // 2) Check for newer customer messages — they extend (reset) the window.
+        const { data: newerCustomer } = await supabase
+          .from("messages")
+          .select("created_at")
+          .eq("conversation_id", conversation.id)
+          .eq("sender", "customer")
+          .gt("created_at", new Date(latestCustomerMs).toISOString())
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (newerCustomer?.created_at) {
+          const newerMs = new Date(newerCustomer.created_at).getTime();
+          if (newerMs > latestCustomerMs) {
+            latestCustomerMs = newerMs;
+            windowEndsAt = latestCustomerMs + QUIET_MS;
+            console.log(
+              `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
+            );
+            // Re-assert typing while we keep batching.
+            if (pageAccessToken) {
+              sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+            }
+          }
         }
 
         const remaining = windowEndsAt - Date.now();

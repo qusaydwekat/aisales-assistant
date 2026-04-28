@@ -11,6 +11,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import InboxPage from "@/pages/InboxPage";
 import OrdersPage from "@/pages/OrdersPage";
 import ProductsPage from "@/pages/ProductsPage";
+import CatalogToolsPage from "@/pages/CatalogToolsPage";
 import StoreSettingsPage from "@/pages/StoreSettingsPage";
 import PlatformsPage from "@/pages/PlatformsPage";
 import ReportsPage from "@/pages/ReportsPage";
@@ -48,6 +49,7 @@ const App = () => (
                 <Route path="/inbox" element={<InboxPage />} />
                 <Route path="/orders" element={<OrdersPage />} />
                 <Route path="/products" element={<ProductsPage />} />
+                <Route path="/catalog-tools" element={<CatalogToolsPage />} />
                 <Route path="/store-settings" element={<StoreSettingsPage />} />
                 <Route path="/platforms" element={<PlatformsPage />} />
                 <Route path="/reports" element={<ReportsPage />} />

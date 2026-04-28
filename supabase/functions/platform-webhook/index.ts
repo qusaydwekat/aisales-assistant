@@ -3346,6 +3346,53 @@ Deno.serve(async (req) => {
           "RUNTIME HIGH-VOLUME: The customer just sent a very high burst of messages. Be calm, brief, and ask them to slow down so you can help properly."
         );
       }
+
+      // ─── Phase 2 Fix 2: Emotion & urgency detection ───
+      const emotionEnabled = aiSettings?.emotion_detection_enabled !== false;
+      const detectedEmotion = emotionEnabled ? detectEmotion(combinedCustomerMessage) : "neutral";
+      const abuseEscalateEnabled = aiSettings?.abuse_auto_escalate_enabled !== false;
+      const shouldAutoEscalate = abuseEscalateEnabled && detectedEmotion === "abusive";
+
+      if (emotionEnabled) {
+        if (detectedEmotion === "frustrated") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (frustrated): The customer sounds frustrated or impatient. Open with a brief, sincere acknowledgment of how they feel BEFORE answering. Be warm, concise, solution-focused. Do NOT be defensive."
+          );
+        } else if (detectedEmotion === "urgent") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (urgent): The customer is in a hurry. Skip pleasantries, give the answer in 1-2 short sentences, and offer to place the order immediately."
+          );
+        } else if (detectedEmotion === "abusive") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (abusive): The customer used insulting or hostile language. Reply ONCE, calmly and politely, telling them a human teammate will follow up. Do NOT engage further. Do NOT match the tone. Keep it under 25 words."
+          );
+        } else if (detectedEmotion === "happy") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (happy): The customer is in a good mood. Match the warmth briefly, then keep moving the sale forward."
+          );
+        }
+      }
+
+      // ─── Phase 2 Fix 3: Image confidence threshold ───
+      const imgThreshold = aiSettings?.image_confidence_threshold ?? 65;
+      const burstHasImage = pendingBurst.some((entry: any) =>
+        typeof entry.content === "string" &&
+        (entry.content.includes("📷 ") || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(entry.content))
+      );
+      if (burstHasImage) {
+        runtimeHints.push(
+          `RUNTIME IMAGE: The customer sent an image. Internally rate your confidence (0-100) that you can identify the product from the catalog. If your confidence is BELOW ${imgThreshold}%, do NOT guess — politely ask for a clearer photo, the brand/model, or which specific item they mean. If your confidence is at or above ${imgThreshold}%, hedge with phrases like "this looks like our [Product Name]" rather than asserting it as fact.`
+        );
+      }
+
+      // ─── Phase 2 Fix 7: Proactive upsell ───
+      const upsellEnabled = aiSettings?.upsell_enabled !== false;
+      if (upsellEnabled && detectedEmotion !== "abusive" && detectedEmotion !== "frustrated") {
+        runtimeHints.push(
+          "RUNTIME UPSELL: When the customer shows clear interest in a specific product, you MAY suggest ONE genuinely complementary item or a higher-value option — at most once per conversation. Never push, never invent products, never offer discounts you don't have."
+        );
+      }
+
       const enrichedStoreInfo = runtimeHints.length
         ? { ...storeInfo, _runtime_hint: `\nRUNTIME CONTEXT (must obey for THIS reply only):\n- ${runtimeHints.join("\n- ")}\n` }
         : storeInfo;

@@ -2454,6 +2454,24 @@ PRODUCT IMAGES RULES:
             (hasImages ? "" : aiSettings?.fallback_message || "Thanks for your message!"),
           hasImages
         );
+        if (hasConcreteCustomerQuestion(mainContent) && isGenericGreetingOnlyResponse(text)) {
+          const directReply = buildStoreInfoQuestionReply(mainContent, storeInfo);
+          if (directReply) {
+            console.log("AI returned generic greeting for a concrete question; using deterministic store-info reply.");
+            return { text: sanitizeAIResponse(directReply), images: allImageesToSend };
+          }
+
+          currentMessages = [
+            ...currentMessages,
+            choice.message,
+            {
+              role: "system",
+              content:
+                `Your previous reply was only a greeting and ignored the customer's concrete question(s). Re-answer now in the customer's language. Address every line in this input directly, using Store Information where relevant. Customer input:\n${mainContent}`,
+            },
+          ];
+          continue;
+        }
         if (isFallbackLikeResponse(text, aiSettings?.fallback_message)) {
           const retryPrompt =
             "Reply naturally as a store assistant in the customer's language. Do not say you are unsure, do not escalate to the team, and do not use fallback wording. If the customer asked for product photos, answer briefly and use send_product_images when you already have products from previous tool results.";
@@ -2639,6 +2657,12 @@ PRODUCT IMAGES RULES:
     }
 
     // If we exhausted all rounds, return last content
+    if (hasConcreteCustomerQuestion(mainContent)) {
+      const directReply = buildStoreInfoQuestionReply(mainContent, storeInfo);
+      if (directReply) {
+        return { text: sanitizeAIResponse(directReply), images: allImageesToSend };
+      }
+    }
     return {
       text: sanitizeAIResponse("Thanks for your message! How can I help you?"),
       images: allImageesToSend,

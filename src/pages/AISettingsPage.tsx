@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2 } from "lucide-react";
+import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2, Shield, RefreshCw, Copy, Languages } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAISettings, useUpsertAISettings } from "@/hooks/useSupabaseData";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,22 +21,43 @@ export default function AISettingsPage() {
   const [silenceFollowup, setSilenceFollowup] = useState(false);
   const [fallbackMessage, setFallbackMessage] = useState("I'm not sure about that. Let me connect you with our team!");
   const [aiInstructions, setAiInstructions] = useState('You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
+  // Phase 1 reliability toggles
+  const [burstGuardEnabled, setBurstGuardEnabled] = useState(true);
+  const [burstGuardMax, setBurstGuardMax] = useState(10);
+  const [metaRetryEnabled, setMetaRetryEnabled] = useState(true);
+  const [dupGuardEnabled, setDupGuardEnabled] = useState(true);
+  const [dupWindow, setDupWindow] = useState(300);
+  const [autoLangEnabled, setAutoLangEnabled] = useState(true);
+  const [outOfHoursEnabled, setOutOfHoursEnabled] = useState(true);
+  const [outOfHoursEn, setOutOfHoursEn] = useState("We're currently closed but I can still take your order and confirm it first thing tomorrow.");
+  const [outOfHoursAr, setOutOfHoursAr] = useState("متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً.");
+
   const [testMessage, setTestMessage] = useState('');
   const [testChat, setTestChat] = useState<{ role: string; text: string }[]>([]);
   const [isTestLoading, setIsTestLoading] = useState(false);
 
   useEffect(() => {
     if (settings) {
-      setPersonaName(settings.persona_name);
-      setLanguage(settings.language);
-      setTone(settings.tone);
-      setAutoReply(settings.auto_reply);
-      setDelay(settings.response_delay);
-      setEscalationThreshold(settings.escalation_threshold);
-      setCollectionWindow((settings as any).collection_window_seconds ?? 5);
-      setSilenceFollowup((settings as any).silence_followup_enabled ?? false);
-      setFallbackMessage(settings.fallback_message || '');
-      setAiInstructions((settings as any).ai_instructions || 'You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
+      const s = settings as any;
+      setPersonaName(s.persona_name);
+      setLanguage(s.language);
+      setTone(s.tone);
+      setAutoReply(s.auto_reply);
+      setDelay(s.response_delay);
+      setEscalationThreshold(s.escalation_threshold);
+      setCollectionWindow(s.collection_window_seconds ?? 5);
+      setSilenceFollowup(s.silence_followup_enabled ?? false);
+      setFallbackMessage(s.fallback_message || '');
+      setAiInstructions(s.ai_instructions || 'You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
+      setBurstGuardEnabled(s.burst_guard_enabled ?? true);
+      setBurstGuardMax(s.burst_guard_max_messages ?? 10);
+      setMetaRetryEnabled(s.meta_retry_enabled ?? true);
+      setDupGuardEnabled(s.duplicate_order_guard_enabled ?? true);
+      setDupWindow(s.duplicate_order_window_seconds ?? 300);
+      setAutoLangEnabled(s.auto_language_detect_enabled ?? true);
+      setOutOfHoursEnabled(s.out_of_hours_enabled ?? true);
+      setOutOfHoursEn(s.out_of_hours_message_en || "We're currently closed but I can still take your order and confirm it first thing tomorrow.");
+      setOutOfHoursAr(s.out_of_hours_message_ar || "متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً.");
     }
   }, [settings]);
 
@@ -47,6 +68,15 @@ export default function AISettingsPage() {
       fallback_message: fallbackMessage, ai_instructions: aiInstructions,
       collection_window_seconds: collectionWindow,
       silence_followup_enabled: silenceFollowup,
+      burst_guard_enabled: burstGuardEnabled,
+      burst_guard_max_messages: burstGuardMax,
+      meta_retry_enabled: metaRetryEnabled,
+      duplicate_order_guard_enabled: dupGuardEnabled,
+      duplicate_order_window_seconds: dupWindow,
+      auto_language_detect_enabled: autoLangEnabled,
+      out_of_hours_enabled: outOfHoursEnabled,
+      out_of_hours_message_en: outOfHoursEn,
+      out_of_hours_message_ar: outOfHoursAr,
     } as any);
   };
 
@@ -74,6 +104,12 @@ export default function AISettingsPage() {
     }
   };
 
+  const Toggle = ({ value, onChange }: { value: boolean; onChange: () => void }) => (
+    <button onClick={onChange} className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${value ? 'bg-primary' : 'bg-muted'}`}>
+      <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
+    </button>
+  );
+
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
@@ -88,7 +124,7 @@ export default function AISettingsPage() {
           <div className="glass rounded-xl p-6 space-y-4">
             <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> Persona</h2>
             <div><label className="text-xs text-muted-foreground">AI Name</label><input value={personaName} onChange={e => setPersonaName(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-            <div><label className="text-xs text-muted-foreground">Language</label>
+            <div><label className="text-xs text-muted-foreground">Default Language</label>
               <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
                 <option value="en">English</option><option value="ar">Arabic</option><option value="both">Auto-detect (Both)</option>
               </select>
@@ -104,9 +140,7 @@ export default function AISettingsPage() {
             <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Volume2 className="h-4 w-4 text-primary" /> Behavior</h2>
             <div className="flex items-center justify-between">
               <div><p className="text-sm text-foreground">Auto-reply</p><p className="text-xs text-muted-foreground">AI responds automatically</p></div>
-              <button onClick={() => setAutoReply(!autoReply)} className={`w-11 h-6 rounded-full transition-colors ${autoReply ? 'bg-primary' : 'bg-muted'}`}>
-                <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${autoReply ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
+              <Toggle value={autoReply} onChange={() => setAutoReply(!autoReply)} />
             </div>
             <div><label className="text-xs text-muted-foreground">Response delay: {delay}s</label><input type="range" min={0} max={10} value={delay} onChange={e => setDelay(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
             <div><label className="text-xs text-muted-foreground">Escalation after {escalationThreshold} messages</label><input type="range" min={2} max={10} value={escalationThreshold} onChange={e => setEscalationThreshold(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
@@ -117,9 +151,94 @@ export default function AISettingsPage() {
             </div>
             <div className="flex items-center justify-between pt-2">
               <div><p className="text-sm text-foreground">Silence follow-up</p><p className="text-xs text-muted-foreground">Send a soft check-in if the customer goes quiet for 10+ minutes</p></div>
-              <button onClick={() => setSilenceFollowup(!silenceFollowup)} className={`w-11 h-6 rounded-full transition-colors ${silenceFollowup ? 'bg-primary' : 'bg-muted'}`}>
-                <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${silenceFollowup ? 'translate-x-5' : 'translate-x-0.5'}`} />
-              </button>
+              <Toggle value={silenceFollowup} onChange={() => setSilenceFollowup(!silenceFollowup)} />
+            </div>
+          </div>
+
+          {/* Reliability & Safety */}
+          <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Shield className="h-4 w-4 text-primary" /> Reliability &amp; Safety</h2>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-foreground">Burst spam guard</p>
+                  <p className="text-xs text-muted-foreground">Stop resetting the batching window if a customer sends too many messages too fast.</p>
+                </div>
+                <Toggle value={burstGuardEnabled} onChange={() => setBurstGuardEnabled(!burstGuardEnabled)} />
+              </div>
+              {burstGuardEnabled && (
+                <div className="pl-1">
+                  <label className="text-xs text-muted-foreground">Trigger after {burstGuardMax} messages in one window</label>
+                  <input type="range" min={3} max={30} value={burstGuardMax} onChange={e => setBurstGuardMax(Number(e.target.value))} className="w-full mt-1 accent-primary" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0 flex items-start gap-2">
+                <RefreshCw className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Retry failed replies</p>
+                  <p className="text-xs text-muted-foreground">Retry Meta send up to 3 times (2s, 6s, 18s). Owner gets a real-time alert if all retries fail.</p>
+                </div>
+              </div>
+              <Toggle value={metaRetryEnabled} onChange={() => setMetaRetryEnabled(!metaRetryEnabled)} />
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex items-start gap-2">
+                  <Copy className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-foreground">Duplicate order prevention</p>
+                    <p className="text-xs text-muted-foreground">Skip creating an identical order if the customer accidentally confirms twice.</p>
+                  </div>
+                </div>
+                <Toggle value={dupGuardEnabled} onChange={() => setDupGuardEnabled(!dupGuardEnabled)} />
+              </div>
+              {dupGuardEnabled && (
+                <div className="pl-1">
+                  <label className="text-xs text-muted-foreground">Look back window: {Math.round(dupWindow / 60)} min ({dupWindow}s)</label>
+                  <input type="range" min={60} max={1800} step={30} value={dupWindow} onChange={e => setDupWindow(Number(e.target.value))} className="w-full mt-1 accent-primary" />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0 flex items-start gap-2">
+                <Languages className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Auto-detect customer language</p>
+                  <p className="text-xs text-muted-foreground">Reply in Arabic when the customer writes Arabic, English when they switch — overrides your default.</p>
+                </div>
+              </div>
+              <Toggle value={autoLangEnabled} onChange={() => setAutoLangEnabled(!autoLangEnabled)} />
+            </div>
+
+            <div className="space-y-3 pt-1">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0 flex items-start gap-2">
+                  <Clock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                  <div>
+                    <p className="text-sm text-foreground">Out-of-hours awareness</p>
+                    <p className="text-xs text-muted-foreground">When closed, AI tells the customer up front and flags the order for your review.</p>
+                  </div>
+                </div>
+                <Toggle value={outOfHoursEnabled} onChange={() => setOutOfHoursEnabled(!outOfHoursEnabled)} />
+              </div>
+              {outOfHoursEnabled && (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-muted-foreground">After-hours message (English)</label>
+                    <textarea value={outOfHoursEn} onChange={e => setOutOfHoursEn(e.target.value)} rows={2} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">After-hours message (Arabic)</label>
+                    <textarea value={outOfHoursAr} onChange={e => setOutOfHoursAr(e.target.value)} rows={2} dir="rtl" className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -175,3 +294,4 @@ export default function AISettingsPage() {
     </div>
   );
 }
+

@@ -20,6 +20,8 @@ export type Database = {
           conversation_id: string
           created_at: string
           customer_messages: Json
+          detected_language: string | null
+          flagged_high_volume: boolean
           id: string
           image_count: number
           platform: string
@@ -31,6 +33,8 @@ export type Database = {
           conversation_id: string
           created_at?: string
           customer_messages?: Json
+          detected_language?: string | null
+          flagged_high_volume?: boolean
           id?: string
           image_count?: number
           platform: string
@@ -42,6 +46,8 @@ export type Database = {
           conversation_id?: string
           created_at?: string
           customer_messages?: Json
+          detected_language?: string | null
+          flagged_high_volume?: boolean
           id?: string
           image_count?: number
           platform?: string
@@ -53,9 +59,14 @@ export type Database = {
       ai_settings: {
         Row: {
           ai_instructions: string | null
+          auto_language_detect_enabled: boolean
           auto_reply: boolean
+          burst_guard_enabled: boolean
+          burst_guard_max_messages: number
           collection_window_seconds: number
           created_at: string
+          duplicate_order_guard_enabled: boolean
+          duplicate_order_window_seconds: number
           escalation_threshold: number
           fallback_message: string | null
           greeting_facebook: string | null
@@ -63,7 +74,11 @@ export type Database = {
           greeting_whatsapp: string | null
           id: string
           language: string
+          meta_retry_enabled: boolean
           order_confirmation_template: string | null
+          out_of_hours_enabled: boolean
+          out_of_hours_message_ar: string | null
+          out_of_hours_message_en: string | null
           persona_name: string
           response_delay: number
           silence_followup_enabled: boolean
@@ -73,9 +88,14 @@ export type Database = {
         }
         Insert: {
           ai_instructions?: string | null
+          auto_language_detect_enabled?: boolean
           auto_reply?: boolean
+          burst_guard_enabled?: boolean
+          burst_guard_max_messages?: number
           collection_window_seconds?: number
           created_at?: string
+          duplicate_order_guard_enabled?: boolean
+          duplicate_order_window_seconds?: number
           escalation_threshold?: number
           fallback_message?: string | null
           greeting_facebook?: string | null
@@ -83,7 +103,11 @@ export type Database = {
           greeting_whatsapp?: string | null
           id?: string
           language?: string
+          meta_retry_enabled?: boolean
           order_confirmation_template?: string | null
+          out_of_hours_enabled?: boolean
+          out_of_hours_message_ar?: string | null
+          out_of_hours_message_en?: string | null
           persona_name?: string
           response_delay?: number
           silence_followup_enabled?: boolean
@@ -93,9 +117,14 @@ export type Database = {
         }
         Update: {
           ai_instructions?: string | null
+          auto_language_detect_enabled?: boolean
           auto_reply?: boolean
+          burst_guard_enabled?: boolean
+          burst_guard_max_messages?: number
           collection_window_seconds?: number
           created_at?: string
+          duplicate_order_guard_enabled?: boolean
+          duplicate_order_window_seconds?: number
           escalation_threshold?: number
           fallback_message?: string | null
           greeting_facebook?: string | null
@@ -103,7 +132,11 @@ export type Database = {
           greeting_whatsapp?: string | null
           id?: string
           language?: string
+          meta_retry_enabled?: boolean
           order_confirmation_template?: string | null
+          out_of_hours_enabled?: boolean
+          out_of_hours_message_ar?: string | null
+          out_of_hours_message_en?: string | null
           persona_name?: string
           response_delay?: number
           silence_followup_enabled?: boolean
@@ -128,7 +161,10 @@ export type Database = {
           customer_address: string | null
           customer_name: string
           customer_phone: string | null
+          delivery_attempts: number
+          delivery_status: string
           id: string
+          last_delivery_error: string | null
           last_message: string | null
           last_message_time: string | null
           page_id: string | null
@@ -145,7 +181,10 @@ export type Database = {
           customer_address?: string | null
           customer_name?: string
           customer_phone?: string | null
+          delivery_attempts?: number
+          delivery_status?: string
           id?: string
+          last_delivery_error?: string | null
           last_message?: string | null
           last_message_time?: string | null
           page_id?: string | null
@@ -162,7 +201,10 @@ export type Database = {
           customer_address?: string | null
           customer_name?: string
           customer_phone?: string | null
+          delivery_attempts?: number
+          delivery_status?: string
           id?: string
+          last_delivery_error?: string | null
           last_message?: string | null
           last_message_time?: string | null
           page_id?: string | null
@@ -217,6 +259,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      meta_send_failures: {
+        Row: {
+          attempt_count: number
+          conversation_id: string | null
+          created_at: string
+          id: string
+          last_error: string | null
+          payload_preview: string | null
+          platform: string
+          recipient_id: string | null
+          resolved: boolean
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          attempt_count?: number
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          payload_preview?: string | null
+          platform: string
+          recipient_id?: string | null
+          resolved?: boolean
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          attempt_count?: number
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          payload_preview?: string | null
+          platform?: string
+          recipient_id?: string | null
+          resolved?: boolean
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       notifications: {
         Row: {
@@ -288,6 +372,8 @@ export type Database = {
           items: Json
           notes: string | null
           order_number: string
+          out_of_hours: boolean
+          pending_confirmation: boolean
           phone: string | null
           platform: Database["public"]["Enums"]["platform_type"] | null
           status: Database["public"]["Enums"]["order_status"]
@@ -304,6 +390,8 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_number?: string
+          out_of_hours?: boolean
+          pending_confirmation?: boolean
           phone?: string | null
           platform?: Database["public"]["Enums"]["platform_type"] | null
           status?: Database["public"]["Enums"]["order_status"]
@@ -320,6 +408,8 @@ export type Database = {
           items?: Json
           notes?: string | null
           order_number?: string
+          out_of_hours?: boolean
+          pending_confirmation?: boolean
           phone?: string | null
           platform?: Database["public"]["Enums"]["platform_type"] | null
           status?: Database["public"]["Enums"]["order_status"]

@@ -346,6 +346,188 @@ async function sendMetaImage(
   }
 }
 
+// ─── Phase 1 reliability helpers ───────────────────────────────────────────
+
+/**
+ * Detect Arabic vs English from a piece of text.
+ * Returns "ar" if any Arabic letter is present, otherwise "en".
+ * Falls back to undefined for empty input.
+ */
+function detectLanguage(text: string | null | undefined): "ar" | "en" | undefined {
+  if (!text || typeof text !== "string") return undefined;
+  // Strip image URLs / file extensions so they don't bias detection
+  const stripped = text.replace(/https?:\/\/\S+/g, "").trim();
+  if (!stripped) return undefined;
+  // U+0600–U+06FF is the Arabic block; U+0750–U+077F supplementary
+  if (/[\u0600-\u06FF\u0750-\u077F]/.test(stripped)) return "ar";
+  // Require at least one A–Z letter to call something English
+  if (/[A-Za-z]/.test(stripped)) return "en";
+  return undefined;
+}
+
+/**
+ * Determine if the store is currently open based on `working_hours` JSON.
+ * Expected shape (best-effort tolerant):
+ *   { monday: { open: "09:00", close: "18:00", closed?: false }, ... }
+ * Returns { isOpen, todayHours } — when no schedule is set we assume open
+ * so we never block legitimate orders.
+ */
+function isStoreOpenNow(workingHours: any): { isOpen: boolean; hasSchedule: boolean } {
+  if (!workingHours || typeof workingHours !== "object") {
+    return { isOpen: true, hasSchedule: false };
+  }
+  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const now = new Date();
+  const dayKey = days[now.getDay()];
+  const today = workingHours[dayKey] || workingHours[dayKey?.toLowerCase()];
+  if (!today || today.closed === true) {
+    // If we have a schedule but today isn't listed → closed
+    const hasAnyDay = days.some((d) => workingHours[d]);
+    if (hasAnyDay) return { isOpen: false, hasSchedule: true };
+    return { isOpen: true, hasSchedule: false };
+  }
+  const open = String(today.open || today.from || "").trim();
+  const close = String(today.close || today.to || "").trim();
+  if (!open || !close) return { isOpen: true, hasSchedule: false };
+  const [oh, om] = open.split(":").map((n) => parseInt(n, 10));
+  const [ch, cm] = close.split(":").map((n) => parseInt(n, 10));
+  if (isNaN(oh) || isNaN(ch)) return { isOpen: true, hasSchedule: false };
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const openMin = oh * 60 + (om || 0);
+  const closeMin = ch * 60 + (cm || 0);
+  // Handle overnight hours (e.g. 18:00 → 02:00)
+  const isOpen = closeMin > openMin
+    ? nowMin >= openMin && nowMin < closeMin
+    : nowMin >= openMin || nowMin < closeMin;
+  return { isOpen, hasSchedule: true };
+}
+
+/**
+ * Wrap a Meta Send call in retry with exponential backoff (2s, 6s, 18s).
+ * Returns { ok, data, attempts, lastError }.
+ * Logs a `meta_send_failures` row when all retries fail.
+ */
+async function sendMetaReplyWithRetry(
+  supabase: any,
+  storeId: string,
+  conversationId: string | null,
+  platform: string,
+  recipientId: string,
+  text: string,
+  pageAccessToken: string,
+  pageId: string,
+  retryEnabled: boolean
+): Promise<{ ok: boolean; data: any; attempts: number; lastError?: string }> {
+  const maxAttempts = retryEnabled ? 3 : 1;
+  const backoffsMs = [2000, 6000, 18000];
+  let lastError: string | undefined;
+  let lastData: any = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const data = await sendMetaReply(platform, recipientId, text, pageAccessToken, pageId);
+      lastData = data;
+      // sendMetaReply returns the parsed JSON; Meta errors come back with `error`
+      if (data && !data.error && (data.message_id || data.messages?.[0]?.id)) {
+        if (attempt > 1) {
+          console.log(`[${platform}] Meta send succeeded on retry attempt ${attempt}`);
+        }
+        return { ok: true, data, attempts: attempt };
+      }
+      lastError = data?.error?.message || data?.error?.error_user_msg || JSON.stringify(data?.error || data);
+      console.warn(`[${platform}] Meta send attempt ${attempt}/${maxAttempts} failed:`, lastError);
+    } catch (e: any) {
+      lastError = e?.message || String(e);
+      console.warn(`[${platform}] Meta send attempt ${attempt}/${maxAttempts} threw:`, lastError);
+    }
+    if (attempt < maxAttempts) {
+      await new Promise((r) => setTimeout(r, backoffsMs[attempt - 1] || 18000));
+    }
+  }
+
+  // All attempts failed → log + flag conversation
+  try {
+    await supabase.from("meta_send_failures").insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      platform,
+      recipient_id: recipientId,
+      attempt_count: maxAttempts,
+      last_error: (lastError || "unknown").slice(0, 1000),
+      payload_preview: (text || "").slice(0, 500),
+    });
+    if (conversationId) {
+      await supabase
+        .from("conversations")
+        .update({
+          delivery_status: "delivery_failed",
+          delivery_attempts: maxAttempts,
+          last_delivery_error: (lastError || "unknown").slice(0, 500),
+        })
+        .eq("id", conversationId);
+
+      // Real-time alert for the store owner
+      const { data: store } = await supabase
+        .from("stores")
+        .select("user_id, name")
+        .eq("id", storeId)
+        .single();
+      if (store?.user_id) {
+        await supabase.from("notifications").insert({
+          user_id: store.user_id,
+          type: "delivery_failure",
+          title: `Reply failed to deliver`,
+          description: `Could not send a reply on ${platform} after ${maxAttempts} attempts. Open the inbox to take over manually.`,
+        });
+      }
+    }
+  } catch (logErr) {
+    console.error(`[${platform}] Failed to log send failure:`, logErr);
+  }
+
+  return { ok: false, data: lastData, attempts: maxAttempts, lastError };
+}
+
+/**
+ * Check if a near-duplicate order was created very recently for this conversation.
+ * "Near-duplicate" = same conversation_id, same set of (product name, qty),
+ * created within `windowSeconds` ago, and not cancelled.
+ */
+async function findRecentDuplicateOrder(
+  supabase: any,
+  conversationId: string,
+  items: any[],
+  windowSeconds: number
+): Promise<{ order_number: string; status: string; total: number } | null> {
+  if (!conversationId || !Array.isArray(items) || items.length === 0) return null;
+  const sinceIso = new Date(Date.now() - windowSeconds * 1000).toISOString();
+  const { data: recent } = await supabase
+    .from("orders")
+    .select("order_number, status, total, items, created_at")
+    .eq("conversation_id", conversationId)
+    .gte("created_at", sinceIso)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false })
+    .limit(5);
+  if (!recent?.length) return null;
+
+  const sig = (arr: any[]) =>
+    (arr || [])
+      .map((i: any) => `${(i.product_name || i.name || "").toLowerCase().trim()}|${Number(i.quantity || 1)}`)
+      .sort()
+      .join("::");
+
+  const incomingSig = sig(items);
+  if (!incomingSig) return null;
+
+  for (const o of recent) {
+    if (sig(o.items || []) === incomingSig) {
+      return { order_number: o.order_number, status: o.status, total: o.total };
+    }
+  }
+  return null;
+}
+
 async function fetchMetaDisplayName(
   platform: string,
   senderId: string,
@@ -611,6 +793,44 @@ async function executeCreateOrder(
     0
   );
 
+  // ─── Fix 5: Duplicate-order prevention ───
+  // Look up store's settings + working hours in one go.
+  const [aiSettingsRes, storeRes] = await Promise.all([
+    supabase
+      .from("ai_settings")
+      .select("duplicate_order_guard_enabled, duplicate_order_window_seconds, out_of_hours_enabled")
+      .eq("store_id", storeId)
+      .maybeSingle(),
+    supabase
+      .from("stores")
+      .select("user_id, name, working_hours")
+      .eq("id", storeId)
+      .single(),
+  ]);
+
+  const dupGuardEnabled = aiSettingsRes?.data?.duplicate_order_guard_enabled !== false;
+  const dupWindow = Math.max(30, Number(aiSettingsRes?.data?.duplicate_order_window_seconds) || 300);
+
+  if (dupGuardEnabled) {
+    const dup = await findRecentDuplicateOrder(supabase, conversationId, args.items || [], dupWindow);
+    if (dup) {
+      console.log(`Duplicate order skipped — existing ${dup.order_number} (${dup.status})`);
+      return JSON.stringify({
+        success: true,
+        order_number: dup.order_number,
+        total: dup.total,
+        items_count: (args.items || []).length,
+        duplicate_of: dup.order_number,
+        message: `An identical order was just created (${dup.order_number}) — confirming that one instead of creating a duplicate.`,
+      });
+    }
+  }
+
+  // ─── Fix 9: Out-of-hours flagging ───
+  const ooEnabled = aiSettingsRes?.data?.out_of_hours_enabled !== false;
+  const { isOpen, hasSchedule } = isStoreOpenNow(storeRes?.data?.working_hours);
+  const outsideHours = ooEnabled && hasSchedule && !isOpen;
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
@@ -624,6 +844,8 @@ async function executeCreateOrder(
       notes: args.notes || "",
       platform,
       status: "pending",
+      out_of_hours: outsideHours,
+      pending_confirmation: outsideHours,
     })
     .select("order_number")
     .single();
@@ -644,28 +866,25 @@ async function executeCreateOrder(
     })
     .eq("id", conversationId);
 
-  // Create notification for store owner
-  const { data: store } = await supabase
-    .from("stores")
-    .select("user_id, name")
-    .eq("id", storeId)
-    .single();
-
-  if (store) {
+  const store = storeRes?.data;
+  if (store?.user_id) {
     await supabase.from("notifications").insert({
       user_id: store.user_id,
-      title: `New order ${order.order_number}`,
-      description: `${args.customer_name} placed an order for ${args.items.length} item(s) — Total: ${total}`,
+      title: `New order ${order.order_number}${outsideHours ? " (after-hours)" : ""}`,
+      description: outsideHours
+        ? `${args.customer_name} placed an after-hours order — needs your confirmation. Total: ${total}`
+        : `${args.customer_name} placed an order for ${args.items.length} item(s) — Total: ${total}`,
       type: "order",
     });
   }
 
-  console.log(`Order created: ${order.order_number}, total: ${total}`);
+  console.log(`Order created: ${order.order_number}, total: ${total}, outside_hours: ${outsideHours}`);
   return JSON.stringify({
     success: true,
     order_number: order.order_number,
     total,
     items_count: args.items.length,
+    pending_confirmation: outsideHours,
   });
 }
 
@@ -1453,6 +1672,7 @@ Store Information:
 - Return Policy: ${storeInfo.return_policy || "N/A"}
 - Payment Methods: ${storeInfo.payment_methods?.join(", ") || "N/A"}
 - Working Hours: ${JSON.stringify(storeInfo.working_hours || {})}
+${storeInfo._runtime_hint || ""}
 
 Product Catalog Summary:
 ${catalogSummary}
@@ -2870,6 +3090,16 @@ Deno.serve(async (req) => {
       let shouldProceed = true;
       const startedAt = Date.now();
 
+      // ─── Burst Abuse Guard (Fix 1) ───
+      // If the customer sends more than `burst_guard_max_messages` within the
+      // current quiet window we STOP resetting the timer and process what's
+      // collected. Prevents spammers / accidental loops from holding the
+      // batch open forever.
+      const burstGuardEnabled = aiSettings?.burst_guard_enabled !== false;
+      const burstMax = Math.max(3, Number(aiSettings?.burst_guard_max_messages) || 10);
+      let burstCount = 1;
+      let highVolumeFlagged = false;
+
       // Best-effort: show typing bubble while we batch.
       if (pageAccessToken) {
         sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "mark_seen");
@@ -2899,7 +3129,8 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // 2) Check for newer customer messages — they extend (reset) the window.
+        // 2) Check for newer customer messages — they extend (reset) the window
+        //    UNLESS the burst guard has tripped, in which case we stop extending.
         const { data: newerCustomer } = await supabase
           .from("messages")
           .select("created_at")
@@ -2911,16 +3142,33 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (newerCustomer?.created_at) {
-          const newerMs = new Date(newerCustomer.created_at).getTime();
-          if (newerMs > latestCustomerMs) {
-            latestCustomerMs = newerMs;
-            windowEndsAt = latestCustomerMs + QUIET_MS;
-            console.log(
-              `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
+          // Count total customer messages since the earliest unanswered one.
+          const { count: totalCustomerSince } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "customer")
+            .gte("created_at", new Date(earliestUnanswered.created_at!).toISOString());
+          burstCount = Math.max(burstCount, totalCustomerSince || burstCount);
+
+          if (burstGuardEnabled && burstCount > burstMax) {
+            highVolumeFlagged = true;
+            console.warn(
+              `[${platform}] Burst guard tripped (${burstCount} messages in window) — flushing reply, no more timer resets.`
             );
-            // Re-assert typing while we keep batching.
-            if (pageAccessToken) {
-              sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+            // Do NOT reset windowEndsAt; let the loop exit naturally.
+            latestCustomerMs = new Date(newerCustomer.created_at).getTime();
+          } else {
+            const newerMs = new Date(newerCustomer.created_at).getTime();
+            if (newerMs > latestCustomerMs) {
+              latestCustomerMs = newerMs;
+              windowEndsAt = latestCustomerMs + QUIET_MS;
+              console.log(
+                `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
+              );
+              if (pageAccessToken) {
+                sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+              }
             }
           }
         }
@@ -2952,6 +3200,42 @@ Deno.serve(async (req) => {
           .filter((entry) => entry && entry.trim().length > 0)
           .join("\n");
 
+      // ─── Fix 8: Per-message language auto-detection ───
+      const autoLangEnabled = aiSettings?.auto_language_detect_enabled !== false;
+      const detectedLang = autoLangEnabled ? detectLanguage(combinedCustomerMessage) : undefined;
+
+      // ─── Fix 9: Out-of-hours awareness ───
+      const ooHoursEnabled = aiSettings?.out_of_hours_enabled !== false;
+      const { isOpen: storeOpen, hasSchedule } = isStoreOpenNow(storeInfo?.working_hours);
+      const isOutsideHours = ooHoursEnabled && hasSchedule && !storeOpen;
+
+      // Build runtime hint block injected into the AI system prompt
+      const runtimeHints: string[] = [];
+      if (detectedLang) {
+        runtimeHints.push(
+          detectedLang === "ar"
+            ? "RUNTIME LANGUAGE: The customer is writing in Arabic. You MUST reply in Arabic for this turn, regardless of the store's default language. If the customer switches language mid-conversation, follow the switch from the next reply."
+            : "RUNTIME LANGUAGE: The customer is writing in English. You MUST reply in English for this turn, regardless of the store's default language. If the customer switches language mid-conversation, follow the switch from the next reply."
+        );
+      }
+      if (isOutsideHours) {
+        const ooMsg =
+          detectedLang === "ar"
+            ? aiSettings?.out_of_hours_message_ar || "متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً."
+            : aiSettings?.out_of_hours_message_en || "We're currently closed but I can still take your order and confirm it first thing tomorrow.";
+        runtimeHints.push(
+          `RUNTIME OUT-OF-HOURS: The store is currently CLOSED based on its working hours. You MUST acknowledge this at the START of your reply using a phrase like: "${ooMsg}". You may still take orders, but never claim the store is open right now. Any order created during off-hours will be flagged as pending_confirmation for a human to review at opening.`
+        );
+      }
+      if (highVolumeFlagged) {
+        runtimeHints.push(
+          "RUNTIME HIGH-VOLUME: The customer just sent a very high burst of messages. Be calm, brief, and ask them to slow down so you can help properly."
+        );
+      }
+      const enrichedStoreInfo = runtimeHints.length
+        ? { ...storeInfo, _runtime_hint: `\nRUNTIME CONTEXT (must obey for THIS reply only):\n- ${runtimeHints.join("\n- ")}\n` }
+        : storeInfo;
+
       const isCancelRequest = looksLikeCancelOrderRequest(combinedCustomerMessage);
       const cancellableOrders = (existingOrders || []).filter((order: any) =>
         ["pending", "confirmed", "processing"].includes(order?.status)
@@ -2966,9 +3250,9 @@ Deno.serve(async (req) => {
           }
         : await generateAIReply(
             combinedCustomerMessage,
-            storeInfo,
+            enrichedStoreInfo,
             catalogSummary,
-            aiSettings,
+            { ...aiSettings, _is_outside_hours: isOutsideHours },
             allHistory,
             supabase,
             storeId,
@@ -3045,6 +3329,8 @@ Deno.serve(async (req) => {
             (entry.content.includes("📷 ") || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(entry.content))
           ).length,
           window_seconds: configuredWindowSec,
+          detected_language: detectedLang || null,
+          flagged_high_volume: highVolumeFlagged,
         });
       } catch (logErr) {
         console.warn(`[${platform}] Failed to write batch log:`, logErr);
@@ -3056,10 +3342,12 @@ Deno.serve(async (req) => {
           `[${platform}] Sending reply to ${msg.sender} (${replyChunks.length} chunk(s)) using stored page token`
         );
 
+        // Fix 4: wrap each chunk send in retry-with-backoff
+        const metaRetryEnabled = aiSettings?.meta_retry_enabled !== false;
         let lastSendResult: any = null;
+        let anyChunkFailed = false;
         for (let i = 0; i < replyChunks.length; i++) {
           const chunk = replyChunks[i];
-          // Per-chunk typing simulation: 1-3 seconds based on chunk length.
           const typingMs = Math.max(
             900,
             Math.min(3000, Math.round(chunk.length * 22))
@@ -3067,16 +3355,38 @@ Deno.serve(async (req) => {
           sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
           await new Promise((r) => setTimeout(r, typingMs));
 
-          lastSendResult = await sendMetaReply(
+          const sendOutcome = await sendMetaReplyWithRetry(
+            supabase,
+            storeId,
+            conversation.id,
             msg.platform,
             msg.sender,
             chunk,
             pageAccessToken,
-            connectionPageId || msg.pageId || ""
+            connectionPageId || msg.pageId || "",
+            metaRetryEnabled
           );
+          lastSendResult = sendOutcome.data;
+          if (!sendOutcome.ok) {
+            anyChunkFailed = true;
+            console.error(
+              `[${platform}] Reply chunk ${i + 1}/${replyChunks.length} failed after ${sendOutcome.attempts} attempts: ${sendOutcome.lastError}`
+            );
+            break;
+          }
         }
         sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_off");
         const replySendResult = lastSendResult;
+
+        // Clear delivery_failed flag if reply landed cleanly
+        if (!anyChunkFailed) {
+          await supabase
+            .from("conversations")
+            .update({ delivery_status: "ok", delivery_attempts: 0, last_delivery_error: null })
+            .eq("id", conversation.id)
+            .neq("delivery_status", "ok");
+        }
+
 
         const sentTextPlatformMessageId =
           replySendResult?.message_id || replySendResult?.messages?.[0]?.id || null;

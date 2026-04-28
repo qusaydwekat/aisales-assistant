@@ -326,6 +326,35 @@ export function ProductWizard({
                     options={categories}
                   />
                 </div>
+
+                {/* Visual attributes — used by the AI to describe & match products without names */}
+                <div className="rounded-lg border border-border/50 p-3 space-y-3 bg-muted/30">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                    <span className="text-xs font-medium text-foreground">Visual attributes (AI uses these to describe & match)</span>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground">Visual description (auto)</label>
+                    <input
+                      value={form.auto_description || ""}
+                      onChange={(e) => set("auto_description", e.target.value)}
+                      placeholder="e.g. Flowy red floral V-neck midi dress"
+                      className="w-full mt-1 rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={form.type || ""} onChange={(e) => set("type", e.target.value || null)} placeholder="Type (dress, top…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={(form.color || []).join(", ")} onChange={(e) => set("color", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} placeholder="Colors (red, white)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.pattern || ""} onChange={(e) => set("pattern", e.target.value || null)} placeholder="Pattern (solid, floral…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.style || ""} onChange={(e) => set("style", e.target.value || null)} placeholder="Style (casual, formal…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.material || ""} onChange={(e) => set("material", e.target.value || null)} placeholder="Material (cotton, denim…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.fit || ""} onChange={(e) => set("fit", e.target.value || null)} placeholder="Fit (slim, oversized…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.sleeve || ""} onChange={(e) => set("sleeve", e.target.value || null)} placeholder="Sleeve (short, long…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.neckline || ""} onChange={(e) => set("neckline", e.target.value || null)} placeholder="Neckline (v-neck, round…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={form.length || ""} onChange={(e) => set("length", e.target.value || null)} placeholder="Length (mini, midi…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                    <input value={(form.occasion || []).join(", ")} onChange={(e) => set("occasion", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} placeholder="Occasion (daily, party…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
+                  </div>
+                </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"

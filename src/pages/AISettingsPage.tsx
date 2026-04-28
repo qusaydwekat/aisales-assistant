@@ -327,6 +327,7 @@ export default function AISettingsPage() {
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> AI Instructions</h2>
             <p className="text-xs text-muted-foreground">Custom instructions that guide how the AI behaves with your customers</p>
             <textarea value={aiInstructions} onChange={e => setAiInstructions(e.target.value)} rows={5} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" placeholder="Enter custom AI instructions..." />
           </div>

@@ -918,7 +918,7 @@ async function executeSearchProducts(
   }
 
   // If there's a text query, we fetch more and filter client-side (Supabase doesn't support OR ilike easily)
-  const limit = args.query ? 100 : 10;
+  const limit = args.query ? 200 : 10;
   query = query.limit(limit);
 
   const { data: products, error } = await query;
@@ -930,16 +930,44 @@ async function executeSearchProducts(
     });
   }
 
-  let results = products || [];
+  let pool = products || [];
+  let results = pool;
+  let fallbackUsed: string | null = null;
 
-  // Client-side keyword filter on name + description
+  // Client-side keyword filter on name + description + category (token-based, multi-language friendly)
   if (args.query) {
-    const q = args.query.toLowerCase();
-    results = results.filter(
-      (p: any) =>
-        (p.name || "").toLowerCase().includes(q) ||
-        (p.description || "").toLowerCase().includes(q)
-    );
+    const tokens = args.query
+      .toLowerCase()
+      .split(/[\s,،\-_/]+/)
+      .filter((t: string) => t && t.length >= 2);
+    const matchScore = (p: any): number => {
+      const hay = `${p.name || ""} ${p.description || ""} ${p.category || ""}`.toLowerCase();
+      let score = 0;
+      for (const t of tokens) if (hay.includes(t)) score++;
+      return score;
+    };
+    const scored = pool
+      .map((p: any) => ({ p, s: matchScore(p) }))
+      .filter((x: any) => x.s > 0)
+      .sort((a: any, b: any) => b.s - a.s);
+    results = scored.map((x: any) => x.p);
+
+    // Fallback 1: nothing matched but we had a category — show all in category as alternatives
+    if (results.length === 0 && args.category) {
+      results = pool.slice(0, 10);
+      fallbackUsed = "category_only";
+    }
+    // Fallback 2: still empty — drop category filter and show any active products
+    if (results.length === 0) {
+      const { data: anyProducts } = await supabase
+        .from("products")
+        .select("id, name, description, price, compare_price, stock, category, images, variants, sku")
+        .eq("store_id", storeId)
+        .eq("active", true)
+        .limit(10);
+      results = anyProducts || [];
+      fallbackUsed = "any_active";
+    }
   }
 
   // Limit final results to 10
@@ -961,12 +989,16 @@ async function executeSearchProducts(
   console.log(
     `Search products: query="${args.query || ""}", category="${
       args.category || ""
-    }", found ${formatted.length} results`
+    }", found ${formatted.length} results${fallbackUsed ? ` (fallback: ${fallbackUsed})` : ""}`
   );
   return JSON.stringify({
     success: true,
     products: formatted,
     total_results: formatted.length,
+    fallback: fallbackUsed,
+    note: fallbackUsed
+      ? "No exact match for the query. These are the closest available products from the catalog — present them to the customer as alternatives with their real names and prices, and offer to send their images. NEVER invent products or price ranges."
+      : undefined,
   });
 }
 
@@ -1493,9 +1525,14 @@ RESPONSE FORMAT RULES — STRICTLY ENFORCED:
 
 IMAGE MATCHING RULES (when the customer sends an image):
 - First, describe what you see in 1 short sentence (item type + color + key distinguishing details).
-- Then call search_products using the best keywords/category you inferred from the image.
-- After results return, suggest up to 3 closest matches (name + price) and ask the customer to confirm which one they mean.
-- If there is a clear match and the product has images, call send_product_images for that product.
+- Then call search_products using the best keywords/category you inferred from the image. Try the broadest useful keyword first (e.g. "puzzle" or "3d") — do NOT combine a narrow brand keyword with a strict category on the first try.
+- If the first call returns 0 results, retry search_products with a wider query (drop the brand/specific noun, keep the category) before answering.
+- ALWAYS present the closest 3 real products from the search results — use their EXACT names and prices from the tool output. After listing them, call send_product_images for the top 1-2 matches so the customer sees them.
+- If no exact match exists, say so honestly in one short sentence, then show the closest alternatives from the catalog and ask which one they prefer.
+
+ABSOLUTE PRICE & PRODUCT HONESTY:
+- NEVER invent product names, prices, or "typical price ranges". Only mention prices and products returned by search_products.
+- If the catalog has nothing similar at all, say so plainly and offer to notify them when something arrives — do not make up a price band.
 
 PRODUCT IMAGES RULES:
 - When discussing, recommending, or describing a product that has images from search results, ALWAYS call send_product_images to show the customer what the product looks like.
@@ -2946,7 +2983,10 @@ Deno.serve(async (req) => {
             created_at: entry.created_at,
           })),
           ai_reply: finalCombinedReply,
-          image_count: (aiResult.images || []).length,
+          image_count: pendingBurst.filter((entry: any) =>
+            typeof entry.content === "string" &&
+            (entry.content.includes("📷 ") || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(entry.content))
+          ).length,
           window_seconds: configuredWindowSec,
         });
       } catch (logErr) {

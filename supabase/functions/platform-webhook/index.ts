@@ -2983,7 +2983,10 @@ Deno.serve(async (req) => {
             created_at: entry.created_at,
           })),
           ai_reply: finalCombinedReply,
-          image_count: (aiResult.images || []).length,
+          image_count: pendingBurst.filter((entry: any) =>
+            typeof entry.content === "string" &&
+            (entry.content.includes("📷 ") || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(entry.content))
+          ).length,
           window_seconds: configuredWindowSec,
         });
       } catch (logErr) {

@@ -1428,7 +1428,7 @@ async function executeSearchProducts(
     return { p, final, attr_matched: attr.matched, attr_score: attr.score, visual: vis, token: tok };
   });
 
-  scored.sort((a, b) => b.final - a.final);
+  scored.sort((a: any, b: any) => b.final - a.final);
 
   // Confidence buckets per spec: ≥0.80 strong, 0.55–0.79 medium, <0.55 weak
   const top = scored[0];
@@ -1444,9 +1444,9 @@ async function executeSearchProducts(
   if (confidence === "high") {
     resultsToReturn = [top.p];
   } else if (confidence === "medium") {
-    resultsToReturn = scored.slice(0, 3).filter((s) => s.final > 0).map((s) => s.p);
+    resultsToReturn = scored.slice(0, 3).filter((s: any) => s.final > 0).map((s: any) => s.p);
   } else if (confidence === "low") {
-    resultsToReturn = scored.slice(0, 3).filter((s) => s.final > 0).map((s) => s.p);
+    resultsToReturn = scored.slice(0, 3).filter((s: any) => s.final > 0).map((s: any) => s.p);
     fallbackUsed = "low_confidence";
   } else {
     // No signal at all → return up to 5 most-recent active products as alternatives
@@ -1457,7 +1457,7 @@ async function executeSearchProducts(
   resultsToReturn = resultsToReturn.slice(0, 10);
 
   const formatted = resultsToReturn.map((p: any) => {
-    const sc = scored.find((s) => s.p.id === p.id);
+    const sc = scored.find((s: any) => s.p.id === p.id);
     return {
       id: p.id,
       // For nameless mode the customer-facing label is auto_description.

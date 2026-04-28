@@ -1227,113 +1227,244 @@ async function executeCheckOrderStatus(
   return JSON.stringify({ success: true, orders: result });
 }
 
+// ─── Visual attribute scoring (nameless-product mode) ───
+// Weights from the build spec: type 30, color 25, pattern 15, style 10,
+// fit 8, material 7, occasion 5  (total = 100)
+const ATTR_WEIGHTS: Record<string, number> = {
+  type: 0.30,
+  color: 0.25,
+  pattern: 0.15,
+  style: 0.10,
+  fit: 0.08,
+  material: 0.07,
+  occasion: 0.05,
+};
+
+function scoreProductAttributes(product: any, q: any): { score: number; matched: number } {
+  let score = 0;
+  let matched = 0;
+  const norm = (v: any) => (typeof v === "string" ? v.toLowerCase().trim() : v);
+  const arr = (v: any) => (Array.isArray(v) ? v.map((x) => String(x).toLowerCase().trim()) : []);
+
+  // Single-value fields
+  for (const key of ["type", "pattern", "style", "fit", "material"]) {
+    const want = norm(q[key]);
+    const have = norm(product[key]);
+    if (want && have && want === have) {
+      score += ATTR_WEIGHTS[key];
+      matched++;
+    }
+  }
+  // Array fields — partial overlap counts proportionally
+  for (const key of ["color", "occasion"]) {
+    const wants = arr(q[key]);
+    const haves = arr(product[key]);
+    if (wants.length === 0 || haves.length === 0) continue;
+    const overlap = wants.filter((w) => haves.includes(w)).length;
+    if (overlap > 0) {
+      score += ATTR_WEIGHTS[key] * (overlap / Math.max(wants.length, 1));
+      matched++;
+    }
+  }
+  return { score, matched };
+}
+
 async function executeSearchProducts(
   supabase: any,
   storeId: string,
   args: any
 ): Promise<string> {
-  let query = supabase
+  // ─── Visual-first path: customer image attributes were extracted upstream ───
+  // The webhook injects `image_attributes` and optionally `image_embedding`
+  // when the customer sent a photo. We score visual fields and blend cosine
+  // similarity 60/40 (attribute_score 0.6 + visual_score 0.4) per spec.
+  const imgAttrs = args.image_attributes || null;
+  const imgEmbedding = args.image_embedding || null;
+
+  // Pull all active products for this store (catalogs are typically <1000 items)
+  const { data: products, error } = await supabase
     .from("products")
     .select(
-      "id, name, description, price, compare_price, stock, category, images, variants, sku"
+      "id, name, description, price, compare_price, stock, category, images, variants, sku, " +
+        "type, color, pattern, style, material, fit, occasion, sleeve, neckline, length, " +
+        "sizes_available, stock_per_size, auto_description"
     )
     .eq("store_id", storeId)
-    .eq("active", true);
+    .eq("active", true)
+    .limit(500);
 
-  if (args.category) {
-    query = query.ilike("category", `%${args.category}%`);
-  }
-  if (args.min_price !== undefined) {
-    query = query.gte("price", args.min_price);
-  }
-  if (args.max_price !== undefined) {
-    query = query.lte("price", args.max_price);
-  }
-
-  // If there's a text query, we fetch more and filter client-side (Supabase doesn't support OR ilike easily)
-  const limit = args.query ? 200 : 10;
-  query = query.limit(limit);
-
-  const { data: products, error } = await query;
   if (error) {
     console.error("Search products error:", error);
-    return JSON.stringify({
-      success: false,
-      error: "Failed to search products.",
-    });
+    return JSON.stringify({ success: false, error: "Failed to search products." });
   }
 
   let pool = products || [];
-  let results = pool;
-  let fallbackUsed: string | null = null;
 
-  // Client-side keyword filter on name + description + category (token-based, multi-language friendly)
-  if (args.query) {
-    const tokens = args.query
-      .toLowerCase()
-      .split(/[\s,،\-_/]+/)
-      .filter((t: string) => t && t.length >= 2);
-    const matchScore = (p: any): number => {
-      const hay = `${p.name || ""} ${p.description || ""} ${p.category || ""}`.toLowerCase();
-      let score = 0;
-      for (const t of tokens) if (hay.includes(t)) score++;
-      return score;
-    };
-    const scored = pool
-      .map((p: any) => ({ p, s: matchScore(p) }))
-      .filter((x: any) => x.s > 0)
-      .sort((a: any, b: any) => b.s - a.s);
-    results = scored.map((x: any) => x.p);
+  // Optional category prefilter from the AI
+  if (args.category) {
+    const cat = String(args.category).toLowerCase();
+    const filtered = pool.filter((p: any) => (p.category || "").toLowerCase().includes(cat));
+    if (filtered.length > 0) pool = filtered;
+  }
+  if (args.min_price !== undefined) pool = pool.filter((p: any) => Number(p.price) >= Number(args.min_price));
+  if (args.max_price !== undefined) pool = pool.filter((p: any) => Number(p.price) <= Number(args.max_price));
 
-    // Fallback 1: nothing matched but we had a category — show all in category as alternatives
-    if (results.length === 0 && args.category) {
-      results = pool.slice(0, 10);
-      fallbackUsed = "category_only";
-    }
-    // Fallback 2: still empty — drop category filter and show any active products
-    if (results.length === 0) {
-      const { data: anyProducts } = await supabase
-        .from("products")
-        .select("id, name, description, price, compare_price, stock, category, images, variants, sku")
-        .eq("store_id", storeId)
-        .eq("active", true)
-        .limit(10);
-      results = anyProducts || [];
-      fallbackUsed = "any_active";
+  // Build the attribute query — merge what the AI passed AND what vision extracted
+  // from the customer photo (if any). AI-passed values take precedence.
+  const attrQuery: any = {
+    type: args.type || imgAttrs?.type || null,
+    color: args.color || imgAttrs?.color || [],
+    pattern: args.pattern || imgAttrs?.pattern || null,
+    style: args.style || imgAttrs?.style || null,
+    fit: args.fit || imgAttrs?.fit || null,
+    material: args.material || imgAttrs?.material || null,
+    occasion: args.occasion || imgAttrs?.occasion || [],
+  };
+  const hasAttrQuery = Object.values(attrQuery).some((v) =>
+    Array.isArray(v) ? v.length > 0 : !!v
+  );
+
+  // Visual similarity scores (cosine) when we have an embedding
+  let visualScores: Record<string, number> = {};
+  if (Array.isArray(imgEmbedding) && imgEmbedding.length === 1536) {
+    try {
+      const { data: matches } = await supabase.rpc("match_products_by_image", {
+        _store_id: storeId,
+        _query_embedding: imgEmbedding,
+        _match_count: 20,
+      });
+      for (const m of matches || []) {
+        visualScores[m.id] = Math.max(0, Math.min(1, m.similarity || 0));
+      }
+    } catch (e) {
+      console.warn("match_products_by_image rpc failed:", e);
     }
   }
 
-  // Limit final results to 10
-  results = results.slice(0, 10);
+  // ─── Token search fallback (legacy text query) ───
+  // Combines into the unified scoring below.
+  const tokens =
+    typeof args.query === "string" && args.query.trim()
+      ? args.query
+          .toLowerCase()
+          .split(/[\s,،\-_/]+/)
+          .filter((t: string) => t && t.length >= 2)
+      : [];
+  const tokenScore = (p: any) => {
+    if (tokens.length === 0) return 0;
+    const hay = `${p.name || ""} ${p.description || ""} ${p.auto_description || ""} ${p.category || ""} ${(p.color || []).join(" ")} ${p.type || ""} ${p.pattern || ""} ${p.style || ""}`.toLowerCase();
+    let s = 0;
+    for (const t of tokens) if (hay.includes(t)) s++;
+    return s / tokens.length; // 0..1
+  };
 
-  const formatted = results.map((p: any) => ({
-    id: p.id,
-    name: p.name,
-    description: p.description || "",
-    price: p.price,
-    compare_price: p.compare_price,
-    stock: p.stock,
-    category: p.category || "General",
-    images: p.images || [],
-    variants: p.variants || [],
-    sku: p.sku || "",
-  }));
+  // ─── Unified scoring ───
+  const scored = pool.map((p: any) => {
+    const attr = hasAttrQuery ? scoreProductAttributes(p, attrQuery) : { score: 0, matched: 0 };
+    const tok = tokenScore(p);
+    const vis = visualScores[p.id] || 0;
+
+    // attribute_score is normalized to [0,1] (sum of weights = 1.0)
+    let final: number;
+    if (Array.isArray(imgEmbedding) && imgEmbedding.length === 1536) {
+      // Customer sent an image: 60% attributes (or token fallback), 40% visual
+      const semantic = hasAttrQuery ? attr.score : tok;
+      final = semantic * 0.6 + vis * 0.4;
+    } else if (hasAttrQuery) {
+      // Pure attribute search (text-described item)
+      final = attr.score;
+    } else {
+      // Plain keyword search
+      final = tok;
+    }
+    return { p, final, attr_matched: attr.matched, attr_score: attr.score, visual: vis, token: tok };
+  });
+
+  scored.sort((a, b) => b.final - a.final);
+
+  // Confidence buckets per spec: ≥0.80 strong, 0.55–0.79 medium, <0.55 weak
+  const top = scored[0];
+  const topScore = top?.final || 0;
+  let confidence: "high" | "medium" | "low" | "none" = "none";
+  if (topScore >= 0.8) confidence = "high";
+  else if (topScore >= 0.55) confidence = "medium";
+  else if (topScore > 0) confidence = "low";
+
+  // Decide how many to return based on confidence
+  let resultsToReturn: any[];
+  let fallbackUsed: string | null = null;
+  if (confidence === "high") {
+    resultsToReturn = [top.p];
+  } else if (confidence === "medium") {
+    resultsToReturn = scored.slice(0, 3).filter((s) => s.final > 0).map((s) => s.p);
+  } else if (confidence === "low") {
+    resultsToReturn = scored.slice(0, 3).filter((s) => s.final > 0).map((s) => s.p);
+    fallbackUsed = "low_confidence";
+  } else {
+    // No signal at all → return up to 5 most-recent active products as alternatives
+    resultsToReturn = pool.slice(0, 5);
+    fallbackUsed = "no_match";
+  }
+
+  resultsToReturn = resultsToReturn.slice(0, 10);
+
+  const formatted = resultsToReturn.map((p: any) => {
+    const sc = scored.find((s) => s.p.id === p.id);
+    return {
+      id: p.id,
+      // For nameless mode the customer-facing label is auto_description.
+      // Keep `name` populated as a fallback for legacy stores that did fill it.
+      name: p.name || p.auto_description || "Item",
+      auto_description: p.auto_description || p.name || "",
+      description: p.description || "",
+      price: p.price,
+      compare_price: p.compare_price,
+      stock: p.stock,
+      category: p.category || "General",
+      images: p.images || [],
+      variants: p.variants || [],
+      sku: p.sku || "",
+      // Visual attributes the AI uses to talk about the item
+      type: p.type,
+      color: p.color || [],
+      pattern: p.pattern,
+      style: p.style,
+      material: p.material,
+      fit: p.fit,
+      sleeve: p.sleeve,
+      neckline: p.neckline,
+      length: p.length,
+      occasion: p.occasion || [],
+      sizes_available: p.sizes_available || [],
+      stock_per_size: p.stock_per_size || {},
+      // Internal scoring (the AI uses this to decide its reply pattern)
+      _match_score: Number(sc?.final.toFixed(3) || 0),
+    };
+  });
 
   console.log(
-    `Search products: query="${args.query || ""}", category="${
-      args.category || ""
-    }", found ${formatted.length} results${fallbackUsed ? ` (fallback: ${fallbackUsed})` : ""}`
+    `Visual search: query="${args.query || ""}" attrs=${JSON.stringify(attrQuery)} ` +
+      `embedding=${!!imgEmbedding} → ${formatted.length} results, top_score=${topScore.toFixed(3)}, confidence=${confidence}`
   );
+
   return JSON.stringify({
     success: true,
     products: formatted,
     total_results: formatted.length,
+    confidence,
+    top_match_score: Number(topScore.toFixed(3)),
     fallback: fallbackUsed,
-    note: fallbackUsed
-      ? "No exact match for the query. These are the closest available products from the catalog — present them to the customer as alternatives with their real names and prices, and offer to send their images. NEVER invent products or price ranges."
-      : undefined,
+    note:
+      confidence === "high"
+        ? "Strong match — present this single item as the answer with its auto_description and image."
+        : confidence === "medium"
+        ? "Multiple plausible matches — show up to 3 with their visual descriptions and ask which one the customer means."
+        : confidence === "low"
+        ? "No confident match — ask ONE targeted clarifying question (about type if unknown, then color, then style). Do NOT show products yet."
+        : "No real match — be honest, show 2 closest alternatives with their visual descriptions.",
   });
 }
+
 
 async function executeListCategories(
   supabase: any,

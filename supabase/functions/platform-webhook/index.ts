@@ -1384,8 +1384,11 @@ async function executeListCategories(
   });
 }
 
-// Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
-function sanitizeAIResponse(text: string): string {
+// Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts.
+// When `allowEmpty` is true the function returns an empty string instead of
+// the greeting fallback — used when the turn already includes images and a
+// generic "Hi! How can I help?" would be jarring mid-conversation.
+function sanitizeAIResponse(text: string, allowEmpty = false): string {
   console.log("sanitizeAIResponse confirm deployed");
 
   // Remove markdown code blocks
@@ -1413,7 +1416,9 @@ function sanitizeAIResponse(text: string): string {
   // Collapse excessive whitespace
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
   // If after cleaning the response is empty or too short, return a fallback
+  // (or empty string when the caller has images to deliver).
   if (clean.length < 3) {
+    if (allowEmpty) return "";
     return "مرحباً! كيف أقدر أساعدك؟ 😊";
   }
   // Truncate to Meta's 2000 char limit

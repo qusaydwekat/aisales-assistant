@@ -2049,7 +2049,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
    When ANY of these appear AND there is an active order in "Existing Orders" above → CALL cancel_order IMMEDIATELY in the same turn. NEVER call update_order when the user wants to cancel. If the customer did not specify which order, pass no order_number and the system will cancel the most recent pending order. Do NOT just reply with text saying "I cancelled it" — you MUST call the tool. After the tool returns, confirm the cancellation by referencing the returned order_number.
 
 **INTENT-FIRST PROCESSING — DO THIS BEFORE EVERY TOOL CALL**:
-Before calling any order tool, silently classify the customer's CURRENT (latest) message into ONE intent: [cancel | update_quantity | update_address | update_phone | update_name | update_items | new_order | question | other]. Then call the matching tool with ONLY the matching field. If the intent is cancel, you MUST call cancel_order, never update_order. If you are unsure between two intents, ask one short clarifying question instead of guessing.
+Before calling any order tool, silently classify the customer's CURRENT (latest) message into ONE intent: [cancel | update_quantity | update_address | update_phone | update_name | update_items | new_order | question | other]. Then call the matching tool with ONLY the matching field. If the intent is cancel, you MUST call cancel_order, never update_order. If the intent is `question` or `other` (asking about price, delivery, shipping, hours, store info, product details, etc.) → DO NOT call any order tool. Just answer the question with text. Examples of pure questions that MUST NOT trigger update_order/create_order: "السعر بشمل التوصيل؟", "شو سعر التوصيل؟", "كم سعر التوصيل", "متى يوصل؟", "وين بتوصلوا؟", "is delivery included?", "how much is shipping?", "when will it arrive?". If you are unsure between two intents, ask one short clarifying question instead of guessing.
 5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
 6. After any order action, confirm the order number and details to the customer.
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.
@@ -2410,6 +2410,8 @@ PRODUCT IMAGES RULES:
               const addressRe = /(عنوان|مكان التوصيل|وصلولي|address|deliver to|location|street)/i;
               const phoneRe = /(رقمي|تلفوني|موبايل|هاتف|phone|mobile|number)/i;
               const nameRe = /(اسمي|my name|i am called|name is)/i;
+              // Items can change via: add/remove/swap words OR quantity change words
+              const itemsRe = /(ضيف|اضف|أضف|زيد|احذف|شيل|بدل|غير المنتج|بدال|بدلاً|كمية|قطعتين|قطعتان|ثلاث قطع|أربع قطع|بدي ٢|بدي ٣|بدي 2|بدي 3|اعدل الكمية|خليها|خليهم|اجعلها|add|remove|delete|swap|replace|instead of|change to|make it \d|quantity|pieces?|units?)/i;
               const sanitized: any = { ...args };
               if (sanitized.address && !addressRe.test(customerMessage || "")) {
                 console.log("Intent guard: dropping address from update_order (not mentioned)");
@@ -2422,6 +2424,11 @@ PRODUCT IMAGES RULES:
               if (sanitized.customer_name && !nameRe.test(customerMessage || "")) {
                 console.log("Intent guard: dropping customer_name from update_order (not mentioned)");
                 delete sanitized.customer_name;
+              }
+              if (sanitized.items && !itemsRe.test(customerMessage || "")) {
+                console.log("Intent guard: dropping items from update_order (no add/remove/quantity intent in latest message)");
+                delete sanitized.items;
+                delete sanitized.total;
               }
               const hasUpdate = Object.keys(sanitized).some(
                 (k) => k !== "order_number" && sanitized[k] !== undefined

@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { platformColors } from "@/data/mock-data";
 import type { Tables } from "@/integrations/supabase/types";
+import { supabase } from "@/integrations/supabase/client";
 
 type Platform = "facebook" | "instagram" | "whatsapp";
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
@@ -61,6 +62,33 @@ export default function InboxPage() {
       }
     }
   }, [selectedId, conversations]);
+
+  // Latest image-match confidence for the selected conversation (nameless-product mode)
+  const [matchConfidence, setMatchConfidence] = useState<{ confidence: number; emotion: string | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchConfidence = async () => {
+      if (!selectedId) { setMatchConfidence(null); return; }
+      const { data } = await supabase
+        .from("ai_message_batch_log")
+        .select("image_confidence, detected_emotion")
+        .eq("conversation_id", selectedId)
+        .not("image_confidence", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) {
+        setMatchConfidence(
+          data && typeof (data as any).image_confidence === "number"
+            ? { confidence: (data as any).image_confidence, emotion: (data as any).detected_emotion || null }
+            : null
+        );
+      }
+    };
+    fetchConfidence();
+    return () => { cancelled = true; };
+  }, [selectedId, messages.length]);
+
 
   const pagesByPlatform = useMemo(() => {
     const grouped: Record<Platform, typeof connections> = { facebook: [], instagram: [], whatsapp: [] };
@@ -293,6 +321,20 @@ export default function InboxPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {matchConfidence && (
+                <span
+                  title="Latest image-match confidence"
+                  className={`px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1 ${
+                    matchConfidence.confidence >= 80
+                      ? "bg-success/20 text-success"
+                      : matchConfidence.confidence >= 55
+                      ? "bg-amber-500/20 text-amber-500"
+                      : "bg-destructive/20 text-destructive"
+                  }`}
+                >
+                  📷 {matchConfidence.confidence}%
+                </span>
+              )}
               <button
                 onClick={() => toggleAI.mutate({ id: selected.id, ai_auto_reply: !(selected as any).ai_auto_reply })}
                 className={`px-2 md:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${

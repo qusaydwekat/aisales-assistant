@@ -1,6 +1,6 @@
 import { 
   LayoutDashboard, MessageSquare, ShoppingCart, Package, Settings, 
-  Link2, BarChart3, Bot, Bell, Zap, Globe, Shield
+  Link2, BarChart3, Bot, Bell, Zap, Globe, Shield, Sparkles
 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
@@ -18,6 +18,7 @@ const navKeys = [
   { key: "inbox", url: "/inbox", icon: MessageSquare },
   { key: "orders", url: "/orders", icon: ShoppingCart },
   { key: "products", url: "/products", icon: Package },
+  { key: "catalog_tools", url: "/catalog-tools", icon: Sparkles },
   { key: "store_settings", url: "/store-settings", icon: Settings },
   { key: "platforms", url: "/platforms", icon: Link2 },
   { key: "reports", url: "/reports", icon: BarChart3 },

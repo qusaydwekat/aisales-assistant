@@ -2408,8 +2408,15 @@ PRODUCT IMAGES RULES:
               images_queued: allImageesToSend.length,
             });
           } else if (tc.function?.name === "search_products") {
-            console.log("AI triggered search_products:", JSON.stringify(args));
-            result = await executeSearchProducts(supabase, storeId, args);
+            // Auto-inject pre-extracted customer-image attributes + embedding
+            // so the visual matcher can blend them with whatever the AI passed.
+            const enrichedArgs = {
+              ...args,
+              image_attributes: args.image_attributes || customerImageAttrs || undefined,
+              image_embedding: args.image_embedding || customerImageEmbedding || undefined,
+            };
+            console.log("AI triggered search_products:", JSON.stringify({ ...enrichedArgs, image_embedding: enrichedArgs.image_embedding ? "[vec]" : null }));
+            result = await executeSearchProducts(supabase, storeId, enrichedArgs);
           } else if (tc.function?.name === "list_categories") {
             console.log("AI triggered list_categories");
             result = await executeListCategories(supabase, storeId);

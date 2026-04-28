@@ -918,7 +918,7 @@ async function executeSearchProducts(
   }
 
   // If there's a text query, we fetch more and filter client-side (Supabase doesn't support OR ilike easily)
-  const limit = args.query ? 100 : 10;
+  const limit = args.query ? 200 : 10;
   query = query.limit(limit);
 
   const { data: products, error } = await query;
@@ -930,16 +930,44 @@ async function executeSearchProducts(
     });
   }
 
-  let results = products || [];
+  let pool = products || [];
+  let results = pool;
+  let fallbackUsed: string | null = null;
 
-  // Client-side keyword filter on name + description
+  // Client-side keyword filter on name + description + category (token-based, multi-language friendly)
   if (args.query) {
-    const q = args.query.toLowerCase();
-    results = results.filter(
-      (p: any) =>
-        (p.name || "").toLowerCase().includes(q) ||
-        (p.description || "").toLowerCase().includes(q)
-    );
+    const tokens = args.query
+      .toLowerCase()
+      .split(/[\s,،\-_/]+/)
+      .filter((t: string) => t && t.length >= 2);
+    const matchScore = (p: any): number => {
+      const hay = `${p.name || ""} ${p.description || ""} ${p.category || ""}`.toLowerCase();
+      let score = 0;
+      for (const t of tokens) if (hay.includes(t)) score++;
+      return score;
+    };
+    const scored = pool
+      .map((p: any) => ({ p, s: matchScore(p) }))
+      .filter((x: any) => x.s > 0)
+      .sort((a: any, b: any) => b.s - a.s);
+    results = scored.map((x: any) => x.p);
+
+    // Fallback 1: nothing matched but we had a category — show all in category as alternatives
+    if (results.length === 0 && args.category) {
+      results = pool.slice(0, 10);
+      fallbackUsed = "category_only";
+    }
+    // Fallback 2: still empty — drop category filter and show any active products
+    if (results.length === 0) {
+      const { data: anyProducts } = await supabase
+        .from("products")
+        .select("id, name, description, price, compare_price, stock, category, images, variants, sku")
+        .eq("store_id", storeId)
+        .eq("active", true)
+        .limit(10);
+      results = anyProducts || [];
+      fallbackUsed = "any_active";
+    }
   }
 
   // Limit final results to 10
@@ -961,12 +989,16 @@ async function executeSearchProducts(
   console.log(
     `Search products: query="${args.query || ""}", category="${
       args.category || ""
-    }", found ${formatted.length} results`
+    }", found ${formatted.length} results${fallbackUsed ? ` (fallback: ${fallbackUsed})` : ""}`
   );
   return JSON.stringify({
     success: true,
     products: formatted,
     total_results: formatted.length,
+    fallback: fallbackUsed,
+    note: fallbackUsed
+      ? "No exact match for the query. These are the closest available products from the catalog — present them to the customer as alternatives with their real names and prices, and offer to send their images. NEVER invent products or price ranges."
+      : undefined,
   });
 }
 

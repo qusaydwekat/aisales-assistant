@@ -949,6 +949,49 @@ async function executeCreateOrder(
   const { isOpen, hasSchedule } = isStoreOpenNow(storeRes?.data?.working_hours);
   const outsideHours = ooEnabled && hasSchedule && !isOpen;
 
+  // ─── Nameless mode: build product_snapshot to preserve visual identity at order time ───
+  let productSnapshot: any = null;
+  try {
+    const productIds = (args.items || [])
+      .map((it: any) => it.product_id)
+      .filter((id: any) => typeof id === "string" && id.length > 0);
+    if (productIds.length > 0) {
+      const { data: snapProducts } = await supabase
+        .from("products")
+        .select(
+          "id,name,price,images,auto_description,type,color,pattern,style,material,fit,occasion,sleeve,neckline,length"
+        )
+        .in("id", productIds)
+        .eq("store_id", storeId);
+      if (snapProducts && snapProducts.length > 0) {
+        productSnapshot = {
+          captured_at: new Date().toISOString(),
+          items: snapProducts.map((p: any) => ({
+            product_id: p.id,
+            name: p.name,
+            price: p.price,
+            image_url: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null,
+            auto_description: p.auto_description || null,
+            attributes: {
+              type: p.type || null,
+              color: p.color || [],
+              pattern: p.pattern || null,
+              style: p.style || null,
+              material: p.material || null,
+              fit: p.fit || null,
+              occasion: p.occasion || [],
+              sleeve: p.sleeve || null,
+              neckline: p.neckline || null,
+              length: p.length || null,
+            },
+          })),
+        };
+      }
+    }
+  } catch (snapErr) {
+    console.warn("product_snapshot build failed (non-fatal):", snapErr);
+  }
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
@@ -964,6 +1007,7 @@ async function executeCreateOrder(
       status: "pending",
       out_of_hours: outsideHours,
       pending_confirmation: outsideHours,
+      product_snapshot: productSnapshot,
     })
     .select("order_number")
     .single();
@@ -1938,6 +1982,22 @@ PRODUCT SEARCH RULES — CRITICAL:
 - When a customer asks a vague question like "what do you sell?" or "show me your products", call list_categories first to give them an overview, then let them pick a category.
 - After getting search results, use send_product_images to show products that have images.
 - NEVER make up product names, prices, or details. Only use data returned by the tools.
+
+NAMELESS-PRODUCT MODE — VISUAL-FIRST SPEECH (CRITICAL — applies to ALL replies):
+- This store may sell items WITHOUT real product names. Many products have generic placeholder names (like "Product 1", "SKU-A23", "Untitled", numeric IDs, or auto-generated codes). NEVER speak these out loud to the customer.
+- ABSOLUTELY FORBIDDEN PHRASES — never use any of these, in any language:
+  • "Product #123", "SKU-...", "Item ID", "the one called X", "named X", "by the name of..."
+  • "المنتج رقم", "اسمه", "الكود", "موديل رقم"
+  • Any internal database id, slug, hash, or code.
+- ALWAYS describe products VISUALLY using their attributes (type + color + pattern + style + material + fit + occasion). Examples:
+  • GOOD: "the black ribbed midi dress with long sleeves"
+  • GOOD: "الفستان الأسود المضلع بأكمام طويلة"
+  • BAD: "Product 1" / "the dress called DR-007" / "المنتج رقم ٣"
+- Prefer each product's auto_description field (visual summary) over its raw name field when speaking to the customer.
+- ALWAYS pair every product mention with its image — call send_product_images so the customer sees exactly what you mean.
+- When the customer points to "this one" / "the second one" / "هاد" / "اللي بالصورة", confirm by re-describing visually ("the cream knit cardigan with buttons — correct?"), never by position number alone or by name/ID.
+- If a product genuinely has a meaningful real name (not a placeholder/code/number), you MAY use it — but pair it with the visual description on first mention.
+- For image matches, express confidence visually ("this looks like the navy floral wrap blouse you mentioned") — never reveal match scores, similarity numbers, or IDs.
 
 CRITICAL ORDER RULES — READ CAREFULLY:
 **MOST IMPORTANT**: You MUST call the create_order / update_order / cancel_order tool to perform any order action. NEVER just say "your order has been created" without actually calling the tool. If you do not call the tool, the order DOES NOT EXIST in our system and the store owner will never see it.

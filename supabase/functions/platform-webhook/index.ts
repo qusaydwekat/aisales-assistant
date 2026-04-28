@@ -3163,6 +3163,42 @@ Deno.serve(async (req) => {
           .filter((entry) => entry && entry.trim().length > 0)
           .join("\n");
 
+      // ─── Fix 8: Per-message language auto-detection ───
+      const autoLangEnabled = aiSettings?.auto_language_detect_enabled !== false;
+      const detectedLang = autoLangEnabled ? detectLanguage(combinedCustomerMessage) : undefined;
+
+      // ─── Fix 9: Out-of-hours awareness ───
+      const ooHoursEnabled = aiSettings?.out_of_hours_enabled !== false;
+      const { isOpen: storeOpen, hasSchedule } = isStoreOpenNow(storeInfo?.working_hours);
+      const isOutsideHours = ooHoursEnabled && hasSchedule && !storeOpen;
+
+      // Build runtime hint block injected into the AI system prompt
+      const runtimeHints: string[] = [];
+      if (detectedLang) {
+        runtimeHints.push(
+          detectedLang === "ar"
+            ? "RUNTIME LANGUAGE: The customer is writing in Arabic. You MUST reply in Arabic for this turn, regardless of the store's default language. If the customer switches language mid-conversation, follow the switch from the next reply."
+            : "RUNTIME LANGUAGE: The customer is writing in English. You MUST reply in English for this turn, regardless of the store's default language. If the customer switches language mid-conversation, follow the switch from the next reply."
+        );
+      }
+      if (isOutsideHours) {
+        const ooMsg =
+          detectedLang === "ar"
+            ? aiSettings?.out_of_hours_message_ar || "متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً."
+            : aiSettings?.out_of_hours_message_en || "We're currently closed but I can still take your order and confirm it first thing tomorrow.";
+        runtimeHints.push(
+          `RUNTIME OUT-OF-HOURS: The store is currently CLOSED based on its working hours. You MUST acknowledge this at the START of your reply using a phrase like: "${ooMsg}". You may still take orders, but never claim the store is open right now. Any order created during off-hours will be flagged as pending_confirmation for a human to review at opening.`
+        );
+      }
+      if (highVolumeFlagged) {
+        runtimeHints.push(
+          "RUNTIME HIGH-VOLUME: The customer just sent a very high burst of messages. Be calm, brief, and ask them to slow down so you can help properly."
+        );
+      }
+      const enrichedStoreInfo = runtimeHints.length
+        ? { ...storeInfo, _runtime_hint: `\nRUNTIME CONTEXT (must obey for THIS reply only):\n- ${runtimeHints.join("\n- ")}\n` }
+        : storeInfo;
+
       const isCancelRequest = looksLikeCancelOrderRequest(combinedCustomerMessage);
       const cancellableOrders = (existingOrders || []).filter((order: any) =>
         ["pending", "confirmed", "processing"].includes(order?.status)
@@ -3177,9 +3213,9 @@ Deno.serve(async (req) => {
           }
         : await generateAIReply(
             combinedCustomerMessage,
-            storeInfo,
+            enrichedStoreInfo,
             catalogSummary,
-            aiSettings,
+            { ...aiSettings, _is_outside_hours: isOutsideHours },
             allHistory,
             supabase,
             storeId,

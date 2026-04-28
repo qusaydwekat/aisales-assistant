@@ -45,7 +45,9 @@ export default function AISettingsPage() {
       persona_name: personaName, language, tone, auto_reply: autoReply,
       response_delay: delay, escalation_threshold: escalationThreshold,
       fallback_message: fallbackMessage, ai_instructions: aiInstructions,
-    });
+      collection_window_seconds: collectionWindow,
+      silence_followup_enabled: silenceFollowup,
+    } as any);
   };
 
   const handleTestSend = async () => {

@@ -2069,6 +2069,53 @@ PRODUCT IMAGES RULES:
         ? collectRecentReferenceImages(conversationHistory)
         : [];
 
+  // ─── Visual-first: pre-extract attributes + embedding from customer photo ───
+  // Done ONCE per turn; passed automatically into every search_products call.
+  let customerImageAttrs: any = null;
+  let customerImageEmbedding: number[] | null = null;
+  const visualSourceImage = imageUrl || ctx.contextImageUrl || recentReferenceImages[0];
+  if (visualSourceImage) {
+    try {
+      const { data: visionData } = await supabase.functions.invoke("ai-image-attributes", {
+        body: { image_url: visualSourceImage },
+      });
+      if (visionData?.attributes) {
+        customerImageAttrs = visionData.attributes;
+        customerImageEmbedding = visionData.embedding || null;
+        console.log(
+          `Customer image vision: ${customerImageAttrs.short_description || "?"} ` +
+            `(quality=${customerImageAttrs.image_quality}, embed=${!!customerImageEmbedding})`
+        );
+      }
+    } catch (e) {
+      console.warn("ai-image-attributes invoke failed:", e);
+    }
+  }
+
+  // ─── Post-reply path: customer replied to a specific FB/IG post ───
+  // Look up if a product is linked to that post → AI gets it as a hint.
+  let linkedProductHint: any = null;
+  if (ctx.replyToMid) {
+    try {
+      // replyToMid is stored as `${platform}:${mid}` upstream
+      const rawMid = ctx.replyToMid.includes(":") ? ctx.replyToMid.split(":").slice(1).join(":") : ctx.replyToMid;
+      const { data: link } = await supabase
+        .from("post_product_links")
+        .select("product_id, products(id, name, auto_description, price, images, sizes_available, stock_per_size, color, type)")
+        .eq("store_id", storeId)
+        .eq("platform", platform)
+        .eq("post_id", rawMid)
+        .maybeSingle();
+      if (link?.products) {
+        linkedProductHint = link.products;
+        console.log(`Post-link resolved: post=${rawMid} → product=${linkedProductHint.id}`);
+      }
+    } catch (e) {
+      console.warn("post_product_links lookup failed:", e);
+    }
+  }
+
+
   const ctxHints: string[] = [];
   if (ctx.adTitle || ctx.adId) {
     ctxHints.push(

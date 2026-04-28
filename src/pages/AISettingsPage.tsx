@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2, Shield, RefreshCw, Copy, Languages } from "lucide-react";
+import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2, Shield, RefreshCw, Copy, Languages, Heart, Image as ImageIcon, Sparkles, BarChart3, AlertOctagon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAISettings, useUpsertAISettings } from "@/hooks/useSupabaseData";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,13 @@ export default function AISettingsPage() {
   const [outOfHoursEnabled, setOutOfHoursEnabled] = useState(true);
   const [outOfHoursEn, setOutOfHoursEn] = useState("We're currently closed but I can still take your order and confirm it first thing tomorrow.");
   const [outOfHoursAr, setOutOfHoursAr] = useState("متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً.");
+  // Phase 2 intelligence toggles
+  const [emotionEnabled, setEmotionEnabled] = useState(true);
+  const [abuseEscalateEnabled, setAbuseEscalateEnabled] = useState(true);
+  const [imgConfidence, setImgConfidence] = useState(65);
+  const [proactiveEnabled, setProactiveEnabled] = useState(false);
+  const [upsellEnabled, setUpsellEnabled] = useState(true);
+  const [qualityScoreEnabled, setQualityScoreEnabled] = useState(true);
 
   const [testMessage, setTestMessage] = useState('');
   const [testChat, setTestChat] = useState<{ role: string; text: string }[]>([]);
@@ -58,6 +65,12 @@ export default function AISettingsPage() {
       setOutOfHoursEnabled(s.out_of_hours_enabled ?? true);
       setOutOfHoursEn(s.out_of_hours_message_en || "We're currently closed but I can still take your order and confirm it first thing tomorrow.");
       setOutOfHoursAr(s.out_of_hours_message_ar || "متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً.");
+      setEmotionEnabled(s.emotion_detection_enabled ?? true);
+      setAbuseEscalateEnabled(s.abuse_auto_escalate_enabled ?? true);
+      setImgConfidence(s.image_confidence_threshold ?? 65);
+      setProactiveEnabled(s.proactive_followup_enabled ?? false);
+      setUpsellEnabled(s.upsell_enabled ?? true);
+      setQualityScoreEnabled(s.quality_score_enabled ?? true);
     }
   }, [settings]);
 
@@ -77,6 +90,12 @@ export default function AISettingsPage() {
       out_of_hours_enabled: outOfHoursEnabled,
       out_of_hours_message_en: outOfHoursEn,
       out_of_hours_message_ar: outOfHoursAr,
+      emotion_detection_enabled: emotionEnabled,
+      abuse_auto_escalate_enabled: abuseEscalateEnabled,
+      image_confidence_threshold: imgConfidence,
+      proactive_followup_enabled: proactiveEnabled,
+      upsell_enabled: upsellEnabled,
+      quality_score_enabled: qualityScoreEnabled,
     } as any);
   };
 
@@ -239,6 +258,71 @@ export default function AISettingsPage() {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* AI Intelligence (Phase 2) */}
+          <div className="glass rounded-xl p-6 space-y-4">
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Sparkles className="h-4 w-4 text-accent" /> AI Intelligence</h2>
+
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0 flex items-start gap-2">
+                <Heart className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Emotion & urgency detection</p>
+                  <p className="text-xs text-muted-foreground">Detect frustrated, urgent, happy, or abusive tone and adjust the reply style.</p>
+                </div>
+              </div>
+              <Toggle value={emotionEnabled} onChange={() => setEmotionEnabled(!emotionEnabled)} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0 flex items-start gap-2">
+                <AlertOctagon className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Auto-escalate abusive customers</p>
+                  <p className="text-xs text-muted-foreground">When abusive language is detected, AI sends ONE polite reply, pauses, and notifies you with a handoff summary.</p>
+                </div>
+              </div>
+              <Toggle value={abuseEscalateEnabled} onChange={() => setAbuseEscalateEnabled(!abuseEscalateEnabled)} />
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-start gap-2">
+                <ImageIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm text-foreground">Image confidence threshold: {imgConfidence}%</p>
+                  <p className="text-xs text-muted-foreground">Below this, AI asks for a clearer photo instead of guessing the product.</p>
+                </div>
+              </div>
+              <input type="range" min={50} max={80} value={imgConfidence} onChange={e => setImgConfidence(Number(e.target.value))} className="w-full mt-1 accent-primary" />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">Proactive follow-up</p>
+                <p className="text-xs text-muted-foreground">Allow the AI to softly re-engage when a hot lead goes quiet.</p>
+              </div>
+              <Toggle value={proactiveEnabled} onChange={() => setProactiveEnabled(!proactiveEnabled)} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0">
+                <p className="text-sm text-foreground">Upsell suggestions</p>
+                <p className="text-xs text-muted-foreground">Suggest one complementary or higher-value item per conversation, never pushy.</p>
+              </div>
+              <Toggle value={upsellEnabled} onChange={() => setUpsellEnabled(!upsellEnabled)} />
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <div className="min-w-0 flex items-start gap-2">
+                <BarChart3 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-foreground">Conversation quality score</p>
+                  <p className="text-xs text-muted-foreground">Score each conversation 0–100 based on resolution, speed, sentiment shift, and conversion.</p>
+                </div>
+              </div>
+              <Toggle value={qualityScoreEnabled} onChange={() => setQualityScoreEnabled(!qualityScoreEnabled)} />
             </div>
           </div>
 

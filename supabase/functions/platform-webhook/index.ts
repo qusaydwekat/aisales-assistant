@@ -403,6 +403,120 @@ function isStoreOpenNow(workingHours: any): { isOpen: boolean; hasSchedule: bool
 }
 
 /**
+ * Phase 2 — lightweight emotion / abuse detector.
+ * Returns one of: neutral | happy | frustrated | abusive | urgent.
+ * Pure regex/keyword based so it's free, fast, and works in AR + EN.
+ */
+function detectEmotion(text: string | null | undefined): "neutral" | "happy" | "frustrated" | "abusive" | "urgent" {
+  if (!text || typeof text !== "string") return "neutral";
+  const t = text.toLowerCase();
+
+  // Abusive — profanity / insults (EN + AR transliteration + common AR insults)
+  const abusiveEn = /\b(fuck|fucking|shit|asshole|bitch|stupid|idiot|moron|dumb|trash|garbage|liar|scam|scammer|fraud|useless)\b/i;
+  const abusiveAr = /(احمق|غبي|غبية|كذاب|نصاب|حرامي|قذر|تافه|زباله|كلب|حمار|خرا|تبا|اللعنة|لعنة)/;
+  if (abusiveEn.test(t) || abusiveAr.test(text)) return "abusive";
+
+  // Urgent — explicit time pressure
+  const urgentEn = /\b(urgent|asap|right now|immediately|hurry|need it today|emergency|quickly please)\b/i;
+  const urgentAr = /(عاجل|مستعجل|الحين|بسرعة|ضروري|اليوم لازم|طارئ)/;
+  if (urgentEn.test(t) || urgentAr.test(text)) return "urgent";
+
+  // Frustrated — complaints, repeated punctuation, "still waiting"
+  const frustratedEn = /(why (is|isn'?t|are)|still waiting|nobody|no one (is|has)|already (asked|told|paid)|this is ridiculous|i('| a)m angry|frustrated|disappointed|terrible|awful|worst|cancel my order|refund|complain|complaint|fed up)/i;
+  const frustratedAr = /(ليش|لماذا|الى متى|للحين|ما رد|ما حد|مللت|زهقت|سيء|سيئ|اسوأ|الغي|الغاء|استرداد|شكوى|اشتكي|تعبت)/;
+  const exclamationStorm = /[!؟?]{3,}/.test(text) || /[A-Z]{6,}/.test(text);
+  if (frustratedEn.test(t) || frustratedAr.test(text) || exclamationStorm) return "frustrated";
+
+  // Happy
+  const happyEn = /\b(thanks?|thank you|awesome|great|perfect|love it|amazing|excellent|wonderful|appreciate|🙏|😊|❤️|🥰|👍)\b/i;
+  const happyAr = /(شكرا|شكراً|ممتاز|رائع|جميل|تسلم|الله يعطيك العافية|كفو|احسنت|احب)/;
+  if (happyEn.test(t) || happyAr.test(text)) return "happy";
+
+  return "neutral";
+}
+
+/**
+ * Phase 2 — Build a handoff context pack for the human owner.
+ * Used when AI escalates (abuse, repeated frustration, explicit human request).
+ * Returns a short markdown summary of what happened and what's outstanding.
+ */
+function buildHandoffSummary(args: {
+  customerName: string;
+  platform: string;
+  history: any[];
+  existingOrders: any[];
+  reason: string;
+  detectedLang?: string;
+}): string {
+  const { customerName, platform, history, existingOrders, reason, detectedLang } = args;
+  const lastMsgs = (history || []).slice(-6).map((m: any) => {
+    const who = m.sender === "customer" ? "👤" : m.sender === "ai" ? "🤖" : "🧑‍💼";
+    const text = String(m.content || "").slice(0, 140).replace(/\s+/g, " ");
+    return `${who} ${text}`;
+  }).join("\n");
+  const ordersBlock = (existingOrders || []).length
+    ? (existingOrders || []).slice(0, 3).map((o: any) =>
+        `• ${o.order_number} — ${o.status} — ${o.total} (${(o.items || []).length} item(s))`
+      ).join("\n")
+    : "_No orders for this conversation._";
+  const ar = detectedLang === "ar";
+  return [
+    ar ? `**يحتاج تدخل بشري — ${customerName || "Customer"}**` : `**Needs human attention — ${customerName || "Customer"}**`,
+    ar ? `السبب: ${reason}` : `Reason: ${reason}`,
+    `Platform: ${platform}`,
+    "",
+    ar ? "**آخر الرسائل:**" : "**Recent messages:**",
+    lastMsgs || "_(no recent messages)_",
+    "",
+    ar ? "**الطلبات:**" : "**Orders:**",
+    ordersBlock,
+  ].join("\n");
+}
+
+/**
+ * Phase 2 — Compute conversation quality score (0-100).
+ * Lazy implementation: weighted blend of resolution, response speed,
+ * sentiment shift, order conversion, escalation count.
+ */
+function computeQualityScore(args: {
+  history: any[];
+  emotionStart: string;
+  emotionEnd: string;
+  ordersCount: number;
+  escalated: boolean;
+  avgReplyMs: number;
+}): { score: number; breakdown: Record<string, number> } {
+  const { history, emotionStart, emotionEnd, ordersCount, escalated, avgReplyMs } = args;
+  // Resolution: did the conversation reach a natural close (last sender = ai or owner, no recent customer follow-up)
+  const last = history?.[history.length - 1];
+  const resolution = last && last.sender !== "customer" ? 100 : 60;
+  // Speed: under 30s is great, over 5min is poor
+  const speed = avgReplyMs <= 30_000 ? 100 : avgReplyMs <= 120_000 ? 80 : avgReplyMs <= 300_000 ? 60 : 30;
+  // Sentiment shift
+  const order = ["abusive", "frustrated", "urgent", "neutral", "happy"];
+  const startIdx = Math.max(0, order.indexOf(emotionStart || "neutral"));
+  const endIdx = Math.max(0, order.indexOf(emotionEnd || "neutral"));
+  const shift = endIdx - startIdx; // positive = improved
+  const sentiment = Math.max(0, Math.min(100, 60 + shift * 15));
+  // Conversion
+  const conversion = ordersCount > 0 ? 100 : 50;
+  // Escalation penalty
+  const escalation = escalated ? 40 : 100;
+
+  const score = Math.round(
+    resolution * 0.25 +
+    speed * 0.20 +
+    sentiment * 0.20 +
+    conversion * 0.20 +
+    escalation * 0.15
+  );
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    breakdown: { resolution, speed, sentiment, conversion, escalation },
+  };
+}
+
+/**
  * Wrap a Meta Send call in retry with exponential backoff (2s, 6s, 18s).
  * Returns { ok, data, attempts, lastError }.
  * Logs a `meta_send_failures` row when all retries fail.
@@ -3232,6 +3346,53 @@ Deno.serve(async (req) => {
           "RUNTIME HIGH-VOLUME: The customer just sent a very high burst of messages. Be calm, brief, and ask them to slow down so you can help properly."
         );
       }
+
+      // ─── Phase 2 Fix 2: Emotion & urgency detection ───
+      const emotionEnabled = aiSettings?.emotion_detection_enabled !== false;
+      const detectedEmotion = emotionEnabled ? detectEmotion(combinedCustomerMessage) : "neutral";
+      const abuseEscalateEnabled = aiSettings?.abuse_auto_escalate_enabled !== false;
+      const shouldAutoEscalate = abuseEscalateEnabled && detectedEmotion === "abusive";
+
+      if (emotionEnabled) {
+        if (detectedEmotion === "frustrated") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (frustrated): The customer sounds frustrated or impatient. Open with a brief, sincere acknowledgment of how they feel BEFORE answering. Be warm, concise, solution-focused. Do NOT be defensive."
+          );
+        } else if (detectedEmotion === "urgent") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (urgent): The customer is in a hurry. Skip pleasantries, give the answer in 1-2 short sentences, and offer to place the order immediately."
+          );
+        } else if (detectedEmotion === "abusive") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (abusive): The customer used insulting or hostile language. Reply ONCE, calmly and politely, telling them a human teammate will follow up. Do NOT engage further. Do NOT match the tone. Keep it under 25 words."
+          );
+        } else if (detectedEmotion === "happy") {
+          runtimeHints.push(
+            "RUNTIME EMOTION (happy): The customer is in a good mood. Match the warmth briefly, then keep moving the sale forward."
+          );
+        }
+      }
+
+      // ─── Phase 2 Fix 3: Image confidence threshold ───
+      const imgThreshold = aiSettings?.image_confidence_threshold ?? 65;
+      const burstHasImage = pendingBurst.some((entry: any) =>
+        typeof entry.content === "string" &&
+        (entry.content.includes("📷 ") || /\.(jpe?g|png|gif|webp)(\?|$)/i.test(entry.content))
+      );
+      if (burstHasImage) {
+        runtimeHints.push(
+          `RUNTIME IMAGE: The customer sent an image. Internally rate your confidence (0-100) that you can identify the product from the catalog. If your confidence is BELOW ${imgThreshold}%, do NOT guess — politely ask for a clearer photo, the brand/model, or which specific item they mean. If your confidence is at or above ${imgThreshold}%, hedge with phrases like "this looks like our [Product Name]" rather than asserting it as fact.`
+        );
+      }
+
+      // ─── Phase 2 Fix 7: Proactive upsell ───
+      const upsellEnabled = aiSettings?.upsell_enabled !== false;
+      if (upsellEnabled && detectedEmotion !== "abusive" && detectedEmotion !== "frustrated") {
+        runtimeHints.push(
+          "RUNTIME UPSELL: When the customer shows clear interest in a specific product, you MAY suggest ONE genuinely complementary item or a higher-value option — at most once per conversation. Never push, never invent products, never offer discounts you don't have."
+        );
+      }
+
       const enrichedStoreInfo = runtimeHints.length
         ? { ...storeInfo, _runtime_hint: `\nRUNTIME CONTEXT (must obey for THIS reply only):\n- ${runtimeHints.join("\n- ")}\n` }
         : storeInfo;
@@ -3305,13 +3466,91 @@ Deno.serve(async (req) => {
         console.error(`[${platform}] Failed to store AI text message:`, insertedAiTextError);
       }
 
+      // ─── Phase 2: handoff context pack & escalation ───
+      let handoffSummary: string | null = null;
+      let escalationReason: string | null = null;
+      if (shouldAutoEscalate) {
+        escalationReason = "Abusive language detected";
+        handoffSummary = buildHandoffSummary({
+          customerName: conversation.customer_name,
+          platform: msg.platform,
+          history: allHistory,
+          existingOrders: existingOrders || [],
+          reason: escalationReason,
+          detectedLang,
+        });
+      }
+
+      // ─── Phase 2: lazy quality score recompute ───
+      let qualityScore: number | null = null;
+      let qualityBreakdown: any = null;
+      const qualityEnabled = aiSettings?.quality_score_enabled !== false;
+      if (qualityEnabled) {
+        // Find emotion at start (first customer msg) by reusing detector
+        const firstCustomer = (allHistory || []).find((m: any) => m.sender === "customer");
+        const emotionStart = firstCustomer ? detectEmotion(firstCustomer.content) : "neutral";
+        // Average reply ms between consecutive (customer → ai) pairs
+        let totalMs = 0; let pairs = 0; let prev: any = null;
+        for (const m of allHistory || []) {
+          if (prev && prev.sender === "customer" && m.sender === "ai") {
+            totalMs += new Date(m.created_at).getTime() - new Date(prev.created_at).getTime();
+            pairs++;
+          }
+          prev = m;
+        }
+        const avgReplyMs = pairs ? totalMs / pairs : 0;
+        const q = computeQualityScore({
+          history: allHistory,
+          emotionStart,
+          emotionEnd: detectedEmotion,
+          ordersCount: (existingOrders || []).length,
+          escalated: shouldAutoEscalate || conversation.escalated || false,
+          avgReplyMs,
+        });
+        qualityScore = q.score;
+        qualityBreakdown = q.breakdown;
+      }
+
+      const convoUpdate: any = {
+        last_message: finalCombinedReply,
+        last_message_time: new Date().toISOString(),
+        last_customer_activity_at: new Date().toISOString(),
+        current_emotion: detectedEmotion,
+      };
+      if (qualityScore !== null) {
+        convoUpdate.quality_score = qualityScore;
+        convoUpdate.quality_breakdown = qualityBreakdown;
+      }
+      if (shouldAutoEscalate) {
+        convoUpdate.escalated = true;
+        convoUpdate.escalated_at = new Date().toISOString();
+        convoUpdate.escalation_reason = escalationReason;
+        convoUpdate.handoff_summary = handoffSummary;
+        convoUpdate.ai_auto_reply = false; // pause AI after handoff
+      }
+
       await supabase
         .from("conversations")
-        .update({
-          last_message: finalCombinedReply,
-          last_message_time: new Date().toISOString(),
-        })
+        .update(convoUpdate)
         .eq("id", conversation.id);
+
+      // Notify owner of escalation
+      if (shouldAutoEscalate) {
+        try {
+          const { data: storeRow } = await supabase
+            .from("stores").select("user_id, name").eq("id", storeId).maybeSingle();
+          if (storeRow?.user_id) {
+            await supabase.from("notifications").insert({
+              user_id: storeRow.user_id,
+              type: "escalation",
+              title: `Conversation needs you — ${conversation.customer_name || "Customer"}`,
+              description: escalationReason || "Human handoff requested",
+            });
+          }
+        } catch (notifyErr) {
+          console.warn(`[${platform}] Failed to write escalation notification:`, notifyErr);
+        }
+      }
 
       // Write the admin-visible batch log (best-effort, never blocks reply).
       try {
@@ -3331,6 +3570,8 @@ Deno.serve(async (req) => {
           window_seconds: configuredWindowSec,
           detected_language: detectedLang || null,
           flagged_high_volume: highVolumeFlagged,
+          detected_emotion: detectedEmotion,
+          image_confidence: burstHasImage ? imgThreshold : null,
         });
       } catch (logErr) {
         console.warn(`[${platform}] Failed to write batch log:`, logErr);

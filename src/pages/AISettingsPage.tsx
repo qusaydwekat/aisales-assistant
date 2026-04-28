@@ -90,6 +90,12 @@ export default function AISettingsPage() {
       out_of_hours_enabled: outOfHoursEnabled,
       out_of_hours_message_en: outOfHoursEn,
       out_of_hours_message_ar: outOfHoursAr,
+      emotion_detection_enabled: emotionEnabled,
+      abuse_auto_escalate_enabled: abuseEscalateEnabled,
+      image_confidence_threshold: imgConfidence,
+      proactive_followup_enabled: proactiveEnabled,
+      upsell_enabled: upsellEnabled,
+      quality_score_enabled: qualityScoreEnabled,
     } as any);
   };
 

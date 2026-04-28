@@ -1,0 +1,2 @@
+REVOKE EXECUTE ON FUNCTION public.match_products_by_image(uuid, vector, int) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.match_products_by_image(uuid, vector, int) TO authenticated, service_role;

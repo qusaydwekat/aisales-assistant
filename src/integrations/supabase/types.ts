@@ -430,6 +430,7 @@ export type Database = {
           pending_confirmation: boolean
           phone: string | null
           platform: Database["public"]["Enums"]["platform_type"] | null
+          product_snapshot: Json | null
           status: Database["public"]["Enums"]["order_status"]
           store_id: string
           total: number
@@ -448,6 +449,7 @@ export type Database = {
           pending_confirmation?: boolean
           phone?: string | null
           platform?: Database["public"]["Enums"]["platform_type"] | null
+          product_snapshot?: Json | null
           status?: Database["public"]["Enums"]["order_status"]
           store_id: string
           total?: number
@@ -466,6 +468,7 @@ export type Database = {
           pending_confirmation?: boolean
           phone?: string | null
           platform?: Database["public"]["Enums"]["platform_type"] | null
+          product_snapshot?: Json | null
           status?: Database["public"]["Enums"]["order_status"]
           store_id?: string
           total?: number
@@ -571,52 +574,127 @@ export type Database = {
           },
         ]
       }
+      post_product_links: {
+        Row: {
+          created_at: string
+          id: string
+          page_id: string
+          platform: string
+          post_id: string
+          product_id: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          page_id?: string
+          platform: string
+          post_id: string
+          product_id: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          page_id?: string
+          platform?: string
+          post_id?: string
+          product_id?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       products: {
         Row: {
           active: boolean
+          auto_description: string | null
           category: string | null
+          color: string[] | null
           compare_price: number | null
           created_at: string
           description: string | null
+          fit: string | null
           id: string
+          image_embedding: string | null
           images: string[] | null
+          length: string | null
+          material: string | null
           name: string
+          neckline: string | null
+          occasion: string[] | null
+          pattern: string | null
           price: number
+          sizes_available: string[] | null
           sku: string | null
+          sleeve: string | null
           stock: number
+          stock_per_size: Json | null
           store_id: string
+          style: string | null
+          type: string | null
           updated_at: string
           variants: Json | null
         }
         Insert: {
           active?: boolean
+          auto_description?: string | null
           category?: string | null
+          color?: string[] | null
           compare_price?: number | null
           created_at?: string
           description?: string | null
+          fit?: string | null
           id?: string
+          image_embedding?: string | null
           images?: string[] | null
+          length?: string | null
+          material?: string | null
           name: string
+          neckline?: string | null
+          occasion?: string[] | null
+          pattern?: string | null
           price?: number
+          sizes_available?: string[] | null
           sku?: string | null
+          sleeve?: string | null
           stock?: number
+          stock_per_size?: Json | null
           store_id: string
+          style?: string | null
+          type?: string | null
           updated_at?: string
           variants?: Json | null
         }
         Update: {
           active?: boolean
+          auto_description?: string | null
           category?: string | null
+          color?: string[] | null
           compare_price?: number | null
           created_at?: string
           description?: string | null
+          fit?: string | null
           id?: string
+          image_embedding?: string | null
           images?: string[] | null
+          length?: string | null
+          material?: string | null
           name?: string
+          neckline?: string | null
+          occasion?: string[] | null
+          pattern?: string | null
           price?: number
+          sizes_available?: string[] | null
           sku?: string | null
+          sleeve?: string | null
           stock?: number
+          stock_per_size?: Json | null
           store_id?: string
+          style?: string | null
+          type?: string | null
           updated_at?: string
           variants?: Json | null
         }
@@ -788,6 +866,17 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      match_products_by_image: {
+        Args: {
+          _match_count?: number
+          _query_embedding: string
+          _store_id: string
+        }
+        Returns: {
+          id: string
+          similarity: number
+        }[]
       }
     }
     Enums: {

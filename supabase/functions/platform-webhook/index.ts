@@ -2410,6 +2410,8 @@ PRODUCT IMAGES RULES:
               const addressRe = /(عنوان|مكان التوصيل|وصلولي|address|deliver to|location|street)/i;
               const phoneRe = /(رقمي|تلفوني|موبايل|هاتف|phone|mobile|number)/i;
               const nameRe = /(اسمي|my name|i am called|name is)/i;
+              // Items can change via: add/remove/swap words OR quantity change words
+              const itemsRe = /(ضيف|اضف|أضف|زيد|احذف|شيل|بدل|غير المنتج|بدال|بدلاً|كمية|قطعتين|قطعتان|ثلاث قطع|أربع قطع|بدي ٢|بدي ٣|بدي 2|بدي 3|اعدل الكمية|خليها|خليهم|اجعلها|add|remove|delete|swap|replace|instead of|change to|make it \d|quantity|pieces?|units?)/i;
               const sanitized: any = { ...args };
               if (sanitized.address && !addressRe.test(customerMessage || "")) {
                 console.log("Intent guard: dropping address from update_order (not mentioned)");
@@ -2422,6 +2424,11 @@ PRODUCT IMAGES RULES:
               if (sanitized.customer_name && !nameRe.test(customerMessage || "")) {
                 console.log("Intent guard: dropping customer_name from update_order (not mentioned)");
                 delete sanitized.customer_name;
+              }
+              if (sanitized.items && !itemsRe.test(customerMessage || "")) {
+                console.log("Intent guard: dropping items from update_order (no add/remove/quantity intent in latest message)");
+                delete sanitized.items;
+                delete sanitized.total;
               }
               const hasUpdate = Object.keys(sanitized).some(
                 (k) => k !== "order_number" && sanitized[k] !== undefined

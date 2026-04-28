@@ -1542,8 +1542,11 @@ PRODUCT IMAGES RULES:
   ];
 
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
+  // Reduced from 5 -> 3 rounds for latency. Most flows finish in 1-2 rounds; the
+  // short-circuit below also removes the extra "compose text" round when the AI
+  // only calls send_product_images.
   let currentMessages = [...chatMessages];
-  const maxRounds = 5;
+  const maxRounds = 3;
   const allImageesToSend: { url: string; caption: string }[] = [];
 
   try {
@@ -1652,82 +1655,98 @@ PRODUCT IMAGES RULES:
         return { text, images: allImageesToSend };
       }
 
-      // Process tool calls
+      // Process tool calls in parallel for lower latency
       const toolCalls = choice.message.tool_calls;
-      const toolResults: any[] = [];
+      const toolResults = await Promise.all(
+        toolCalls.map(async (tc: any) => {
+          const args =
+            typeof tc.function.arguments === "string"
+              ? JSON.parse(tc.function.arguments)
+              : tc.function.arguments;
 
-      for (const tc of toolCalls) {
-        const args =
-          typeof tc.function.arguments === "string"
-            ? JSON.parse(tc.function.arguments)
-            : tc.function.arguments;
-
-        let result: string;
-        if (tc.function?.name === "create_order") {
-          console.log("AI triggered create_order:", JSON.stringify(args));
-          result = await executeCreateOrder(
-            supabase,
-            storeId,
-            conversationId,
-            platform,
-            args
-          );
-        } else if (tc.function?.name === "cancel_order") {
-          console.log("AI triggered cancel_order:", JSON.stringify(args));
-          result = await executeCancelOrder(
-            supabase,
-            storeId,
-            conversationId,
-            args
-          );
-        } else if (tc.function?.name === "update_order") {
-          console.log("AI triggered update_order:", JSON.stringify(args));
-          result = await executeUpdateOrder(
-            supabase,
-            storeId,
-            conversationId,
-            args
-          );
-        } else if (tc.function?.name === "check_order_status") {
-          console.log("AI triggered check_order_status:", JSON.stringify(args));
-          result = await executeCheckOrderStatus(
-            supabase,
-            storeId,
-            conversationId,
-            args
-          );
-        } else if (tc.function?.name === "send_product_images") {
-          console.log(
-            "AI triggered send_product_images:",
-            JSON.stringify(args)
-          );
-          for (const p of args.products || []) {
-            if (p.image_url) {
-              allImageesToSend.push({
-                url: p.image_url,
-                caption: p.caption || p.product_name || "",
-              });
+          let result: string;
+          if (tc.function?.name === "create_order") {
+            console.log("AI triggered create_order:", JSON.stringify(args));
+            result = await executeCreateOrder(
+              supabase,
+              storeId,
+              conversationId,
+              platform,
+              args
+            );
+          } else if (tc.function?.name === "cancel_order") {
+            console.log("AI triggered cancel_order:", JSON.stringify(args));
+            result = await executeCancelOrder(
+              supabase,
+              storeId,
+              conversationId,
+              args
+            );
+          } else if (tc.function?.name === "update_order") {
+            console.log("AI triggered update_order:", JSON.stringify(args));
+            result = await executeUpdateOrder(
+              supabase,
+              storeId,
+              conversationId,
+              args
+            );
+          } else if (tc.function?.name === "check_order_status") {
+            console.log("AI triggered check_order_status:", JSON.stringify(args));
+            result = await executeCheckOrderStatus(
+              supabase,
+              storeId,
+              conversationId,
+              args
+            );
+          } else if (tc.function?.name === "send_product_images") {
+            console.log(
+              "AI triggered send_product_images:",
+              JSON.stringify(args)
+            );
+            for (const p of args.products || []) {
+              if (p.image_url) {
+                allImageesToSend.push({
+                  url: p.image_url,
+                  caption: p.caption || p.product_name || "",
+                });
+              }
             }
+            result = JSON.stringify({
+              success: true,
+              images_queued: allImageesToSend.length,
+            });
+          } else if (tc.function?.name === "search_products") {
+            console.log("AI triggered search_products:", JSON.stringify(args));
+            result = await executeSearchProducts(supabase, storeId, args);
+          } else if (tc.function?.name === "list_categories") {
+            console.log("AI triggered list_categories");
+            result = await executeListCategories(supabase, storeId);
+          } else {
+            result = JSON.stringify({ error: "Unknown tool" });
           }
-          result = JSON.stringify({
-            success: true,
-            images_queued: allImageesToSend.length,
-          });
-        } else if (tc.function?.name === "search_products") {
-          console.log("AI triggered search_products:", JSON.stringify(args));
-          result = await executeSearchProducts(supabase, storeId, args);
-        } else if (tc.function?.name === "list_categories") {
-          console.log("AI triggered list_categories");
-          result = await executeListCategories(supabase, storeId);
-        } else {
-          result = JSON.stringify({ error: "Unknown tool" });
-        }
 
-        toolResults.push({
-          role: "tool",
-          tool_call_id: tc.id,
-          content: result,
-        });
+          return {
+            role: "tool",
+            tool_call_id: tc.id,
+            content: result,
+          };
+        })
+      );
+
+      // Short-circuit: if AI ONLY called send_product_images and already provided
+      // text content, skip the extra round to compose a follow-up message. The
+      // image captions + assistant content are enough to reply.
+      const onlySendImages =
+        toolCalls.length > 0 &&
+        toolCalls.every((tc: any) => tc.function?.name === "send_product_images");
+      if (onlySendImages) {
+        const existingText = sanitizeAIResponse(
+          choice?.message?.content || ""
+        );
+        if (existingText && existingText.trim().length > 0) {
+          return { text: existingText, images: allImageesToSend };
+        }
+        // No text yet — fall through to next round so AI composes a brief reply.
       }
 
       // Add assistant message + tool results for the next round

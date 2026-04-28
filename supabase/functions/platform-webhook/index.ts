@@ -2875,12 +2875,41 @@ Deno.serve(async (req) => {
             existingOrders
           );
 
+      // Lightly personalize: prepend customer first name on the first chunk
+      // when the AI didn't already greet them by name. Keeps tone human.
+      const customerFirstName = (() => {
+        const raw = (conversation.customer_name || "").trim();
+        if (!raw) return "";
+        const first = raw.split(/\s+/)[0];
+        if (!first || first.length < 2) return "";
+        if (/^Customer\s*$/i.test(first) || first.toLowerCase() === "unknown") return "";
+        return first;
+      })();
+
+      let personalizedReply = (aiResult.text || "").trim();
+      if (
+        customerFirstName &&
+        personalizedReply &&
+        !new RegExp(`\\b${customerFirstName}\\b`, "i").test(personalizedReply.slice(0, 80))
+      ) {
+        // Only prepend on the first reply in a conversation, or roughly every
+        // ~6 messages, so we don't spam the name on every turn.
+        const aiCount = (allHistory || []).filter((m: any) => m.sender === "ai").length;
+        if (aiCount === 0 || aiCount % 6 === 0) {
+          personalizedReply = `${customerFirstName}, ${personalizedReply.charAt(0).toLowerCase()}${personalizedReply.slice(1)}`;
+        }
+      }
+
+      // Split long replies into 2-3 short chunks for a more human cadence.
+      const replyChunks = splitReplyIntoChunks(personalizedReply, 3);
+      const finalCombinedReply = replyChunks.join("\n\n") || personalizedReply;
+
       const { data: insertedAiText, error: insertedAiTextError } = await supabase
         .from("messages")
         .insert({
         conversation_id: conversation.id,
         sender: "ai",
-        content: aiResult.text,
+        content: finalCombinedReply,
         platform_message_id: null,
       })
         .select("id")
@@ -2893,23 +2922,56 @@ Deno.serve(async (req) => {
       await supabase
         .from("conversations")
         .update({
-          last_message: aiResult.text,
+          last_message: finalCombinedReply,
           last_message_time: new Date().toISOString(),
         })
         .eq("id", conversation.id);
 
+      // Write the admin-visible batch log (best-effort, never blocks reply).
+      try {
+        await supabase.from("ai_message_batch_log").insert({
+          store_id: storeId,
+          conversation_id: conversation.id,
+          platform: msg.platform,
+          customer_messages: pendingBurst.map((entry: any) => ({
+            content: entry.content,
+            created_at: entry.created_at,
+          })),
+          ai_reply: finalCombinedReply,
+          image_count: (aiResult.images || []).length,
+          window_seconds: configuredWindowSec,
+        });
+      } catch (logErr) {
+        console.warn(`[${platform}] Failed to write batch log:`, logErr);
+      }
+
       // Send reply back to customer — only use token from DB (platform_connections)
       if (pageAccessToken) {
         console.log(
-          `[${platform}] Sending reply to ${msg.sender} using stored page token`
+          `[${platform}] Sending reply to ${msg.sender} (${replyChunks.length} chunk(s)) using stored page token`
         );
-        const replySendResult = await sendMetaReply(
-          msg.platform,
-          msg.sender,
-          aiResult.text,
-          pageAccessToken,
-          connectionPageId || msg.pageId || ""
-        );
+
+        let lastSendResult: any = null;
+        for (let i = 0; i < replyChunks.length; i++) {
+          const chunk = replyChunks[i];
+          // Per-chunk typing simulation: 1-3 seconds based on chunk length.
+          const typingMs = Math.max(
+            900,
+            Math.min(3000, Math.round(chunk.length * 22))
+          );
+          sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+          await new Promise((r) => setTimeout(r, typingMs));
+
+          lastSendResult = await sendMetaReply(
+            msg.platform,
+            msg.sender,
+            chunk,
+            pageAccessToken,
+            connectionPageId || msg.pageId || ""
+          );
+        }
+        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_off");
+        const replySendResult = lastSendResult;
 
         const sentTextPlatformMessageId =
           replySendResult?.message_id || replySendResult?.messages?.[0]?.id || null;

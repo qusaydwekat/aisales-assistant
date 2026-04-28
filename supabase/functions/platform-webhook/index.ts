@@ -1675,6 +1675,108 @@ function collectPendingCustomerBurst(conversationHistory: any[]): any[] {
   return burst;
 }
 
+function collectUnansweredCustomerMessages(conversationHistory: any[]): any[] {
+  let lastAiIndex = -1;
+  for (let i = conversationHistory.length - 1; i >= 0; i--) {
+    if (conversationHistory[i]?.sender === "ai") {
+      lastAiIndex = i;
+      break;
+    }
+  }
+
+  return conversationHistory
+    .slice(lastAiIndex + 1)
+    .filter((entry) => entry?.sender === "customer");
+}
+
+function normalizeForQuestionDetection(text: string): string {
+  return (text || "")
+    .toLowerCase()
+    .replace(/[\u064B-\u065F\u0670]/g, "")
+    .replace(/[إأآ]/g, "ا")
+    .replace(/ى/g, "ي")
+    .replace(/ة/g, "ه")
+    .trim();
+}
+
+function hasConcreteCustomerQuestion(text: string): boolean {
+  const normalized = normalizeForQuestionDetection(text);
+  if (!normalized) return false;
+
+  return /[?؟]/.test(text || "") ||
+    /(شو|ايش|ايه|كم|قديش|بكم|وين|متى|كيف|هل|في |يوجد|بتوصل|توصلوا|سعر|توصيل|شحن|دفع|استرجاع|دوام|العنوان|what|when|where|how|do you|can you|delivery|shipping|price|cost|hours|address|payment|return)/i.test(normalized);
+}
+
+function isGenericGreetingOnlyResponse(text: string): boolean {
+  const normalized = normalizeForQuestionDetection(text);
+  if (!normalized) return true;
+
+  const asksToHelp = /(كيف.*(اساعدك|اخدمك)|كيف.*ممكن.*اساعدك|how can i help|how may i help|how can we help|can i help|how can i assist|how may i assist)/i.test(normalized);
+  const mostlyGreeting = /(مرحبا|اهلا|هلا|الله يعافيك|يعطيك العافيه|hello|hi|thanks|thank you)/i.test(normalized);
+
+  return asksToHelp && (mostlyGreeting || normalized.length < 120);
+}
+
+function buildStoreInfoQuestionReply(customerText: string, storeInfo: any): string | null {
+  const normalized = normalizeForQuestionDetection(customerText);
+  if (!normalized) return null;
+
+  const isArabic = /[\u0600-\u06FF]/.test(customerText || "");
+  const valueOrNull = (value: any) => {
+    if (Array.isArray(value)) return value.filter(Boolean).join(", ");
+    if (value && typeof value === "object") return JSON.stringify(value);
+    const str = String(value || "").trim();
+    return str && str.toLowerCase() !== "n/a" ? str : null;
+  };
+
+  const parts: string[] = [];
+  if (/(يعطيك العافيه|الله يعطيك|يسعد|مرحبا|اهلا|هلا|hello|hi)/i.test(normalized)) {
+    parts.push(isArabic ? "الله يعافيك 😊" : "Hi 😊");
+  }
+
+  const asksDelivery = /(توصيل|توصل|بتوصل|شحن|الشحن|delivery|deliver|shipping|ship)/i.test(normalized);
+  const asksHours = /(دوام|ساعات|مفتوح|بتفتح|بتسكر|working hours|hours|open|close)/i.test(normalized);
+  const asksPayment = /(دفع|الدفع|كاش|فيزا|بطاقه|payment|pay|cash|card)/i.test(normalized);
+  const asksReturn = /(استرجاع|ارجاع|تبديل|سياسه|return|refund|exchange)/i.test(normalized);
+  const asksAddress = /(عنوان|مكانكم|وينكم|location|address|where are you)/i.test(normalized);
+  const asksPhone = /(رقمكم|تلفون|هاتف|اتواصل|phone|mobile|contact)/i.test(normalized);
+
+  if (asksDelivery) {
+    const delivery = valueOrNull(storeInfo?.delivery_info);
+    parts.push(
+      delivery
+        ? isArabic
+          ? `بالنسبة للتوصيل وسعره: ${delivery}`
+          : `Delivery and shipping cost: ${delivery}`
+        : isArabic
+          ? "معلومات التوصيل وسعره غير محددة عندي حالياً."
+          : "Delivery areas and shipping cost are not specified yet."
+    );
+  }
+  if (asksHours) {
+    const hours = valueOrNull(storeInfo?.working_hours);
+    parts.push(hours ? (isArabic ? `ساعات العمل: ${hours}` : `Working hours: ${hours}`) : (isArabic ? "ساعات العمل غير محددة حالياً." : "Working hours are not specified yet."));
+  }
+  if (asksPayment) {
+    const payment = valueOrNull(storeInfo?.payment_methods);
+    parts.push(payment ? (isArabic ? `طرق الدفع: ${payment}` : `Payment methods: ${payment}`) : (isArabic ? "طرق الدفع غير محددة حالياً." : "Payment methods are not specified yet."));
+  }
+  if (asksReturn) {
+    const returns = valueOrNull(storeInfo?.return_policy);
+    parts.push(returns ? (isArabic ? `سياسة الإرجاع/التبديل: ${returns}` : `Return/exchange policy: ${returns}`) : (isArabic ? "سياسة الإرجاع غير محددة حالياً." : "Return policy is not specified yet."));
+  }
+  if (asksAddress) {
+    const address = valueOrNull(storeInfo?.address);
+    parts.push(address ? (isArabic ? `العنوان: ${address}` : `Address: ${address}`) : (isArabic ? "العنوان غير محدد حالياً." : "Address is not specified yet."));
+  }
+  if (asksPhone) {
+    const phone = valueOrNull(storeInfo?.phone);
+    parts.push(phone ? (isArabic ? `رقم التواصل: ${phone}` : `Contact number: ${phone}`) : (isArabic ? "رقم التواصل غير محدد حالياً." : "Contact number is not specified yet."));
+  }
+
+  return parts.length > 0 ? parts.join("\n") : null;
+}
+
 function hasLaterMessageInSameConversation(
   parsedMessages: any[],
   currentIndex: number

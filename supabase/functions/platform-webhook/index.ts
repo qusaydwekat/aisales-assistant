@@ -1635,6 +1635,7 @@ Store Information:
 - Return Policy: ${storeInfo.return_policy || "N/A"}
 - Payment Methods: ${storeInfo.payment_methods?.join(", ") || "N/A"}
 - Working Hours: ${JSON.stringify(storeInfo.working_hours || {})}
+${storeInfo._runtime_hint || ""}
 
 Product Catalog Summary:
 ${catalogSummary}

@@ -110,6 +110,17 @@ export default function AISettingsPage() {
             </div>
             <div><label className="text-xs text-muted-foreground">Response delay: {delay}s</label><input type="range" min={0} max={10} value={delay} onChange={e => setDelay(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
             <div><label className="text-xs text-muted-foreground">Escalation after {escalationThreshold} messages</label><input type="range" min={2} max={10} value={escalationThreshold} onChange={e => setEscalationThreshold(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
+            <div>
+              <label className="text-xs text-muted-foreground">Message batching window: {collectionWindow}s</label>
+              <input type="range" min={3} max={10} value={collectionWindow} onChange={e => setCollectionWindow(Number(e.target.value))} className="w-full mt-1 accent-primary" />
+              <p className="text-[11px] text-muted-foreground mt-1">AI waits this long after the customer's last message (timer resets on each new message) before replying.</p>
+            </div>
+            <div className="flex items-center justify-between pt-2">
+              <div><p className="text-sm text-foreground">Silence follow-up</p><p className="text-xs text-muted-foreground">Send a soft check-in if the customer goes quiet for 10+ minutes</p></div>
+              <button onClick={() => setSilenceFollowup(!silenceFollowup)} className={`w-11 h-6 rounded-full transition-colors ${silenceFollowup ? 'bg-primary' : 'bg-muted'}`}>
+                <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${silenceFollowup ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </button>
+            </div>
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">

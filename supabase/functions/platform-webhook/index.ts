@@ -1384,8 +1384,11 @@ async function executeListCategories(
   });
 }
 
-// Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts
-function sanitizeAIResponse(text: string): string {
+// Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts.
+// When `allowEmpty` is true the function returns an empty string instead of
+// the greeting fallback — used when the turn already includes images and a
+// generic "Hi! How can I help?" would be jarring mid-conversation.
+function sanitizeAIResponse(text: string, allowEmpty = false): string {
   console.log("sanitizeAIResponse confirm deployed");
 
   // Remove markdown code blocks
@@ -1413,7 +1416,9 @@ function sanitizeAIResponse(text: string): string {
   // Collapse excessive whitespace
   clean = clean.replace(/\n{3,}/g, "\n\n").trim();
   // If after cleaning the response is empty or too short, return a fallback
+  // (or empty string when the caller has images to deliver).
   if (clean.length < 3) {
+    if (allowEmpty) return "";
     return "مرحباً! كيف أقدر أساعدك؟ 😊";
   }
   // Truncate to Meta's 2000 char limit
@@ -2098,10 +2103,11 @@ PRODUCT IMAGES RULES:
 
       // If no tool calls, return the text response
       if (!choice?.message?.tool_calls?.length) {
+        const hasImages = allImageesToSend.length > 0;
         const text = sanitizeAIResponse(
           choice?.message?.content ||
-            aiSettings?.fallback_message ||
-            "Thanks for your message!"
+            (hasImages ? "" : aiSettings?.fallback_message || "Thanks for your message!"),
+          hasImages
         );
         if (isFallbackLikeResponse(text, aiSettings?.fallback_message)) {
           const retryPrompt =
@@ -2245,12 +2251,25 @@ PRODUCT IMAGES RULES:
         toolCalls.every((tc: any) => tc.function?.name === "send_product_images");
       if (onlySendImages) {
         const existingText = sanitizeAIResponse(
-          choice?.message?.content || ""
+          choice?.message?.content || "",
+          true
         );
         if (existingText && existingText.trim().length > 0) {
           return { text: existingText, images: allImageesToSend };
         }
-        // No text yet — fall through to next round so AI composes a brief reply.
+        // No text yet — nudge the model to write a brief one-line caption in the
+        // customer's language instead of falling through to a generic greeting.
+        currentMessages = [
+          ...currentMessages,
+          choice.message,
+          ...toolResults,
+          {
+            role: "system",
+            content:
+              "You just queued product images. Now write ONE short sentence in the customer's language that introduces those images (e.g. 'تفضل الصور 👇' or 'Here you go 👇'). Do NOT greet the customer, do NOT say 'hi/hello/مرحبا', do NOT ask 'how can I help'. Do NOT call any more tools.",
+          },
+        ];
+        continue;
       }
 
       // Add assistant message + tool results for the next round

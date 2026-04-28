@@ -1542,8 +1542,11 @@ PRODUCT IMAGES RULES:
   ];
 
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
+  // Reduced from 5 -> 3 rounds for latency. Most flows finish in 1-2 rounds; the
+  // short-circuit below also removes the extra "compose text" round when the AI
+  // only calls send_product_images.
   let currentMessages = [...chatMessages];
-  const maxRounds = 5;
+  const maxRounds = 3;
   const allImageesToSend: { url: string; caption: string }[] = [];
 
   try {

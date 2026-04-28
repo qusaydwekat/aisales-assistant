@@ -1498,11 +1498,11 @@ CRITICAL ORDER RULES — READ CAREFULLY:
    When calling update_order, pass ONLY the field(s) the customer LITERALLY mentioned in their CURRENT latest message. Forbidden: passing address when the user talked about quantity. Forbidden: passing items when the user only changed address. Forbidden: re-passing values that were already saved on the order. The existing order in "Existing Orders" above is REFERENCE ONLY — never echo its address/phone/name/items into update_order unless the user just asked to change that exact field in this turn.
 
    **INTENT MAPPING — match the customer's words to the right field BEFORE calling the tool**:
-   - QUANTITY/AMOUNT/NUMBER words ("كمية", "قطعتين", "٢", "اثنين", "ثلاثة", "بدي ٣", "اعدل الكمية", "quantity", "make it 2", "change to 3 pieces") → update_order with `items` ONLY (rebuild the items array using the existing order's items but with the new quantity). DO NOT pass address/phone/name.
-   - ADDRESS/LOCATION words ("عنوان", "مكان التوصيل", "وصلولي ع", "address", "deliver to", "location") → update_order with `address` ONLY.
-   - PHONE words ("رقمي", "تلفوني", "phone", "number") → update_order with `phone` ONLY.
-   - NAME words ("اسمي", "my name") → update_order with `customer_name` ONLY.
-   - ITEM SWAP words ("بدل المنتج", "زيد", "احذف", "add", "remove", "swap", "instead of") → update_order with `items` ONLY.
+   - QUANTITY/AMOUNT/NUMBER words ("كمية", "قطعتين", "٢", "اثنين", "ثلاثة", "بدي ٣", "اعدل الكمية", "quantity", "make it 2", "change to 3 pieces") → update_order with items ONLY (rebuild the items array using the existing order's items but with the new quantity). DO NOT pass address/phone/name.
+   - ADDRESS/LOCATION words ("عنوان", "مكان التوصيل", "وصلولي ع", "address", "deliver to", "location") → update_order with address ONLY.
+   - PHONE words ("رقمي", "تلفوني", "phone", "number") → update_order with phone ONLY.
+   - NAME words ("اسمي", "my name") → update_order with customer_name ONLY.
+   - ITEM SWAP words ("بدل المنتج", "زيد", "احذف", "add", "remove", "swap", "instead of") → update_order with items ONLY.
 
    Arabic update triggers: "بدي اعدل", "اعدل", "بدي اغير", "غير", "تعديل", "بدل", "بدي يكون", "خليه", "ممكن اعدل", "اعدل الكمية".
    English update triggers: "change", "update", "modify", "edit", "make it", "switch to", "I want to change", "can you update".
@@ -1514,7 +1514,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
    When ANY of these appear AND there is an active order in "Existing Orders" above → CALL cancel_order IMMEDIATELY in the same turn. NEVER call update_order when the user wants to cancel. If the customer did not specify which order, pass no order_number and the system will cancel the most recent pending order. Do NOT just reply with text saying "I cancelled it" — you MUST call the tool. After the tool returns, confirm the cancellation by referencing the returned order_number.
 
 **INTENT-FIRST PROCESSING — DO THIS BEFORE EVERY TOOL CALL**:
-Before calling any order tool, silently classify the customer's CURRENT (latest) message into ONE intent: [cancel | update_quantity | update_address | update_phone | update_name | update_items | new_order | question | other]. Then call the matching tool with ONLY the matching field. If the intent is `cancel`, you MUST call cancel_order, never update_order. If you are unsure between two intents, ask one short clarifying question instead of guessing.
+Before calling any order tool, silently classify the customer's CURRENT (latest) message into ONE intent: [cancel | update_quantity | update_address | update_phone | update_name | update_items | new_order | question | other]. Then call the matching tool with ONLY the matching field. If the intent is cancel, you MUST call cancel_order, never update_order. If you are unsure between two intents, ask one short clarifying question instead of guessing.
 5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
 6. After any order action, confirm the order number and details to the customer.
 7. If an order is already shipped/delivered, it cannot be updated or cancelled.

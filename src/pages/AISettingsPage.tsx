@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2, Shield, RefreshCw, Copy, Languages } from "lucide-react";
+import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2, Shield, RefreshCw, Copy, Languages, Heart, Image as ImageIcon, Sparkles, BarChart3, AlertOctagon } from "lucide-react";
 import { motion } from "framer-motion";
 import { useAISettings, useUpsertAISettings } from "@/hooks/useSupabaseData";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,6 +31,13 @@ export default function AISettingsPage() {
   const [outOfHoursEnabled, setOutOfHoursEnabled] = useState(true);
   const [outOfHoursEn, setOutOfHoursEn] = useState("We're currently closed but I can still take your order and confirm it first thing tomorrow.");
   const [outOfHoursAr, setOutOfHoursAr] = useState("متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً.");
+  // Phase 2 intelligence toggles
+  const [emotionEnabled, setEmotionEnabled] = useState(true);
+  const [abuseEscalateEnabled, setAbuseEscalateEnabled] = useState(true);
+  const [imgConfidence, setImgConfidence] = useState(65);
+  const [proactiveEnabled, setProactiveEnabled] = useState(false);
+  const [upsellEnabled, setUpsellEnabled] = useState(true);
+  const [qualityScoreEnabled, setQualityScoreEnabled] = useState(true);
 
   const [testMessage, setTestMessage] = useState('');
   const [testChat, setTestChat] = useState<{ role: string; text: string }[]>([]);

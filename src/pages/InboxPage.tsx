@@ -62,6 +62,33 @@ export default function InboxPage() {
     }
   }, [selectedId, conversations]);
 
+  // Latest image-match confidence for the selected conversation (nameless-product mode)
+  const [matchConfidence, setMatchConfidence] = useState<{ confidence: number; emotion: string | null } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchConfidence = async () => {
+      if (!selectedId) { setMatchConfidence(null); return; }
+      const { data } = await supabase
+        .from("ai_message_batch_log")
+        .select("image_confidence, detected_emotion")
+        .eq("conversation_id", selectedId)
+        .not("image_confidence", "is", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled) {
+        setMatchConfidence(
+          data && typeof (data as any).image_confidence === "number"
+            ? { confidence: (data as any).image_confidence, emotion: (data as any).detected_emotion || null }
+            : null
+        );
+      }
+    };
+    fetchConfidence();
+    return () => { cancelled = true; };
+  }, [selectedId, messages.length]);
+
+
   const pagesByPlatform = useMemo(() => {
     const grouped: Record<Platform, typeof connections> = { facebook: [], instagram: [], whatsapp: [] };
     connections.filter(c => c.status === 'connected' && c.page_name).forEach(c => {

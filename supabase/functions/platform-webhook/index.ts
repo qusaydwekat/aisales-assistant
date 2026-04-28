@@ -949,6 +949,49 @@ async function executeCreateOrder(
   const { isOpen, hasSchedule } = isStoreOpenNow(storeRes?.data?.working_hours);
   const outsideHours = ooEnabled && hasSchedule && !isOpen;
 
+  // ─── Nameless mode: build product_snapshot to preserve visual identity at order time ───
+  let productSnapshot: any = null;
+  try {
+    const productIds = (args.items || [])
+      .map((it: any) => it.product_id)
+      .filter((id: any) => typeof id === "string" && id.length > 0);
+    if (productIds.length > 0) {
+      const { data: snapProducts } = await supabase
+        .from("products")
+        .select(
+          "id,name,price,images,auto_description,type,color,pattern,style,material,fit,occasion,sleeve,neckline,length"
+        )
+        .in("id", productIds)
+        .eq("store_id", storeId);
+      if (snapProducts && snapProducts.length > 0) {
+        productSnapshot = {
+          captured_at: new Date().toISOString(),
+          items: snapProducts.map((p: any) => ({
+            product_id: p.id,
+            name: p.name,
+            price: p.price,
+            image_url: Array.isArray(p.images) && p.images.length > 0 ? p.images[0] : null,
+            auto_description: p.auto_description || null,
+            attributes: {
+              type: p.type || null,
+              color: p.color || [],
+              pattern: p.pattern || null,
+              style: p.style || null,
+              material: p.material || null,
+              fit: p.fit || null,
+              occasion: p.occasion || [],
+              sleeve: p.sleeve || null,
+              neckline: p.neckline || null,
+              length: p.length || null,
+            },
+          })),
+        };
+      }
+    }
+  } catch (snapErr) {
+    console.warn("product_snapshot build failed (non-fatal):", snapErr);
+  }
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
@@ -964,6 +1007,7 @@ async function executeCreateOrder(
       status: "pending",
       out_of_hours: outsideHours,
       pending_confirmation: outsideHours,
+      product_snapshot: productSnapshot,
     })
     .select("order_number")
     .single();

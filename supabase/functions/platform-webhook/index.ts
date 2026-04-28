@@ -3052,6 +3052,16 @@ Deno.serve(async (req) => {
       let shouldProceed = true;
       const startedAt = Date.now();
 
+      // ─── Burst Abuse Guard (Fix 1) ───
+      // If the customer sends more than `burst_guard_max_messages` within the
+      // current quiet window we STOP resetting the timer and process what's
+      // collected. Prevents spammers / accidental loops from holding the
+      // batch open forever.
+      const burstGuardEnabled = aiSettings?.burst_guard_enabled !== false;
+      const burstMax = Math.max(3, Number(aiSettings?.burst_guard_max_messages) || 10);
+      let burstCount = 1;
+      let highVolumeFlagged = false;
+
       // Best-effort: show typing bubble while we batch.
       if (pageAccessToken) {
         sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "mark_seen");
@@ -3081,7 +3091,8 @@ Deno.serve(async (req) => {
           break;
         }
 
-        // 2) Check for newer customer messages — they extend (reset) the window.
+        // 2) Check for newer customer messages — they extend (reset) the window
+        //    UNLESS the burst guard has tripped, in which case we stop extending.
         const { data: newerCustomer } = await supabase
           .from("messages")
           .select("created_at")
@@ -3093,16 +3104,33 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (newerCustomer?.created_at) {
-          const newerMs = new Date(newerCustomer.created_at).getTime();
-          if (newerMs > latestCustomerMs) {
-            latestCustomerMs = newerMs;
-            windowEndsAt = latestCustomerMs + QUIET_MS;
-            console.log(
-              `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
+          // Count total customer messages since the earliest unanswered one.
+          const { count: totalCustomerSince } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "customer")
+            .gte("created_at", new Date(earliestUnanswered.created_at!).toISOString());
+          burstCount = Math.max(burstCount, totalCustomerSince || burstCount);
+
+          if (burstGuardEnabled && burstCount > burstMax) {
+            highVolumeFlagged = true;
+            console.warn(
+              `[${platform}] Burst guard tripped (${burstCount} messages in window) — flushing reply, no more timer resets.`
             );
-            // Re-assert typing while we keep batching.
-            if (pageAccessToken) {
-              sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+            // Do NOT reset windowEndsAt; let the loop exit naturally.
+            latestCustomerMs = new Date(newerCustomer.created_at).getTime();
+          } else {
+            const newerMs = new Date(newerCustomer.created_at).getTime();
+            if (newerMs > latestCustomerMs) {
+              latestCustomerMs = newerMs;
+              windowEndsAt = latestCustomerMs + QUIET_MS;
+              console.log(
+                `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
+              );
+              if (pageAccessToken) {
+                sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+              }
             }
           }
         }

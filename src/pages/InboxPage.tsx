@@ -321,6 +321,20 @@ export default function InboxPage() {
               </div>
             </div>
             <div className="flex items-center gap-1.5 shrink-0">
+              {matchConfidence && (
+                <span
+                  title="Latest image-match confidence"
+                  className={`px-2 py-1 rounded-lg text-[10px] font-medium flex items-center gap-1 ${
+                    matchConfidence.confidence >= 80
+                      ? "bg-success/20 text-success"
+                      : matchConfidence.confidence >= 55
+                      ? "bg-amber-500/20 text-amber-500"
+                      : "bg-destructive/20 text-destructive"
+                  }`}
+                >
+                  📷 {matchConfidence.confidence}%
+                </span>
+              )}
               <button
                 onClick={() => toggleAI.mutate({ id: selected.id, ai_auto_reply: !(selected as any).ai_auto_reply })}
                 className={`px-2 md:px-3 py-1.5 rounded-lg text-xs font-medium transition-colors flex items-center gap-1 ${

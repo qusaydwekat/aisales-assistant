@@ -65,6 +65,12 @@ export default function AISettingsPage() {
       setOutOfHoursEnabled(s.out_of_hours_enabled ?? true);
       setOutOfHoursEn(s.out_of_hours_message_en || "We're currently closed but I can still take your order and confirm it first thing tomorrow.");
       setOutOfHoursAr(s.out_of_hours_message_ar || "متجرنا مغلق حالياً، لكن يمكنني تسجيل طلبك وسنؤكده فور فتح المتجر صباحاً.");
+      setEmotionEnabled(s.emotion_detection_enabled ?? true);
+      setAbuseEscalateEnabled(s.abuse_auto_escalate_enabled ?? true);
+      setImgConfidence(s.image_confidence_threshold ?? 65);
+      setProactiveEnabled(s.proactive_followup_enabled ?? false);
+      setUpsellEnabled(s.upsell_enabled ?? true);
+      setQualityScoreEnabled(s.quality_score_enabled ?? true);
     }
   }, [settings]);
 

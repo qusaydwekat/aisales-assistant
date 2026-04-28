@@ -1879,56 +1879,68 @@ Deno.serve(async (req) => {
             if (replyImg) contextImageUrl = cleanUrl(replyImg?.payload?.url);
           }
 
-          if (messaging.message?.text) {
+          // A single Facebook payload can carry BOTH text AND attachments (e.g.
+          // a photo with a caption). Emit each part as its own burst message so
+          // the AI sees the image even when text is also present.
+          const fbHasText = !!messaging.message?.text;
+          const fbAttachments = messaging.message?.attachments || [];
+          const fbImageAttachments = fbAttachments.filter(
+            (a: any) => a?.type === "image"
+          );
+          const fbBaseTimestamp = messaging.timestamp || Date.now();
+          const fbBaseMid = messaging.message?.mid;
+
+          if (fbHasText) {
             messages.push({
               platform: "facebook",
               sender: messaging.sender?.id || "unknown",
               text: messaging.message.text,
               platformId: messaging.sender?.id || "",
-              timestamp: new Date(
-                messaging.timestamp || Date.now()
-              ).toISOString(),
+              timestamp: new Date(fbBaseTimestamp).toISOString(),
               pageId,
-              platformMessageId: messaging.message?.mid || undefined,
+              platformMessageId: fbBaseMid || undefined,
               kind: "text",
               contextImageUrl,
               replyToMid,
               adContext,
             });
-          } else if (messaging.message?.attachments?.length > 0) {
-            const imgAtt = (messaging.message.attachments || []).find(
-              (a: any) => a?.type === "image"
-            );
-            if (imgAtt) {
+          }
+
+          if (fbImageAttachments.length > 0) {
+            fbImageAttachments.forEach((imgAtt: any, idx: number) => {
               messages.push({
                 platform: "facebook",
                 sender: messaging.sender?.id || "unknown",
                 text: "[Image]",
                 platformId: messaging.sender?.id || "",
+                // Bump timestamp by idx (and by +1ms when text exists) so the
+                // image is ordered after the caption text in the burst.
                 timestamp: new Date(
-                  messaging.timestamp || Date.now()
+                  fbBaseTimestamp + (fbHasText ? 1 : 0) + idx
                 ).toISOString(),
                 pageId,
-                platformMessageId: messaging.message?.mid || undefined,
+                platformMessageId: fbBaseMid
+                  ? fbImageAttachments.length > 1 || fbHasText
+                    ? `${fbBaseMid}:img${idx}`
+                    : fbBaseMid
+                  : undefined,
                 kind: "image",
                 imageUrl: cleanUrl(imgAtt?.payload?.url),
                 contextImageUrl,
                 replyToMid,
                 adContext,
               });
-            }
-          } else if (adContext || contextImageUrl || replyToMid) {
+            });
+          } else if (!fbHasText && (adContext || contextImageUrl || replyToMid)) {
             // Pure referral / reply with no text — still create an entry so AI can react
             messages.push({
               platform: "facebook",
               sender: messaging.sender?.id || "unknown",
               text: adContext ? "[Started chat from ad]" : "[Reply]",
               platformId: messaging.sender?.id || "",
-              timestamp: new Date(
-                messaging.timestamp || Date.now()
-              ).toISOString(),
+              timestamp: new Date(fbBaseTimestamp).toISOString(),
               pageId,
-              platformMessageId: messaging.message?.mid || `ref-${Date.now()}`,
+              platformMessageId: fbBaseMid || `ref-${Date.now()}`,
               kind: "text",
               contextImageUrl,
               replyToMid,
@@ -1977,40 +1989,70 @@ Deno.serve(async (req) => {
             }
           }
 
-          // Handle non-text message types
-          if (!text && messaging.message?.attachments?.length > 0) {
-            const att = messaging.message.attachments[0];
-            if (att.type === "image") {
-              text = "[Image]";
-              kind = "image";
-              imageUrl = cleanUrl(att?.payload?.url);
-            } else if (att.type === "video") text = "[Video]";
+          // Collect image attachments separately so we can emit them as their
+          // own image-kind message even when text (caption) is also present.
+          const igAttachments = messaging.message?.attachments || [];
+          const igImageAttachments = igAttachments.filter(
+            (a: any) => a?.type === "image"
+          );
+
+          // For non-image attachments with no text, fall back to a placeholder label
+          if (!text && igAttachments.length > 0 && igImageAttachments.length === 0) {
+            const att = igAttachments[0];
+            if (att.type === "video") text = "[Video]";
             else if (att.type === "audio") text = "[Audio]";
             else if (att.type === "file") text = "[File]";
             else if (att.type === "sticker") text = "[Sticker]";
             else text = `[${att.type || "Attachment"}]`;
           }
 
-          if (!text && replyTo) text = "[Story Reply]";
-          if (!text && adContext) text = "[Started chat from ad]";
+          if (!text && replyTo && igImageAttachments.length === 0) text = "[Story Reply]";
+          if (!text && adContext && igImageAttachments.length === 0) text = "[Started chat from ad]";
 
-          if (!text) continue;
+          if (!text && igImageAttachments.length === 0) continue;
 
-          messages.push({
-            platform: "instagram",
-            sender: messaging.sender?.id || "unknown",
-            text,
-            platformId: messaging.sender?.id || "",
-            timestamp: new Date(
-              messaging.timestamp || Date.now()
-            ).toISOString(),
-            pageId: igbaId,
-            platformMessageId: messaging.message?.mid || undefined,
-            kind,
-            imageUrl,
-            contextImageUrl,
-            replyToMid,
-            adContext,
+          const igBaseTimestamp = messaging.timestamp || Date.now();
+          const igBaseMid = messaging.message?.mid;
+
+          // Emit text (caption / standalone) first
+          if (text) {
+            messages.push({
+              platform: "instagram",
+              sender: messaging.sender?.id || "unknown",
+              text,
+              platformId: messaging.sender?.id || "",
+              timestamp: new Date(igBaseTimestamp).toISOString(),
+              pageId: igbaId,
+              platformMessageId: igBaseMid || undefined,
+              kind: "text",
+              contextImageUrl,
+              replyToMid,
+              adContext,
+            });
+          }
+
+          // Then emit each image attachment as its own image-kind entry
+          igImageAttachments.forEach((att: any, idx: number) => {
+            messages.push({
+              platform: "instagram",
+              sender: messaging.sender?.id || "unknown",
+              text: "[Image]",
+              platformId: messaging.sender?.id || "",
+              timestamp: new Date(
+                igBaseTimestamp + (text ? 1 : 0) + idx
+              ).toISOString(),
+              pageId: igbaId,
+              platformMessageId: igBaseMid
+                ? igImageAttachments.length > 1 || text
+                  ? `${igBaseMid}:img${idx}`
+                  : igBaseMid
+                : undefined,
+              kind: "image",
+              imageUrl: cleanUrl(att?.payload?.url),
+              contextImageUrl,
+              replyToMid,
+              adContext,
+            });
           });
         }
         // Also handle Instagram changes-based format (some API versions)

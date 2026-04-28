@@ -116,6 +116,17 @@ export function ProductWizard({
         description: f.description || s.description || "",
         category: f.category || s.category || "",
         price: f.price || (s.suggested_price ? Number(s.suggested_price) : 0),
+        auto_description: f.auto_description || s.auto_description || "",
+        type: f.type ?? s.type ?? null,
+        color: (f.color && f.color.length ? f.color : s.color) || [],
+        pattern: f.pattern ?? s.pattern ?? null,
+        style: f.style ?? s.style ?? null,
+        material: f.material ?? s.material ?? null,
+        fit: f.fit ?? s.fit ?? null,
+        occasion: (f.occasion && f.occasion.length ? f.occasion : s.occasion) || [],
+        sleeve: f.sleeve ?? s.sleeve ?? null,
+        neckline: f.neckline ?? s.neckline ?? null,
+        length: f.length ?? s.length ?? null,
       }));
       setAiHint(true);
       toast.success(t("ai_suggestions_applied"));

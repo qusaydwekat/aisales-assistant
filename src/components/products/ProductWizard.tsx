@@ -17,6 +17,18 @@ export type ProductForm = {
   sku: string;
   active: boolean;
   images: string[];
+  // Visual / nameless-product attributes
+  auto_description?: string;
+  type?: string | null;
+  color?: string[];
+  pattern?: string | null;
+  style?: string | null;
+  material?: string | null;
+  fit?: string | null;
+  occasion?: string[];
+  sleeve?: string | null;
+  neckline?: string | null;
+  length?: string | null;
 };
 
 const EMPTY: ProductForm = {
@@ -29,6 +41,17 @@ const EMPTY: ProductForm = {
   sku: "",
   active: true,
   images: [],
+  auto_description: "",
+  type: null,
+  color: [],
+  pattern: null,
+  style: null,
+  material: null,
+  fit: null,
+  occasion: [],
+  sleeve: null,
+  neckline: null,
+  length: null,
 };
 
 interface Props {

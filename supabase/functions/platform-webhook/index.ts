@@ -1879,56 +1879,68 @@ Deno.serve(async (req) => {
             if (replyImg) contextImageUrl = cleanUrl(replyImg?.payload?.url);
           }
 
-          if (messaging.message?.text) {
+          // A single Facebook payload can carry BOTH text AND attachments (e.g.
+          // a photo with a caption). Emit each part as its own burst message so
+          // the AI sees the image even when text is also present.
+          const fbHasText = !!messaging.message?.text;
+          const fbAttachments = messaging.message?.attachments || [];
+          const fbImageAttachments = fbAttachments.filter(
+            (a: any) => a?.type === "image"
+          );
+          const fbBaseTimestamp = messaging.timestamp || Date.now();
+          const fbBaseMid = messaging.message?.mid;
+
+          if (fbHasText) {
             messages.push({
               platform: "facebook",
               sender: messaging.sender?.id || "unknown",
               text: messaging.message.text,
               platformId: messaging.sender?.id || "",
-              timestamp: new Date(
-                messaging.timestamp || Date.now()
-              ).toISOString(),
+              timestamp: new Date(fbBaseTimestamp).toISOString(),
               pageId,
-              platformMessageId: messaging.message?.mid || undefined,
+              platformMessageId: fbBaseMid || undefined,
               kind: "text",
               contextImageUrl,
               replyToMid,
               adContext,
             });
-          } else if (messaging.message?.attachments?.length > 0) {
-            const imgAtt = (messaging.message.attachments || []).find(
-              (a: any) => a?.type === "image"
-            );
-            if (imgAtt) {
+          }
+
+          if (fbImageAttachments.length > 0) {
+            fbImageAttachments.forEach((imgAtt: any, idx: number) => {
               messages.push({
                 platform: "facebook",
                 sender: messaging.sender?.id || "unknown",
                 text: "[Image]",
                 platformId: messaging.sender?.id || "",
+                // Bump timestamp by idx (and by +1ms when text exists) so the
+                // image is ordered after the caption text in the burst.
                 timestamp: new Date(
-                  messaging.timestamp || Date.now()
+                  fbBaseTimestamp + (fbHasText ? 1 : 0) + idx
                 ).toISOString(),
                 pageId,
-                platformMessageId: messaging.message?.mid || undefined,
+                platformMessageId: fbBaseMid
+                  ? fbImageAttachments.length > 1 || fbHasText
+                    ? `${fbBaseMid}:img${idx}`
+                    : fbBaseMid
+                  : undefined,
                 kind: "image",
                 imageUrl: cleanUrl(imgAtt?.payload?.url),
                 contextImageUrl,
                 replyToMid,
                 adContext,
               });
-            }
-          } else if (adContext || contextImageUrl || replyToMid) {
+            });
+          } else if (!fbHasText && (adContext || contextImageUrl || replyToMid)) {
             // Pure referral / reply with no text — still create an entry so AI can react
             messages.push({
               platform: "facebook",
               sender: messaging.sender?.id || "unknown",
               text: adContext ? "[Started chat from ad]" : "[Reply]",
               platformId: messaging.sender?.id || "",
-              timestamp: new Date(
-                messaging.timestamp || Date.now()
-              ).toISOString(),
+              timestamp: new Date(fbBaseTimestamp).toISOString(),
               pageId,
-              platformMessageId: messaging.message?.mid || `ref-${Date.now()}`,
+              platformMessageId: fbBaseMid || `ref-${Date.now()}`,
               kind: "text",
               contextImageUrl,
               replyToMid,

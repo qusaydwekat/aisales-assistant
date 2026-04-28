@@ -17,6 +17,8 @@ export default function AISettingsPage() {
   const [autoReply, setAutoReply] = useState(true);
   const [delay, setDelay] = useState(2);
   const [escalationThreshold, setEscalationThreshold] = useState(5);
+  const [collectionWindow, setCollectionWindow] = useState(5);
+  const [silenceFollowup, setSilenceFollowup] = useState(false);
   const [fallbackMessage, setFallbackMessage] = useState("I'm not sure about that. Let me connect you with our team!");
   const [aiInstructions, setAiInstructions] = useState('You are a helpful sales assistant. Help customers find products, answer questions about the store, and assist with placing orders. Be polite, concise, and always try to help the customer find what they need.');
   const [testMessage, setTestMessage] = useState('');

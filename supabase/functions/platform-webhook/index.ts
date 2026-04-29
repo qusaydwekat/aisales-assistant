@@ -2428,13 +2428,6 @@ PRODUCT IMAGES RULES:
             ]
           : currentMessages,
       };
-      logPromptInChunks(`AI prompt sent round ${round + 1}`, {
-        model: requestBody.model,
-        temperature: requestBody.temperature ?? "default",
-        tool_choice: requestBody.tool_choice ?? null,
-        tools: requestBody.tools?.map((tool: any) => tool?.function?.name) ?? [],
-        messages: requestBody.messages.map(serializeAIMessageForLog),
-      });
       if (!isFinalRound) {
         requestBody.tools = allTools;
         // Force product search on round 0 when an image is present so the AI
@@ -2450,6 +2443,14 @@ PRODUCT IMAGES RULES:
           requestBody.tool_choice = "auto";
         }
       }
+
+      logPromptInChunks(`AI prompt sent round ${round + 1}`, {
+        model: requestBody.model,
+        temperature: requestBody.temperature ?? "default",
+        tool_choice: requestBody.tool_choice ?? null,
+        tools: requestBody.tools?.map((tool: any) => tool?.function?.name) ?? [],
+        messages: requestBody.messages.map(serializeAIMessageForLog),
+      });
 
       const response = await fetch(
         AI_ENDPOINT,

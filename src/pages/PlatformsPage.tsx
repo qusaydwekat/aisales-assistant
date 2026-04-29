@@ -1,4 +1,4 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, ExternalLink, Link2, Unlink, CheckSquare, Square } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -21,7 +21,7 @@ type Platform = "facebook" | "instagram" | "whatsapp";
 type PageOption = { id: string; name: string; instagram_business_account?: string | null };
 
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
-const platformLabels: Record<Platform, string> = { facebook: "Facebook Messenger", instagram: "Instagram Direct", whatsapp: "WhatsApp Business" };
+const platformLabels: Record<Platform, string> = { facebook: "Messenger", instagram: "Instagram", whatsapp: "WhatsApp" };
 
 export default function PlatformsPage() {
   const { data: connections = [], isLoading } = usePlatformConnections();
@@ -36,8 +36,8 @@ export default function PlatformsPage() {
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [selectPlatform, setSelectPlatform] = useState<Platform | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);
 
-  const webhookBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/platform-webhook`;
   const oauthBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth`;
 
   // Handle OAuth callback redirect — wait for store to be ready so RLS works
@@ -120,16 +120,16 @@ export default function PlatformsPage() {
       const failedCount = result.failed?.length || 0;
 
       if (count > 0) {
-        toast.success(`Connected ${count} page${count !== 1 ? "s" : ""} successfully!`);
+        toast.success(`🎉 Connected ${count} ${count !== 1 ? "accounts" : "account"} successfully!`);
       }
 
       if (conflictCount > 0) {
         const preview = result.conflicts.slice(0, 2).join(", ");
-        toast.error(`${conflictCount} page${conflictCount !== 1 ? "s are" : " is"} already linked to another store${preview ? `: ${preview}` : ""}`);
+        toast.error(`${conflictCount} ${conflictCount !== 1 ? "are" : "is"} already linked to another store${preview ? `: ${preview}` : ""}`);
       }
 
       if (!count && !conflictCount && failedCount > 0) {
-        throw new Error("Failed to connect the selected pages");
+        throw new Error("Failed to connect the selected accounts");
       }
 
       qc.invalidateQueries({ queryKey: ["platform_connections"] });
@@ -139,7 +139,7 @@ export default function PlatformsPage() {
       setSelectPlatform(null);
       setSelectedPageIds(new Set());
     } catch (err: any) {
-      toast.error(err.message || "Failed to connect pages");
+      toast.error(err.message || "Failed to connect");
     } finally {
       setSubmitting(false);
     }
@@ -150,6 +150,7 @@ export default function PlatformsPage() {
       toast.error("Store not found. Please set up your store first.");
       return;
     }
+    setConnectingPlatform(platform);
     const redirectUrl = window.location.origin + "/platforms";
     const oauthUrl = `${oauthBaseUrl}/start?platform=${platform}&store_id=${store.id}&redirect_url=${encodeURIComponent(redirectUrl)}`;
     window.location.href = oauthUrl;
@@ -169,148 +170,149 @@ export default function PlatformsPage() {
     }
   };
 
-  const copyWebhook = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast.success("Webhook URL copied!");
-  };
-
   const allPlatforms: Platform[] = ["facebook", "instagram", "whatsapp"];
-
-  // Group connected pages by platform
-  const connectedByPlatform = allPlatforms.map(p => {
-    const conns = connections.filter(c => c.platform === p && c.status === "connected");
-    return { platform: p, connections: conns };
-  });
+  const totalConnected = connections.filter(c => c.status === "connected").length;
+  const platformStatus = allPlatforms.map(p => ({
+    platform: p,
+    connections: connections.filter(c => c.platform === p && c.status === "connected"),
+  }));
 
   if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
 
   return (
-    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl pb-20 md:pb-6" dir={dir}>
-      <div>
-        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("connected_platforms")}</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-1">{t("manage_platforms")}</p>
+    <div className="p-4 md:p-6 space-y-6 max-w-4xl pb-20 md:pb-6 mx-auto" dir={dir}>
+      {/* Hero header */}
+      <div className="text-center md:text-start space-y-2">
+        <h1 className="text-2xl md:text-3xl font-heading font-bold text-foreground">{t("connected_platforms")}</h1>
+        <p className="text-sm text-muted-foreground">{t("manage_platforms")}</p>
       </div>
 
-      {/* Platform cards with connect button */}
-      <div className="grid gap-4">
-        {allPlatforms.map(p => {
-          const Icon = platformIcons[p];
-          const color = platformColors[p];
-          const conns = connectedByPlatform.find(x => x.platform === p)?.connections || [];
-          const webhookUrl = webhookBaseUrl;
+      {/* Unified Meta connect hero card */}
+      <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/10 via-background to-accent/10 p-5 md:p-8">
+        <div className="absolute -top-12 -end-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-12 -start-12 h-40 w-40 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
 
-          return (
-            <div key={p} className="glass rounded-xl p-4 md:p-6 space-y-3 md:space-y-4">
-              {/* Header */}
-              <div className="flex items-start justify-between gap-2">
-                <div className="flex items-center gap-2 md:gap-3">
-                  <div className="h-10 w-10 md:h-12 md:w-12 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + "20" }}>
-                    <Icon className="h-5 w-5 md:h-6 md:w-6" style={{ color }} />
-                  </div>
-                  <div>
-                    <h3 className="font-heading font-semibold text-foreground">{platformLabels[p]}</h3>
-                    <p className="text-sm text-muted-foreground">
-                      {conns.length > 0 ? `${conns.length} ${t("pages_connected")}` : t("not_connected_msg")}
-                    </p>
-                  </div>
-                </div>
-                <Button size="sm" onClick={() => startOAuth(p)} className="gap-1.5" variant={conns.length > 0 ? "outline" : "default"}>
-                  <Link2 className="h-4 w-4" /> {conns.length > 0 ? t("add_pages") : t("connect")}
-                </Button>
+        <div className="relative space-y-5">
+          {/* Top row: brand + status */}
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-3">
+              <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
+                <span className="font-heading font-bold text-white text-2xl">M</span>
+                <Sparkles className="absolute -top-1 -end-1 h-4 w-4 text-yellow-300" />
               </div>
-
-              {/* Connected pages list */}
-              {conns.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-border/50">
-                  {conns.map(conn => (
-                    <div key={conn.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-muted/50">
-                      <div className="flex items-center gap-3 min-w-0">
-                        <span className="flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-medium bg-success/20 text-success shrink-0">
-                          <Check className="h-3 w-3" />
-                        </span>
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">{conn.page_name || "Unknown Page"}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {conn.message_count || 0} messages • Last sync: {conn.last_synced_at ? new Date(conn.last_synced_at).toLocaleDateString() : "—"}
-                          </p>
-                        </div>
-                      </div>
-                      <Button variant="ghost" size="sm" onClick={() => handleDisconnect(conn.id, conn.page_name || "Page")}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0">
-                        <Unlink className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Webhook URL */}
-              <div className="pt-2 border-t border-border/50">
-                <p className="text-xs text-muted-foreground mb-1.5">{t("webhook_url")}</p>
-                <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs bg-muted rounded-lg px-3 py-2 text-foreground/80 truncate font-mono">
-                    {webhookUrl}
-                  </code>
-                  <button onClick={() => copyWebhook(webhookUrl)}
-                    className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors shrink-0">
-                    <Copy className="h-4 w-4" />
-                  </button>
-                </div>
+              <div>
+                <h2 className="text-lg md:text-xl font-heading font-bold text-foreground">Connect with Meta</h2>
+                <p className="text-xs md:text-sm text-muted-foreground">One login • Messenger, Instagram & WhatsApp</p>
               </div>
             </div>
-          );
-        })}
+            {totalConnected > 0 && (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-success/15 text-success text-xs font-semibold">
+                <Check className="h-3.5 w-3.5" />
+                {totalConnected} {t("pages_connected")}
+              </span>
+            )}
+          </div>
+
+          {/* Channel pills */}
+          <div className="grid grid-cols-3 gap-2 md:gap-3">
+            {platformStatus.map(({ platform, connections: conns }) => {
+              const Icon = platformIcons[platform];
+              const color = platformColors[platform];
+              const isConnected = conns.length > 0;
+              const isConnecting = connectingPlatform === platform;
+              return (
+                <button
+                  key={platform}
+                  onClick={() => startOAuth(platform)}
+                  disabled={isConnecting}
+                  className={`group relative rounded-xl border p-3 md:p-4 text-start transition-all hover:scale-[1.02] hover:shadow-md disabled:opacity-50 ${
+                    isConnected
+                      ? "border-success/40 bg-success/5"
+                      : "border-border bg-card/50 hover:border-primary/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="h-8 w-8 md:h-10 md:w-10 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + "20" }}>
+                      {isConnecting ? (
+                        <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin" style={{ color }} />
+                      ) : (
+                        <Icon className="h-4 w-4 md:h-5 md:w-5" style={{ color }} />
+                      )}
+                    </div>
+                    {isConnected && (
+                      <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center shrink-0">
+                        <Check className="h-3 w-3 text-white" />
+                      </div>
+                    )}
+                  </div>
+                  <p className="font-heading font-semibold text-sm text-foreground">{platformLabels[platform]}</p>
+                  <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5">
+                    {isConnected ? `${conns.length} ${conns.length === 1 ? "account" : "accounts"}` : t("connect")}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Trust badges */}
+          <div className="flex items-center justify-center md:justify-start gap-4 text-xs text-muted-foreground pt-2 border-t border-border/40 flex-wrap">
+            <span className="inline-flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-primary" /> Secure OAuth</span>
+            <span className="inline-flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-primary" /> Instant AI replies</span>
+            <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-primary" /> No code needed</span>
+          </div>
+        </div>
       </div>
 
-      {/* Setup Guide */}
-      <div className="glass rounded-xl p-6 space-y-4">
-        <h3 className="font-heading font-semibold text-foreground flex items-center gap-2">
-          <ExternalLink className="h-4 w-4 text-primary" /> {t("setup_guide")}
-        </h3>
-
-        {/* Facebook Messenger */}
-        <div>
-          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1">
-            <Facebook className="h-4 w-4" style={{ color: platformColors.facebook }} /> Facebook Messenger
-          </h4>
-          <div className="space-y-1 text-sm text-muted-foreground">
-            <p>1. Click <strong>Connect</strong> → grant Facebook permissions</p>
-            <p>2. Select pages → they're automatically subscribed to receive messages</p>
-            <p>3. AI replies to Messenger conversations instantly ✅</p>
+      {/* Connected accounts list */}
+      {totalConnected > 0 && (
+        <div className="space-y-3">
+          <h3 className="font-heading font-semibold text-foreground text-sm md:text-base px-1">Your connected accounts</h3>
+          <div className="space-y-2">
+            {platformStatus.flatMap(({ platform, connections: conns }) =>
+              conns.map(conn => {
+                const Icon = platformIcons[platform];
+                const color = platformColors[platform];
+                return (
+                  <div key={conn.id} className="glass rounded-xl p-3 md:p-4 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: color + "20" }}>
+                        <Icon className="h-5 w-5" style={{ color }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-semibold text-foreground truncate">{conn.page_name || "Unknown"}</p>
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-success/20 text-success shrink-0">
+                            <Check className="h-2.5 w-2.5" /> Live
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {platformLabels[platform]} • {conn.message_count || 0} messages
+                          {conn.last_synced_at && ` • Last sync ${new Date(conn.last_synced_at).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDisconnect(conn.id, conn.page_name || "Account")}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10 shrink-0"
+                    >
+                      <Unlink className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })
+            )}
           </div>
         </div>
+      )}
 
-        {/* Instagram */}
-        <div>
-          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1">
-            <Instagram className="h-4 w-4" style={{ color: platformColors.instagram }} /> Instagram Direct
-          </h4>
-          <div className="space-y-1 text-sm text-muted-foreground">
-            <p>1. Click <strong>Connect</strong> → grant Instagram messaging permissions</p>
-            <p>2. Select the Facebook Page linked to your Instagram Business account</p>
-            <p>3. <strong>Important:</strong> In Meta Developer Portal → Webhooks, subscribe to <code className="bg-muted px-1 rounded">instagram</code> object → <code className="bg-muted px-1 rounded">messages</code> field</p>
-            <p>4. Use the Webhook URL shown above and Verify Token: <code className="bg-muted px-1 rounded">aisales_verify_2024</code></p>
-          </div>
+      {/* Empty state helper */}
+      {totalConnected === 0 && (
+        <div className="text-center py-6 text-sm text-muted-foreground">
+          <p>👆 Pick a channel above to start connecting. You'll be guided by Meta's secure login.</p>
         </div>
-
-        {/* WhatsApp */}
-        <div>
-          <h4 className="text-sm font-semibold text-foreground flex items-center gap-2 mb-1">
-            <MessageCircle className="h-4 w-4" style={{ color: platformColors.whatsapp }} /> WhatsApp Business
-          </h4>
-          <div className="space-y-1 text-sm text-muted-foreground">
-            <p>1. Click <strong>Connect</strong> → grant WhatsApp Business permissions</p>
-            <p>2. Select phone numbers to manage from your WhatsApp Business Account</p>
-            <p>3. <strong>Important:</strong> In Meta Developer Portal → WhatsApp → Configuration, set the Webhook URL and Verify Token: <code className="bg-muted px-1 rounded">aisales_verify_2024</code></p>
-            <p>4. Subscribe to <code className="bg-muted px-1 rounded">messages</code> webhook field</p>
-          </div>
-        </div>
-
-        <div className="pt-2 border-t border-border/50 text-xs text-muted-foreground">
-          <p>💡 All conversations from all platforms appear in your <strong>Inbox</strong> with filters by platform and page.</p>
-          <p>💡 You can connect multiple pages/numbers from each platform.</p>
-        </div>
-      </div>
+      )}
 
       {/* Multi-Page Selection Dialog */}
       <Dialog open={selectingPage} onOpenChange={(open) => { if (!open) { setSelectingPage(false); setPages([]); setSessionId(null); setSelectedPageIds(new Set()); } }}>
@@ -362,7 +364,7 @@ export default function PlatformsPage() {
             <div className="pt-3 border-t border-border/50">
               <Button onClick={handleConnectSelected} disabled={submitting || selectedPageIds.size === 0} className="w-full gap-2">
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-                {t("connect")} {selectedPageIds.size} {t("pages_connected")}
+                {t("connect")} {selectedPageIds.size} {selectedPageIds.size === 1 ? "account" : "accounts"}
               </Button>
             </div>
           )}

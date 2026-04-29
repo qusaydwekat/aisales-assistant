@@ -1910,6 +1910,45 @@ function isFallbackLikeResponse(text: string, fallbackMessage?: string | null): 
   return knownFallbacks.includes(normalized);
 }
 
+function logPromptInChunks(label: string, payload: unknown) {
+  try {
+    const serialized = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+    const maxChunkSize = 3000;
+    for (let i = 0; i < serialized.length; i += maxChunkSize) {
+      const chunk = serialized.slice(i, i + maxChunkSize);
+      console.log(`${label} [chunk ${Math.floor(i / maxChunkSize) + 1}/${Math.ceil(serialized.length / maxChunkSize)}]\n${chunk}`);
+    }
+  } catch (err) {
+    console.warn(`${label} logging failed:`, err);
+  }
+}
+
+function serializeAIMessageForLog(message: any) {
+  const content = message?.content;
+  const normalizedContent = Array.isArray(content)
+    ? content.map((part: any) =>
+        part?.type === "image_url"
+          ? { type: "image_url", image_url: part.image_url?.url || part.image_url }
+          : part
+      )
+    : content;
+
+  return {
+    role: message?.role,
+    name: message?.name,
+    tool_call_id: message?.tool_call_id,
+    content: normalizedContent,
+    tool_calls: message?.tool_calls?.map((toolCall: any) => ({
+      id: toolCall?.id,
+      type: toolCall?.type,
+      function: {
+        name: toolCall?.function?.name,
+        arguments: toolCall?.function?.arguments,
+      },
+    })),
+  };
+}
+
 function looksLikeReferentialFollowUp(text: string): boolean {
   const normalized = (text || "").trim().toLowerCase();
   if (!normalized) return false;

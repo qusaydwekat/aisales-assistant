@@ -50,7 +50,10 @@ export default function StoreSettingsPage() {
   };
 
   const handleSave = async () => {
-    if (!store) return;
+    if (!store) {
+      toast.error("Store not ready yet. Please refresh the page.");
+      return;
+    }
     await updateStore.mutateAsync({ id: store.id, ...form, working_hours: hours });
   };
 

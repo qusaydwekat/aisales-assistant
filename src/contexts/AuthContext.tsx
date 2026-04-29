@@ -48,8 +48,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ]);
 
     if (profileRes.data) setProfile(profileRes.data as Profile);
-    if (roleRes.data) setRole(roleRes.data.role as "admin" | "store_owner");
-    if (storeRes.data) setStore(storeRes.data);
+    const userRole = roleRes.data?.role as "admin" | "store_owner" | undefined;
+    if (userRole) setRole(userRole);
+
+    if (storeRes.data) {
+      setStore(storeRes.data);
+    } else if (userRole !== "admin") {
+      // Auto-create a store for store owners who don't have one yet (e.g. Google sign-in users)
+      const defaultName =
+        (profileRes.data as any)?.full_name?.trim() ||
+        (profileRes.data as any)?.email?.split("@")[0] ||
+        "My Store";
+      const { data: newStore } = await supabase
+        .from("stores")
+        .insert({ user_id: userId, name: defaultName })
+        .select("id, name")
+        .single();
+      if (newStore) setStore(newStore);
+    }
   };
 
   useEffect(() => {

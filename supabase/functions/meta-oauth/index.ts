@@ -126,6 +126,51 @@ async function subscribePageToWebhooks(
   }
 }
 
+async function subscribeWhatsAppToWebhooks(
+  wabaId: string,
+  accessToken: string,
+  appId?: string,
+  appSecret?: string,
+  webhookCallbackUrl?: string,
+  verifyToken: string = "aisales_verify_2024"
+): Promise<boolean> {
+  try {
+    if (appId && appSecret && webhookCallbackUrl) {
+      const appToken = `${appId}|${appSecret}`;
+      await fetch(`https://graph.facebook.com/v21.0/${appId}/subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          object: "whatsapp_business_account",
+          callback_url: webhookCallbackUrl,
+          fields: "messages",
+          verify_token: verifyToken,
+          access_token: appToken,
+        }),
+      });
+    }
+
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: accessToken }),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok || data?.success === false) {
+      console.error(`[meta-oauth] Failed to subscribe WhatsApp WABA ${wabaId}:`, JSON.stringify(data));
+      return false;
+    }
+    console.log(`[meta-oauth] WhatsApp WABA ${wabaId} subscribed to webhooks`);
+    return true;
+  } catch (err) {
+    console.error(`[meta-oauth] Error subscribing WhatsApp WABA ${wabaId}:`, err);
+    return false;
+  }
+}
+
 async function fetchInstagramBusinessAccountId(
   pageId: string,
   pageAccessToken: string

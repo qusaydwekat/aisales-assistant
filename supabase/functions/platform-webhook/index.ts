@@ -7,6 +7,49 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// ─── In-memory caches (per warm instance) for hot, rarely-changing data ───
+// Avoids re-fetching store info and AI settings on every incoming webhook.
+const STORE_CACHE_TTL_MS = 30_000;
+const AI_SETTINGS_CACHE_TTL_MS = 30_000;
+const _storeCache = new Map<string, { value: any; expiresAt: number }>();
+const _aiSettingsCache = new Map<string, { value: any; expiresAt: number }>();
+
+async function getCachedStore(supabase: any, storeId: string) {
+  const now = Date.now();
+  const hit = _storeCache.get(storeId);
+  if (hit && hit.expiresAt > now) return { data: hit.value, error: null };
+  const res = await supabase
+    .from("stores")
+    .select("*")
+    .eq("id", storeId)
+    .single();
+  if (!res.error) {
+    _storeCache.set(storeId, {
+      value: res.data,
+      expiresAt: now + STORE_CACHE_TTL_MS,
+    });
+  }
+  return res;
+}
+
+async function getCachedAISettings(supabase: any, storeId: string) {
+  const now = Date.now();
+  const hit = _aiSettingsCache.get(storeId);
+  if (hit && hit.expiresAt > now) return { data: hit.value, error: null };
+  const res = await supabase
+    .from("ai_settings")
+    .select("*")
+    .eq("store_id", storeId)
+    .maybeSingle();
+  if (!res.error) {
+    _aiSettingsCache.set(storeId, {
+      value: res.data,
+      expiresAt: now + AI_SETTINGS_CACHE_TTL_MS,
+    });
+  }
+  return res;
+}
+
 async function verifyMetaSignature(
   req: Request,
   body: string

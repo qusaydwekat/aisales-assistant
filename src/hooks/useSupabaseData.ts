@@ -9,12 +9,14 @@ export function useProducts() {
   return useQuery({
     queryKey: ["products", store?.id],
     enabled: !!store?.id,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("store_id", store!.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data;
     },
@@ -101,12 +103,14 @@ export function useOrders() {
   return useQuery({
     queryKey: ["orders", store?.id],
     enabled: !!store?.id,
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("*")
         .eq("store_id", store!.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
       if (error) throw error;
       return data;
     },
@@ -168,12 +172,14 @@ export function useConversations() {
   return useQuery({
     queryKey: ["conversations", store?.id],
     enabled: !!store?.id,
+    staleTime: 15_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("conversations")
         .select("*")
         .eq("store_id", store!.id)
-        .order("last_message_time", { ascending: false });
+        .order("last_message_time", { ascending: false })
+        .limit(200);
       if (error) throw error;
       return data;
     },
@@ -184,13 +190,15 @@ export function useMessages(conversationId: string | null) {
   return useQuery({
     queryKey: ["messages", conversationId],
     enabled: !!conversationId,
+    staleTime: 10_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId!)
         .order("created_at", { ascending: true })
-        .order("id", { ascending: true });
+        .order("id", { ascending: true })
+        .limit(200);
       if (error) throw error;
       return data;
     },
@@ -433,37 +441,41 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard_stats", store?.id],
     enabled: !!store?.id,
+    staleTime: 30_000,
     queryFn: async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-      const [convRes, ordersRes, revenueRes, platformRes] = await Promise.all([
-        supabase.from("conversations").select("id", { count: "exact" })
+      const [convRes, recentOrdersRes, monthOrdersRes, pendingCountRes, todayCountRes, platformRes] = await Promise.all([
+        // Lightweight count for messages today
+        supabase.from("conversations").select("id", { count: "exact", head: true })
           .eq("store_id", store!.id).gte("last_message_time", today.toISOString()),
-        supabase.from("orders").select("id, status, total, created_at")
-          .eq("store_id", store!.id),
+        // Only fetch the 5 most recent orders for the panel
+        supabase.from("orders").select("id, status, total, created_at, customer_name, order_number")
+          .eq("store_id", store!.id).order("created_at", { ascending: false }).limit(5),
+        // Month revenue: only "total" since the start of the month
         supabase.from("orders").select("total")
           .eq("store_id", store!.id).gte("created_at", monthStart.toISOString()),
-        supabase.from("platform_connections").select("*")
+        // Pending orders count (head-only)
+        supabase.from("orders").select("id", { count: "exact", head: true })
+          .eq("store_id", store!.id).eq("status", "pending"),
+        // New orders today count (head-only)
+        supabase.from("orders").select("id", { count: "exact", head: true })
+          .eq("store_id", store!.id).gte("created_at", today.toISOString()),
+        supabase.from("platform_connections").select("id, platform, status, page_name")
           .eq("store_id", store!.id),
       ]);
 
-      const allOrders = ordersRes.data || [];
-      const pendingOrders = allOrders.filter(o => o.status === "pending").length;
-      const newOrders = allOrders.filter(o => {
-        const d = new Date(o.created_at);
-        return d >= today;
-      }).length;
-      const monthRevenue = (revenueRes.data || []).reduce((s, o) => s + Number(o.total), 0);
+      const monthRevenue = (monthOrdersRes.data || []).reduce((s, o) => s + Number(o.total), 0);
 
       return {
         messagesToday: convRes.count || 0,
-        newOrders,
-        pendingOrders,
+        newOrders: todayCountRes.count || 0,
+        pendingOrders: pendingCountRes.count || 0,
         monthRevenue,
         platforms: platformRes.data || [],
-        recentOrders: allOrders.slice(0, 5),
+        recentOrders: recentOrdersRes.data || [],
       };
     },
   });
@@ -515,32 +527,36 @@ export function useAdminUpdateUserStatus() {
 export function useAdminStats() {
   return useQuery({
     queryKey: ["admin_stats"],
+    staleTime: 60_000,
     queryFn: async () => {
-      const [users, orders, conversations, products, stores, connections] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact" }),
-        supabase.from("orders").select("id, total, status, created_at", { count: "exact" }),
-        supabase.from("conversations").select("id, platform", { count: "exact" }),
-        supabase.from("products").select("id", { count: "exact" }),
-        supabase.from("stores").select("id", { count: "exact" }),
-        supabase.from("platform_connections").select("id, status", { count: "exact" }),
-      ]);
-      const allOrders = orders.data || [];
-      const totalRevenue = allOrders.reduce((s, o) => s + Number(o.total), 0);
-      const pendingOrders = allOrders.filter(o => o.status === 'pending').length;
       const today = new Date(); today.setHours(0,0,0,0);
-      const todayOrders = allOrders.filter(o => new Date(o.created_at) >= today).length;
-      const activeConnections = (connections.data || []).filter((c: any) => c.status === 'connected').length;
+      const [
+        usersCount, ordersCount, convCount, productsCount, storesCount, connCount,
+        revenueRes, pendingCount, todayCount, activeConnCount,
+      ] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("orders").select("id", { count: "exact", head: true }),
+        supabase.from("conversations").select("id", { count: "exact", head: true }),
+        supabase.from("products").select("id", { count: "exact", head: true }),
+        supabase.from("stores").select("id", { count: "exact", head: true }),
+        supabase.from("platform_connections").select("id", { count: "exact", head: true }),
+        supabase.from("orders").select("total"),
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", today.toISOString()),
+        supabase.from("platform_connections").select("id", { count: "exact", head: true }).eq("status", "connected"),
+      ]);
+      const totalRevenue = (revenueRes.data || []).reduce((s, o: any) => s + Number(o.total), 0);
       return {
-        totalUsers: users.count || 0,
-        totalOrders: orders.count || 0,
-        totalConversations: conversations.count || 0,
-        totalProducts: products.count || 0,
-        totalStores: stores.count || 0,
+        totalUsers: usersCount.count || 0,
+        totalOrders: ordersCount.count || 0,
+        totalConversations: convCount.count || 0,
+        totalProducts: productsCount.count || 0,
+        totalStores: storesCount.count || 0,
         totalRevenue,
-        pendingOrders,
-        todayOrders,
-        activeConnections,
-        totalConnections: connections.count || 0,
+        pendingOrders: pendingCount.count || 0,
+        todayOrders: todayCount.count || 0,
+        activeConnections: activeConnCount.count || 0,
+        totalConnections: connCount.count || 0,
       };
     },
   });

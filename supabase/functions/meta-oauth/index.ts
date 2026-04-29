@@ -158,6 +158,73 @@ async function fetchInstagramBusinessAccountId(
   }
 }
 
+async function refreshPageTokenFromUserToken(conn: any, creds: any): Promise<{
+  pageId: string | null;
+  token: string | null;
+  credentials: any;
+  reason?: string;
+}> {
+  const fallbackPageId = conn.platform === "instagram"
+    ? creds?.facebook_page_id || conn.page_id
+    : conn.page_id;
+
+  if (!creds?.user_token) {
+    return {
+      pageId: fallbackPageId || null,
+      token: creds?.page_access_token || null,
+      credentials: creds || {},
+      reason: "Missing Meta user token — reconnect this account.",
+    };
+  }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${encodeURIComponent(
+        creds.user_token
+      )}`
+    );
+    const data = await res.json();
+    const pages = data?.data || [];
+    const match = pages.find((p: any) =>
+      p.id === conn.page_id ||
+      p.id === creds?.facebook_page_id ||
+      p.instagram_business_account?.id === conn.page_id ||
+      p.instagram_business_account?.id === creds?.instagram_business_account_id
+    );
+
+    if (!res.ok || !match?.access_token) {
+      return {
+        pageId: fallbackPageId || null,
+        token: creds?.page_access_token || null,
+        credentials: creds || {},
+        reason: data?.error?.message || "Could not refresh page token — reconnect this account.",
+      };
+    }
+
+    const refreshedCreds: any = {
+      ...creds,
+      page_access_token: match.access_token,
+      facebook_page_id: conn.platform === "instagram" ? match.id : creds?.facebook_page_id,
+    };
+    if (conn.platform === "instagram" && match.instagram_business_account?.id) {
+      refreshedCreds.instagram_business_account_id = match.instagram_business_account.id;
+    }
+
+    return {
+      pageId: match.id,
+      token: match.access_token,
+      credentials: refreshedCreds,
+    };
+  } catch (err: any) {
+    return {
+      pageId: fallbackPageId || null,
+      token: creds?.page_access_token || null,
+      credentials: creds || {},
+      reason: err?.message || "Could not refresh page token — reconnect this account.",
+    };
+  }
+}
+
 // Fetch WhatsApp Business phone numbers from the user's businesses
 async function fetchWhatsAppPhoneNumbers(userToken: string): Promise<
   Array<{

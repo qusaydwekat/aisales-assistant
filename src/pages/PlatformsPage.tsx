@@ -305,7 +305,20 @@ export default function PlatformsPage() {
       {/* Connected accounts list */}
       {totalConnected > 0 && (
         <div className="space-y-3">
-          <h3 className="font-heading font-semibold text-foreground text-sm md:text-base px-1">Your connected accounts</h3>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <h3 className="font-heading font-semibold text-foreground text-sm md:text-base">Your connected accounts</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRepair}
+              disabled={repairing}
+              className="gap-1.5 text-xs"
+              title="Re-subscribe pages to webhooks if AI isn't replying"
+            >
+              {repairing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+              {repairing ? "Testing…" : "Test & Repair"}
+            </Button>
+          </div>
           <div className="space-y-2">
             {platformStatus.flatMap(({ platform, connections: conns }) =>
               conns.map(conn => {

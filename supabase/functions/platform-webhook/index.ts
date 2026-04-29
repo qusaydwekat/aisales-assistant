@@ -891,7 +891,11 @@ const SEND_PRODUCT_IMAGES_TOOL = {
   function: {
     name: "send_product_images",
     description:
-      "Send product images to the customer. Use this when the customer asks to see a product, asks what it looks like, or when recommending/discussing products. Always send images alongside your text description.",
+      "Send product images to the customer. Each product in search_products results has an `images` array — these are DIFFERENT PHOTOS / ANGLES / VARIATIONS of the SAME product (front, back, side, color variants, detail shots), NOT different products. " +
+      "Use this tool when the customer asks to see a product, asks what it looks like, asks for more photos / other angles / different views / variations / colors, or when recommending/discussing products. " +
+      "Default behavior: send the FIRST image (cover) for each product when introducing or recommending. " +
+      "When the customer asks for more pictures, other angles, different sides, variations, or 'show me more' of a specific product → send ALL remaining images of that product (one entry per image_url, same product_name, captions like 'Front', 'Back', 'Side', 'Detail', or 'View 2', 'View 3'...). " +
+      "Always send images alongside your text description.",
     parameters: {
       type: "object",
       properties: {

@@ -34,13 +34,16 @@ export default function LoginPage() {
   const handleGoogleSignIn = async () => {
     setError("");
     setGoogleLoading(true);
-    const { error } = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
+    const result = await lovable.auth.signInWithOAuth("google", {
+      redirect_uri: `${window.location.origin}/dashboard`,
     });
-    if (error) {
-      setError(error.message);
+    if (result.redirected) return;
+    if (result.error) {
+      setError(result.error.message);
+      setGoogleLoading(false);
+      return;
     }
-    setGoogleLoading(false);
+    navigate("/dashboard", { replace: true });
   };
 
   const isPending = profile?.status === "pending";

@@ -171,6 +171,44 @@ export default function PlatformsPage() {
     }
   };
 
+  const handleRepair = async () => {
+    if (!store?.id) {
+      toast.error("Store not found.");
+      return;
+    }
+    setRepairing(true);
+    const tid = toast.loading("Testing & repairing connections…");
+    try {
+      const res = await fetch(`${oauthBaseUrl}/repair-subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ store_id: store.id }),
+      });
+      const result = await res.json();
+      toast.dismiss(tid);
+      if (!res.ok) throw new Error(result.error || "Repair failed");
+
+      const okCount = result.repaired?.length || 0;
+      const failCount = result.failed?.length || 0;
+
+      if (okCount > 0 && failCount === 0) {
+        toast.success(`✅ All ${okCount} ${okCount === 1 ? "connection is" : "connections are"} live and ready to receive messages.`);
+      } else if (okCount > 0 && failCount > 0) {
+        toast.warning(`Repaired ${okCount}, but ${failCount} need attention: ${result.failed.map((f: any) => f.name).join(", ")}`);
+      } else if (failCount > 0) {
+        toast.error(`Could not repair: ${result.failed.map((f: any) => `${f.name} — ${f.reason}`).join(" • ")}`);
+      } else {
+        toast.info(result.message || "No connected pages to test.");
+      }
+      qc.invalidateQueries({ queryKey: ["platform_connections"] });
+    } catch (err: any) {
+      toast.dismiss(tid);
+      toast.error(err.message || "Could not test connections");
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const allPlatforms: Platform[] = ["facebook", "instagram", "whatsapp"];
   const totalConnected = connections.filter(c => c.status === "connected").length;
   const platformStatus = allPlatforms.map(p => ({

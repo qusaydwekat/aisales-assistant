@@ -103,12 +103,14 @@ export function useOrders() {
   return useQuery({
     queryKey: ["orders", store?.id],
     enabled: !!store?.id,
+    staleTime: 30_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("orders")
         .select("*")
         .eq("store_id", store!.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(200);
       if (error) throw error;
       return data;
     },

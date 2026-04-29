@@ -1,4 +1,4 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap, Wrench } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -37,6 +37,7 @@ export default function PlatformsPage() {
   const [selectPlatform, setSelectPlatform] = useState<Platform | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);
+  const [repairing, setRepairing] = useState(false);
 
   const oauthBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth`;
 
@@ -170,6 +171,44 @@ export default function PlatformsPage() {
     }
   };
 
+  const handleRepair = async () => {
+    if (!store?.id) {
+      toast.error("Store not found.");
+      return;
+    }
+    setRepairing(true);
+    const tid = toast.loading("Testing & repairing connections…");
+    try {
+      const res = await fetch(`${oauthBaseUrl}/repair-subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ store_id: store.id }),
+      });
+      const result = await res.json();
+      toast.dismiss(tid);
+      if (!res.ok) throw new Error(result.error || "Repair failed");
+
+      const okCount = result.repaired?.length || 0;
+      const failCount = result.failed?.length || 0;
+
+      if (okCount > 0 && failCount === 0) {
+        toast.success(`✅ All ${okCount} ${okCount === 1 ? "connection is" : "connections are"} live and ready to receive messages.`);
+      } else if (okCount > 0 && failCount > 0) {
+        toast.warning(`Repaired ${okCount}, but ${failCount} need attention: ${result.failed.map((f: any) => f.name).join(", ")}`);
+      } else if (failCount > 0) {
+        toast.error(`Could not repair: ${result.failed.map((f: any) => `${f.name} — ${f.reason}`).join(" • ")}`);
+      } else {
+        toast.info(result.message || "No connected pages to test.");
+      }
+      qc.invalidateQueries({ queryKey: ["platform_connections"] });
+    } catch (err: any) {
+      toast.dismiss(tid);
+      toast.error(err.message || "Could not test connections");
+    } finally {
+      setRepairing(false);
+    }
+  };
+
   const allPlatforms: Platform[] = ["facebook", "instagram", "whatsapp"];
   const totalConnected = connections.filter(c => c.status === "connected").length;
   const platformStatus = allPlatforms.map(p => ({
@@ -266,7 +305,20 @@ export default function PlatformsPage() {
       {/* Connected accounts list */}
       {totalConnected > 0 && (
         <div className="space-y-3">
-          <h3 className="font-heading font-semibold text-foreground text-sm md:text-base px-1">Your connected accounts</h3>
+          <div className="flex items-center justify-between gap-3 px-1">
+            <h3 className="font-heading font-semibold text-foreground text-sm md:text-base">Your connected accounts</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRepair}
+              disabled={repairing}
+              className="gap-1.5 text-xs"
+              title="Re-subscribe pages to webhooks if AI isn't replying"
+            >
+              {repairing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wrench className="h-3.5 w-3.5" />}
+              {repairing ? "Testing…" : "Test & Repair"}
+            </Button>
+          </div>
           <div className="space-y-2">
             {platformStatus.flatMap(({ platform, connections: conns }) =>
               conns.map(conn => {

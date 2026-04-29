@@ -767,5 +767,106 @@ Deno.serve(async (req) => {
     );
   }
 
+  // ─── REPAIR: Re-subscribe all connected pages to webhooks ───
+  // Used when AI is not responding to incoming customer messages — usually
+  // because the page was never (re)subscribed to the app's webhooks.
+  if (req.method === "POST" && path === "repair-subscriptions") {
+    try {
+      const { store_id } = await req.json();
+      if (!store_id) {
+        return new Response(
+          JSON.stringify({ error: "store_id required" }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+      const { data: conns, error: connErr } = await supabase
+        .from("platform_connections")
+        .select("id, platform, page_id, page_name, credentials")
+        .eq("store_id", store_id)
+        .eq("status", "connected");
+
+      if (connErr) throw connErr;
+      if (!conns || conns.length === 0) {
+        return new Response(
+          JSON.stringify({ ok: true, repaired: [], failed: [], message: "No connected pages" }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const webhookCallbackUrl = `${SUPABASE_URL}/functions/v1/platform-webhook`;
+      const verifyToken = Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024";
+      const repaired: string[] = [];
+      const failed: { name: string; reason: string }[] = [];
+
+      for (const c of conns) {
+        const creds: any = c.credentials || {};
+        const token = creds.page_access_token;
+        if (!token) {
+          failed.push({ name: c.page_name || c.page_id, reason: "Missing page access token — please reconnect." });
+          continue;
+        }
+
+        if (c.platform === "whatsapp") {
+          // WhatsApp doesn't use page-level subscribed_apps; verify the phone is reachable instead.
+          try {
+            const r = await fetch(
+              `https://graph.facebook.com/v21.0/${c.page_id}?fields=display_phone_number,verified_name&access_token=${token}`
+            );
+            const d = await r.json();
+            if (r.ok && d?.id) {
+              repaired.push(c.page_name || c.page_id);
+              await supabase
+                .from("platform_connections")
+                .update({ last_synced_at: new Date().toISOString() })
+                .eq("id", c.id);
+            } else {
+              failed.push({ name: c.page_name || c.page_id, reason: d?.error?.message || "Phone not reachable" });
+            }
+          } catch (e: any) {
+            failed.push({ name: c.page_name || c.page_id, reason: e?.message || "Network error" });
+          }
+          continue;
+        }
+
+        // Facebook / Instagram pages — re-POST subscribed_apps
+        const ok = await subscribePageToWebhooks(
+          c.page_id!,
+          token,
+          c.platform,
+          META_APP_ID,
+          META_APP_SECRET,
+          webhookCallbackUrl,
+          verifyToken
+        );
+
+        if (ok) {
+          repaired.push(c.page_name || c.page_id!);
+          await supabase
+            .from("platform_connections")
+            .update({ last_synced_at: new Date().toISOString() })
+            .eq("id", c.id);
+        } else {
+          failed.push({
+            name: c.page_name || c.page_id!,
+            reason: "Meta refused subscription. Reconnect this page to refresh permissions.",
+          });
+        }
+      }
+
+      return new Response(
+        JSON.stringify({ ok: true, repaired, failed }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    } catch (err: any) {
+      console.error("[meta-oauth] repair-subscriptions error:", err);
+      return new Response(
+        JSON.stringify({ error: err?.message || "Failed to repair subscriptions" }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+  }
+
   return new Response("Not found", { status: 404, headers: corsHeaders });
 });

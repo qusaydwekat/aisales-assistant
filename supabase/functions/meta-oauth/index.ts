@@ -870,13 +870,13 @@ Deno.serve(async (req) => {
       for (const c of conns) {
         let creds: any = c.credentials || {};
         let token = creds.page_access_token;
-        if (!token) {
-          failed.push({ name: c.page_name || c.page_id, reason: "Missing page access token — please reconnect." });
-          continue;
-        }
 
         if (c.platform === "whatsapp") {
           // WhatsApp doesn't use page-level subscribed_apps; verify the phone is reachable instead.
+          if (!token) {
+            failed.push({ name: c.page_name || c.page_id, reason: "Missing WhatsApp token — please reconnect." });
+            continue;
+          }
           try {
             const r = await fetch(
               `https://graph.facebook.com/v21.0/${c.page_id}?fields=display_phone_number,verified_name&access_token=${token}`
@@ -902,6 +902,10 @@ Deno.serve(async (req) => {
           token = refreshed.token;
           creds = refreshed.credentials;
           await supabase.from("platform_connections").update({ credentials: creds }).eq("id", c.id);
+        }
+        if (!token) {
+          failed.push({ name: c.page_name || c.page_id, reason: refreshed.reason || "Missing page access token — please reconnect." });
+          continue;
         }
 
         // Facebook / Instagram pages — re-POST subscribed_apps using the Facebook Page ID

@@ -841,6 +841,31 @@ const UPDATE_ORDER_TOOL = {
   },
 };
 
+const ADD_ORDER_NOTE_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "add_order_note",
+    description:
+      "Append a note to an existing order without overwriting other data. Use this to record special customer requests, delivery instructions, gift wrapping, color preferences, follow-up reminders, or any helpful context for the store owner. Notes are appended (history preserved) and timestamped automatically. Do NOT use this for changing items, address, phone, or name — use update_order for those.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: {
+          type: "string",
+          description:
+            "The order number to add a note to (e.g. ORD-00001). If omitted, the most recent active order for this conversation will be used.",
+        },
+        note: {
+          type: "string",
+          description:
+            "The note text to append. Keep it short and informative (e.g. 'Customer wants gift wrapping', 'Prefers afternoon delivery', 'Allergic to nuts — confirm ingredients').",
+        },
+      },
+      required: ["note"],
+    },
+  },
+};
+
 const CHECK_ORDER_STATUS_TOOL = {
   type: "function" as const,
   function: {

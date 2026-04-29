@@ -37,6 +37,7 @@ export default function PlatformsPage() {
   const [selectPlatform, setSelectPlatform] = useState<Platform | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [connectingPlatform, setConnectingPlatform] = useState<Platform | null>(null);
+  const [repairing, setRepairing] = useState(false);
 
   const oauthBaseUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth`;
 

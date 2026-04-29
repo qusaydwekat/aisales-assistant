@@ -917,24 +917,32 @@ Deno.serve(async (req) => {
         let token = creds.page_access_token;
 
         if (c.platform === "whatsapp") {
-          // WhatsApp doesn't use page-level subscribed_apps; verify the phone is reachable instead.
+          const wabaId = creds.waba_id;
+          if (!wabaId) {
+            failed.push({ name: c.page_name || c.page_id, reason: "Missing WhatsApp Business Account ID — reconnect this number." });
+            continue;
+          }
           if (!token) {
             failed.push({ name: c.page_name || c.page_id, reason: "Missing WhatsApp token — please reconnect." });
             continue;
           }
           try {
-            const r = await fetch(
-              `https://graph.facebook.com/v21.0/${c.page_id}?fields=display_phone_number,verified_name&access_token=${token}`
+            const ok = await subscribeWhatsAppToWebhooks(
+              wabaId,
+              token,
+              META_APP_ID,
+              META_APP_SECRET,
+              webhookCallbackUrl,
+              verifyToken
             );
-            const d = await r.json();
-            if (r.ok && d?.id) {
+            if (ok) {
               repaired.push(c.page_name || c.page_id);
               await supabase
                 .from("platform_connections")
                 .update({ last_synced_at: new Date().toISOString() })
                 .eq("id", c.id);
             } else {
-              failed.push({ name: c.page_name || c.page_id, reason: d?.error?.message || "Phone not reachable" });
+              failed.push({ name: c.page_name || c.page_id, reason: "WhatsApp webhook subscription failed — reconnect this number." });
             }
           } catch (e: any) {
             failed.push({ name: c.page_name || c.page_id, reason: e?.message || "Network error" });

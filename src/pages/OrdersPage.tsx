@@ -144,8 +144,6 @@ export default function OrdersPage() {
                   </div>
                 </div>
               )}
-              <div className="hidden">{/* spacer */}</div>
-              </div>
 
               {/* Order Items / Products */}
               {(() => {

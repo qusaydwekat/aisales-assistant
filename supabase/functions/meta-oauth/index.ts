@@ -126,6 +126,51 @@ async function subscribePageToWebhooks(
   }
 }
 
+async function subscribeWhatsAppToWebhooks(
+  wabaId: string,
+  accessToken: string,
+  appId?: string,
+  appSecret?: string,
+  webhookCallbackUrl?: string,
+  verifyToken: string = "aisales_verify_2024"
+): Promise<boolean> {
+  try {
+    if (appId && appSecret && webhookCallbackUrl) {
+      const appToken = `${appId}|${appSecret}`;
+      await fetch(`https://graph.facebook.com/v21.0/${appId}/subscriptions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          object: "whatsapp_business_account",
+          callback_url: webhookCallbackUrl,
+          fields: "messages",
+          verify_token: verifyToken,
+          access_token: appToken,
+        }),
+      });
+    }
+
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/${wabaId}/subscribed_apps`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: accessToken }),
+      }
+    );
+    const data = await res.json();
+    if (!res.ok || data?.success === false) {
+      console.error(`[meta-oauth] Failed to subscribe WhatsApp WABA ${wabaId}:`, JSON.stringify(data));
+      return false;
+    }
+    console.log(`[meta-oauth] WhatsApp WABA ${wabaId} subscribed to webhooks`);
+    return true;
+  } catch (err) {
+    console.error(`[meta-oauth] Error subscribing WhatsApp WABA ${wabaId}:`, err);
+    return false;
+  }
+}
+
 async function fetchInstagramBusinessAccountId(
   pageId: string,
   pageAccessToken: string
@@ -155,6 +200,73 @@ async function fetchInstagramBusinessAccountId(
       err
     );
     return null;
+  }
+}
+
+async function refreshPageTokenFromUserToken(conn: any, creds: any): Promise<{
+  pageId: string | null;
+  token: string | null;
+  credentials: any;
+  reason?: string;
+}> {
+  const fallbackPageId = conn.platform === "instagram"
+    ? creds?.facebook_page_id || conn.page_id
+    : conn.page_id;
+
+  if (!creds?.user_token) {
+    return {
+      pageId: fallbackPageId || null,
+      token: creds?.page_access_token || null,
+      credentials: creds || {},
+      reason: "Missing Meta user token — reconnect this account.",
+    };
+  }
+
+  try {
+    const res = await fetch(
+      `https://graph.facebook.com/v21.0/me/accounts?fields=id,name,access_token,instagram_business_account&access_token=${encodeURIComponent(
+        creds.user_token
+      )}`
+    );
+    const data = await res.json();
+    const pages = data?.data || [];
+    const match = pages.find((p: any) =>
+      p.id === conn.page_id ||
+      p.id === creds?.facebook_page_id ||
+      p.instagram_business_account?.id === conn.page_id ||
+      p.instagram_business_account?.id === creds?.instagram_business_account_id
+    );
+
+    if (!res.ok || !match?.access_token) {
+      return {
+        pageId: fallbackPageId || null,
+        token: creds?.page_access_token || null,
+        credentials: creds || {},
+        reason: data?.error?.message || "Could not refresh page token — reconnect this account.",
+      };
+    }
+
+    const refreshedCreds: any = {
+      ...creds,
+      page_access_token: match.access_token,
+      facebook_page_id: conn.platform === "instagram" ? match.id : creds?.facebook_page_id,
+    };
+    if (conn.platform === "instagram" && match.instagram_business_account?.id) {
+      refreshedCreds.instagram_business_account_id = match.instagram_business_account.id;
+    }
+
+    return {
+      pageId: match.id,
+      token: match.access_token,
+      credentials: refreshedCreds,
+    };
+  } catch (err: any) {
+    return {
+      pageId: fallbackPageId || null,
+      token: creds?.page_access_token || null,
+      credentials: creds || {},
+      reason: err?.message || "Could not refresh page token — reconnect this account.",
+    };
   }
 }
 
@@ -588,6 +700,15 @@ Deno.serve(async (req) => {
             phone_number_id: page.id,
           };
 
+          await subscribeWhatsAppToWebhooks(
+            (page as any).waba_id,
+            page.access_token,
+            META_APP_ID,
+            META_APP_SECRET,
+            `${SUPABASE_URL}/functions/v1/platform-webhook`,
+            Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024"
+          );
+
           if (existingConn?.id) {
             await supabase
               .from("platform_connections")
@@ -801,28 +922,36 @@ Deno.serve(async (req) => {
       const failed: { name: string; reason: string }[] = [];
 
       for (const c of conns) {
-        const creds: any = c.credentials || {};
-        const token = creds.page_access_token;
-        if (!token) {
-          failed.push({ name: c.page_name || c.page_id, reason: "Missing page access token — please reconnect." });
-          continue;
-        }
+        let creds: any = c.credentials || {};
+        let token = creds.page_access_token;
 
         if (c.platform === "whatsapp") {
-          // WhatsApp doesn't use page-level subscribed_apps; verify the phone is reachable instead.
+          const wabaId = creds.waba_id;
+          if (!wabaId) {
+            failed.push({ name: c.page_name || c.page_id, reason: "Missing WhatsApp Business Account ID — reconnect this number." });
+            continue;
+          }
+          if (!token) {
+            failed.push({ name: c.page_name || c.page_id, reason: "Missing WhatsApp token — please reconnect." });
+            continue;
+          }
           try {
-            const r = await fetch(
-              `https://graph.facebook.com/v21.0/${c.page_id}?fields=display_phone_number,verified_name&access_token=${token}`
+            const ok = await subscribeWhatsAppToWebhooks(
+              wabaId,
+              token,
+              META_APP_ID,
+              META_APP_SECRET,
+              webhookCallbackUrl,
+              verifyToken
             );
-            const d = await r.json();
-            if (r.ok && d?.id) {
+            if (ok) {
               repaired.push(c.page_name || c.page_id);
               await supabase
                 .from("platform_connections")
                 .update({ last_synced_at: new Date().toISOString() })
                 .eq("id", c.id);
             } else {
-              failed.push({ name: c.page_name || c.page_id, reason: d?.error?.message || "Phone not reachable" });
+              failed.push({ name: c.page_name || c.page_id, reason: "WhatsApp webhook subscription failed — reconnect this number." });
             }
           } catch (e: any) {
             failed.push({ name: c.page_name || c.page_id, reason: e?.message || "Network error" });
@@ -830,9 +959,20 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Facebook / Instagram pages — re-POST subscribed_apps
+        const refreshed = await refreshPageTokenFromUserToken(c, creds);
+        if (refreshed.token && refreshed.token !== token) {
+          token = refreshed.token;
+          creds = refreshed.credentials;
+          await supabase.from("platform_connections").update({ credentials: creds }).eq("id", c.id);
+        }
+        if (!token) {
+          failed.push({ name: c.page_name || c.page_id, reason: refreshed.reason || "Missing page access token — please reconnect." });
+          continue;
+        }
+
+        // Facebook / Instagram pages — re-POST subscribed_apps using the Facebook Page ID
         const ok = await subscribePageToWebhooks(
-          c.page_id!,
+          refreshed.pageId || c.page_id!,
           token,
           c.platform,
           META_APP_ID,

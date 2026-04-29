@@ -868,8 +868,8 @@ Deno.serve(async (req) => {
       const failed: { name: string; reason: string }[] = [];
 
       for (const c of conns) {
-        const creds: any = c.credentials || {};
-        const token = creds.page_access_token;
+        let creds: any = c.credentials || {};
+        let token = creds.page_access_token;
         if (!token) {
           failed.push({ name: c.page_name || c.page_id, reason: "Missing page access token — please reconnect." });
           continue;
@@ -897,9 +897,16 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Facebook / Instagram pages — re-POST subscribed_apps
+        const refreshed = await refreshPageTokenFromUserToken(c, creds);
+        if (refreshed.token && refreshed.token !== token) {
+          token = refreshed.token;
+          creds = refreshed.credentials;
+          await supabase.from("platform_connections").update({ credentials: creds }).eq("id", c.id);
+        }
+
+        // Facebook / Instagram pages — re-POST subscribed_apps using the Facebook Page ID
         const ok = await subscribePageToWebhooks(
-          c.page_id!,
+          refreshed.pageId || c.page_id!,
           token,
           c.platform,
           META_APP_ID,

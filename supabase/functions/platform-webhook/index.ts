@@ -891,7 +891,11 @@ const SEND_PRODUCT_IMAGES_TOOL = {
   function: {
     name: "send_product_images",
     description:
-      "Send product images to the customer. Use this when the customer asks to see a product, asks what it looks like, or when recommending/discussing products. Always send images alongside your text description.",
+      "Send product images to the customer. Each product in search_products results has an `images` array — these are DIFFERENT PHOTOS / ANGLES / VARIATIONS of the SAME product (front, back, side, color variants, detail shots), NOT different products. " +
+      "Use this tool when the customer asks to see a product, asks what it looks like, asks for more photos / other angles / different views / variations / colors, or when recommending/discussing products. " +
+      "Default behavior: send the FIRST image (cover) for each product when introducing or recommending. " +
+      "When the customer asks for more pictures, other angles, different sides, variations, or 'show me more' of a specific product → send ALL remaining images of that product (one entry per image_url, same product_name, captions like 'Front', 'Back', 'Side', 'Detail', or 'View 2', 'View 3'...). " +
+      "Always send images alongside your text description.",
     parameters: {
       type: "object",
       properties: {
@@ -2360,10 +2364,13 @@ ABSOLUTE PRICE & PRODUCT HONESTY:
 - If the catalog has nothing similar at all, say so plainly and offer to notify them when something arrives — do not make up a price band.
 
 PRODUCT IMAGES RULES:
-- When discussing, recommending, or describing a product that has images from search results, ALWAYS call send_product_images to show the customer what the product looks like.
+- Each product returned by search_products has an `images` array. These are MULTIPLE PHOTOS of the SAME product (different angles, sides, color variations, detail shots) — they are NOT separate products. The first image is the cover.
+- When introducing or recommending a product → send only the FIRST image (the cover) via send_product_images.
+- When the customer asks to see MORE photos / other angles / different sides / variations / colors / "show me more of this one" / "صور تانية" / "زاوية ثانية" / "من ورا" / "ألوان تانية" → send ALL the remaining images from that product's `images` array. Pass one entry per image_url with the SAME product_name and captions like "Front", "Back", "Side", "Detail", or "View 2/3/4...".
+- When confirming "this one?" or describing a product, you may send 2-3 images at once (cover + one alternate angle) to give the customer a fuller view.
 - Use the exact image URLs from search results. NEVER make up image URLs.
 - Only send images for products that have image URLs.
-- Include a caption with the product name and price.`;
+- Include a caption with the product name and price (or angle/variation label when sending multiple of the same product).`;
 
   const chatMessages: any[] = [{ role: "system", content: systemPrompt }];
   for (const msg of conversationHistory.slice(-10)) {

@@ -1366,7 +1366,7 @@ async function executeAddOrderNote(
   });
 }
 
-
+async function executeCheckOrderStatus(
   supabase: any,
   storeId: string,
   conversationId: string,

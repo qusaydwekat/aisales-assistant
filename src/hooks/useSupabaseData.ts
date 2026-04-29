@@ -441,37 +441,41 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard_stats", store?.id],
     enabled: !!store?.id,
+    staleTime: 30_000,
     queryFn: async () => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
 
-      const [convRes, ordersRes, revenueRes, platformRes] = await Promise.all([
-        supabase.from("conversations").select("id", { count: "exact" })
+      const [convRes, recentOrdersRes, monthOrdersRes, pendingCountRes, todayCountRes, platformRes] = await Promise.all([
+        // Lightweight count for messages today
+        supabase.from("conversations").select("id", { count: "exact", head: true })
           .eq("store_id", store!.id).gte("last_message_time", today.toISOString()),
-        supabase.from("orders").select("id, status, total, created_at")
-          .eq("store_id", store!.id),
+        // Only fetch the 5 most recent orders for the panel
+        supabase.from("orders").select("id, status, total, created_at, customer_name, order_number")
+          .eq("store_id", store!.id).order("created_at", { ascending: false }).limit(5),
+        // Month revenue: only "total" since the start of the month
         supabase.from("orders").select("total")
           .eq("store_id", store!.id).gte("created_at", monthStart.toISOString()),
-        supabase.from("platform_connections").select("*")
+        // Pending orders count (head-only)
+        supabase.from("orders").select("id", { count: "exact", head: true })
+          .eq("store_id", store!.id).eq("status", "pending"),
+        // New orders today count (head-only)
+        supabase.from("orders").select("id", { count: "exact", head: true })
+          .eq("store_id", store!.id).gte("created_at", today.toISOString()),
+        supabase.from("platform_connections").select("id, platform, status, page_name")
           .eq("store_id", store!.id),
       ]);
 
-      const allOrders = ordersRes.data || [];
-      const pendingOrders = allOrders.filter(o => o.status === "pending").length;
-      const newOrders = allOrders.filter(o => {
-        const d = new Date(o.created_at);
-        return d >= today;
-      }).length;
-      const monthRevenue = (revenueRes.data || []).reduce((s, o) => s + Number(o.total), 0);
+      const monthRevenue = (monthOrdersRes.data || []).reduce((s, o) => s + Number(o.total), 0);
 
       return {
         messagesToday: convRes.count || 0,
-        newOrders,
-        pendingOrders,
+        newOrders: todayCountRes.count || 0,
+        pendingOrders: pendingCountRes.count || 0,
         monthRevenue,
         platforms: platformRes.data || [],
-        recentOrders: allOrders.slice(0, 5),
+        recentOrders: recentOrdersRes.data || [],
       };
     },
   });

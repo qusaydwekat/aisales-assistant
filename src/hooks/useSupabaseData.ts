@@ -527,32 +527,36 @@ export function useAdminUpdateUserStatus() {
 export function useAdminStats() {
   return useQuery({
     queryKey: ["admin_stats"],
+    staleTime: 60_000,
     queryFn: async () => {
-      const [users, orders, conversations, products, stores, connections] = await Promise.all([
-        supabase.from("profiles").select("id", { count: "exact" }),
-        supabase.from("orders").select("id, total, status, created_at", { count: "exact" }),
-        supabase.from("conversations").select("id, platform", { count: "exact" }),
-        supabase.from("products").select("id", { count: "exact" }),
-        supabase.from("stores").select("id", { count: "exact" }),
-        supabase.from("platform_connections").select("id, status", { count: "exact" }),
-      ]);
-      const allOrders = orders.data || [];
-      const totalRevenue = allOrders.reduce((s, o) => s + Number(o.total), 0);
-      const pendingOrders = allOrders.filter(o => o.status === 'pending').length;
       const today = new Date(); today.setHours(0,0,0,0);
-      const todayOrders = allOrders.filter(o => new Date(o.created_at) >= today).length;
-      const activeConnections = (connections.data || []).filter((c: any) => c.status === 'connected').length;
+      const [
+        usersCount, ordersCount, convCount, productsCount, storesCount, connCount,
+        revenueRes, pendingCount, todayCount, activeConnCount,
+      ] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }),
+        supabase.from("orders").select("id", { count: "exact", head: true }),
+        supabase.from("conversations").select("id", { count: "exact", head: true }),
+        supabase.from("products").select("id", { count: "exact", head: true }),
+        supabase.from("stores").select("id", { count: "exact", head: true }),
+        supabase.from("platform_connections").select("id", { count: "exact", head: true }),
+        supabase.from("orders").select("total"),
+        supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("orders").select("id", { count: "exact", head: true }).gte("created_at", today.toISOString()),
+        supabase.from("platform_connections").select("id", { count: "exact", head: true }).eq("status", "connected"),
+      ]);
+      const totalRevenue = (revenueRes.data || []).reduce((s, o: any) => s + Number(o.total), 0);
       return {
-        totalUsers: users.count || 0,
-        totalOrders: orders.count || 0,
-        totalConversations: conversations.count || 0,
-        totalProducts: products.count || 0,
-        totalStores: stores.count || 0,
+        totalUsers: usersCount.count || 0,
+        totalOrders: ordersCount.count || 0,
+        totalConversations: convCount.count || 0,
+        totalProducts: productsCount.count || 0,
+        totalStores: storesCount.count || 0,
         totalRevenue,
-        pendingOrders,
-        todayOrders,
-        activeConnections,
-        totalConnections: connections.count || 0,
+        pendingOrders: pendingCount.count || 0,
+        todayOrders: todayCount.count || 0,
+        activeConnections: activeConnCount.count || 0,
+        totalConnections: connCount.count || 0,
       };
     },
   });

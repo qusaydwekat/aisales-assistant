@@ -1303,7 +1303,70 @@ async function executeUpdateOrder(
   });
 }
 
-async function executeCheckOrderStatus(
+async function executeAddOrderNote(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+) {
+  const noteText = (args.note || "").toString().trim();
+  if (!noteText) {
+    return JSON.stringify({ success: false, error: "Note text is required." });
+  }
+
+  let query = supabase
+    .from("orders")
+    .select("id, order_number, status, notes")
+    .eq("store_id", storeId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (args.order_number) {
+    query = supabase
+      .from("orders")
+      .select("id, order_number, status, notes")
+      .eq("store_id", storeId)
+      .eq("order_number", args.order_number)
+      .limit(1);
+  } else {
+    query = query.eq("conversation_id", conversationId);
+  }
+
+  const { data: orders, error } = await query;
+  if (error || !orders || orders.length === 0) {
+    return JSON.stringify({
+      success: false,
+      error: "No order found to add a note to.",
+    });
+  }
+
+  const order = orders[0];
+  const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const prefix = `[AI • ${timestamp}]`;
+  const newEntry = `${prefix} ${noteText}`;
+  const combined = order.notes && order.notes.trim().length > 0
+    ? `${order.notes}\n${newEntry}`
+    : newEntry;
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ notes: combined })
+    .eq("id", order.id);
+
+  if (updateErr) {
+    console.error("Add order note error:", updateErr);
+    return JSON.stringify({ success: false, error: updateErr.message });
+  }
+
+  console.log(`Added note to ${order.order_number}: ${newEntry}`);
+  return JSON.stringify({
+    success: true,
+    order_number: order.order_number,
+    note_added: newEntry,
+  });
+}
+
+
   supabase: any,
   storeId: string,
   conversationId: string,

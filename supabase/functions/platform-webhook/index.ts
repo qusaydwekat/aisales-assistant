@@ -260,6 +260,7 @@ async function sendMetaReply(
       console.error(`[${platform}] Send API error:`, JSON.stringify(data));
     } else {
       console.log(`[${platform}] Reply sent to ${recipientId}`);
+      console.log(`[${platform}] Sent text to ${recipientId}: ${JSON.stringify(text)}`);
     }
     return data;
   } else if (platform === "whatsapp") {
@@ -282,6 +283,7 @@ async function sendMetaReply(
       console.error(`[whatsapp] Send API error:`, JSON.stringify(data));
     } else {
       console.log(`[whatsapp] Reply sent to ${recipientId}`);
+      console.log(`[whatsapp] Sent text to ${recipientId}: ${JSON.stringify(text)}`);
     }
     return data;
   }
@@ -2492,6 +2494,19 @@ PRODUCT IMAGES RULES:
           choice?.finish_reason
         }, tool_calls: ${choice?.message?.tool_calls?.length || 0}`
       );
+      try {
+        const rawContent = choice?.message?.content ?? "";
+        const toolCallsLog = (choice?.message?.tool_calls || []).map((tc: any) => ({
+          name: tc?.function?.name,
+          arguments: tc?.function?.arguments,
+        }));
+        logPromptInChunks(
+          `AI raw response round ${round + 1}`,
+          JSON.stringify({ content: rawContent, tool_calls: toolCallsLog }, null, 2)
+        );
+      } catch (logErr) {
+        console.error("Failed to log AI raw response:", logErr);
+      }
 
       // If no tool calls, return the text response
       if (!choice?.message?.tool_calls?.length) {

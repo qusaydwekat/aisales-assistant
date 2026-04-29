@@ -9,12 +9,14 @@ export function useProducts() {
   return useQuery({
     queryKey: ["products", store?.id],
     enabled: !!store?.id,
+    staleTime: 60_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("products")
         .select("*")
         .eq("store_id", store!.id)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
       if (error) throw error;
       return data;
     },

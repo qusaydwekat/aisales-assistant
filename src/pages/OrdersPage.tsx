@@ -135,8 +135,15 @@ export default function OrdersPage() {
                 <div><p className="text-muted-foreground text-xs">{t("customer")}</p><p className="text-foreground">{selectedOrder.customer_name}</p></div>
                 <div><p className="text-muted-foreground text-xs">{t("phone_col")}</p><p className="text-foreground">{selectedOrder.phone}</p></div>
                 <div className="col-span-2"><p className="text-muted-foreground text-xs">{t("address")}</p><p className="text-foreground">{selectedOrder.address || '—'}</p></div>
-                {selectedOrder.notes && <div className="col-span-2"><p className="text-muted-foreground text-xs">{t("notes")}</p><p className="text-foreground">{selectedOrder.notes}</p></div>}
               </div>
+              {selectedOrder.notes && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">{t("notes")}</p>
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm text-foreground whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
+                    {selectedOrder.notes}
+                  </div>
+                </div>
+              )}
 
               {/* Order Items / Products */}
               {(() => {

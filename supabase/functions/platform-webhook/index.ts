@@ -841,6 +841,31 @@ const UPDATE_ORDER_TOOL = {
   },
 };
 
+const ADD_ORDER_NOTE_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "add_order_note",
+    description:
+      "Append a note to an existing order without overwriting other data. Use this to record special customer requests, delivery instructions, gift wrapping, color preferences, follow-up reminders, or any helpful context for the store owner. Notes are appended (history preserved) and timestamped automatically. Do NOT use this for changing items, address, phone, or name — use update_order for those.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: {
+          type: "string",
+          description:
+            "The order number to add a note to (e.g. ORD-00001). If omitted, the most recent active order for this conversation will be used.",
+        },
+        note: {
+          type: "string",
+          description:
+            "The note text to append. Keep it short and informative (e.g. 'Customer wants gift wrapping', 'Prefers afternoon delivery', 'Allergic to nuts — confirm ingredients').",
+        },
+      },
+      required: ["note"],
+    },
+  },
+};
+
 const CHECK_ORDER_STATUS_TOOL = {
   type: "function" as const,
   function: {
@@ -1275,6 +1300,69 @@ async function executeUpdateOrder(
     order_number: order.order_number,
     updated_fields: Object.keys(updateData),
     new_total: updateData.total ?? order.total,
+  });
+}
+
+async function executeAddOrderNote(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: any
+) {
+  const noteText = (args.note || "").toString().trim();
+  if (!noteText) {
+    return JSON.stringify({ success: false, error: "Note text is required." });
+  }
+
+  let query = supabase
+    .from("orders")
+    .select("id, order_number, status, notes")
+    .eq("store_id", storeId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+
+  if (args.order_number) {
+    query = supabase
+      .from("orders")
+      .select("id, order_number, status, notes")
+      .eq("store_id", storeId)
+      .eq("order_number", args.order_number)
+      .limit(1);
+  } else {
+    query = query.eq("conversation_id", conversationId);
+  }
+
+  const { data: orders, error } = await query;
+  if (error || !orders || orders.length === 0) {
+    return JSON.stringify({
+      success: false,
+      error: "No order found to add a note to.",
+    });
+  }
+
+  const order = orders[0];
+  const timestamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+  const prefix = `[AI • ${timestamp}]`;
+  const newEntry = `${prefix} ${noteText}`;
+  const combined = order.notes && order.notes.trim().length > 0
+    ? `${order.notes}\n${newEntry}`
+    : newEntry;
+
+  const { error: updateErr } = await supabase
+    .from("orders")
+    .update({ notes: combined })
+    .eq("id", order.id);
+
+  if (updateErr) {
+    console.error("Add order note error:", updateErr);
+    return JSON.stringify({ success: false, error: updateErr.message });
+  }
+
+  console.log(`Added note to ${order.order_number}: ${newEntry}`);
+  return JSON.stringify({
+    success: true,
+    order_number: order.order_number,
+    note_added: newEntry,
   });
 }
 
@@ -2432,6 +2520,7 @@ PRODUCT IMAGES RULES:
     CANCEL_ORDER_TOOL,
     UPDATE_ORDER_TOOL,
     CHECK_ORDER_STATUS_TOOL,
+    ADD_ORDER_NOTE_TOOL,
     SEND_PRODUCT_IMAGES_TOOL,
     SEARCH_PRODUCTS_TOOL,
     LIST_CATEGORIES_TOOL,
@@ -2678,6 +2767,14 @@ PRODUCT IMAGES RULES:
           } else if (tc.function?.name === "check_order_status") {
             console.log("AI triggered check_order_status:", JSON.stringify(args));
             result = await executeCheckOrderStatus(
+              supabase,
+              storeId,
+              conversationId,
+              args
+            );
+          } else if (tc.function?.name === "add_order_note") {
+            console.log("AI triggered add_order_note:", JSON.stringify(args));
+            result = await executeAddOrderNote(
               supabase,
               storeId,
               conversationId,

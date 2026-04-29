@@ -3486,13 +3486,17 @@ Deno.serve(async (req) => {
         storedContent = `${storedContent}\n\n[CTX] ${ctxParts.join(" | ")}`;
       }
 
+      // Use server receipt time for message ordering. Meta platform timestamps can
+      // arrive late/out-of-order; using them as created_at made late burst messages
+      // look older than the AI reply and therefore "already answered".
+      const receivedAt = new Date().toISOString();
       const { data: insertedMsg, error: insertCustomerErr } = await supabase
         .from("messages")
         .insert({
           conversation_id: conversation.id,
           sender: "customer",
           content: storedContent,
-          created_at: msg.timestamp,
+          created_at: receivedAt,
           platform_message_id: inferredPlatformMessageId,
         })
         .select("id, created_at")
@@ -3518,7 +3522,7 @@ Deno.serve(async (req) => {
         .from("conversations")
         .update({
           last_message: msg.kind === "image" ? storedContent : msg.text,
-          last_message_time: msg.timestamp,
+          last_message_time: receivedAt,
           unread: true,
         })
         .eq("id", conversation.id);

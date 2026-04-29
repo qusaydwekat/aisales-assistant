@@ -3655,12 +3655,12 @@ Deno.serve(async (req) => {
         Math.max(3, Number(aiSettings?.collection_window_seconds) || 5)
       );
       const QUIET_MS = configuredWindowSec * 1000;
-      // Meta sometimes delivers webhooks for a single customer burst out of
-      // order; keep a small extra grace for FB/IG so reply-attachments aren't
-      // missed, but never less than the configured quiet window.
+      // Meta can deliver separate messages from the same user burst very late
+      // even when their platform timestamps are only 1-2s apart. Keep a longer
+      // FB/IG grace period so greeting + question bursts are answered once.
       const DELIVERY_GRACE_MS =
         platform === "facebook" || platform === "instagram"
-          ? Math.max(QUIET_MS, 6000)
+          ? Math.max(QUIET_MS, 20000)
           : QUIET_MS;
       const MAX_TOTAL_WAIT_MS = 60000;
       const POLL_MS = 400;
@@ -3955,8 +3955,9 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Split long replies into 2-3 short chunks for a more human cadence.
-      const replyChunks = splitReplyIntoChunks(personalizedReply, 3);
+      // Send one combined customer-facing reply per collected burst. Splitting
+      // made multi-question bursts look like separate AI answers.
+      const replyChunks = personalizedReply ? [personalizedReply] : [];
       const finalCombinedReply = replyChunks.join("\n\n") || personalizedReply;
 
       const { data: insertedAiText, error: insertedAiTextError } = await supabase

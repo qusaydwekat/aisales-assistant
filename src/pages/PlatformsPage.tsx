@@ -1,4 +1,4 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap, Wrench } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";

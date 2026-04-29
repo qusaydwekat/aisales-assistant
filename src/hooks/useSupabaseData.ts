@@ -172,12 +172,14 @@ export function useConversations() {
   return useQuery({
     queryKey: ["conversations", store?.id],
     enabled: !!store?.id,
+    staleTime: 15_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("conversations")
         .select("*")
         .eq("store_id", store!.id)
-        .order("last_message_time", { ascending: false });
+        .order("last_message_time", { ascending: false })
+        .limit(200);
       if (error) throw error;
       return data;
     },
@@ -188,13 +190,15 @@ export function useMessages(conversationId: string | null) {
   return useQuery({
     queryKey: ["messages", conversationId],
     enabled: !!conversationId,
+    staleTime: 10_000,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("messages")
         .select("*")
         .eq("conversation_id", conversationId!)
         .order("created_at", { ascending: true })
-        .order("id", { ascending: true });
+        .order("id", { ascending: true })
+        .limit(200);
       if (error) throw error;
       return data;
     },

@@ -2772,6 +2772,14 @@ PRODUCT IMAGES RULES:
               conversationId,
               args
             );
+          } else if (tc.function?.name === "add_order_note") {
+            console.log("AI triggered add_order_note:", JSON.stringify(args));
+            result = await executeAddOrderNote(
+              supabase,
+              storeId,
+              conversationId,
+              args
+            );
           } else if (tc.function?.name === "send_product_images") {
             console.log(
               "AI triggered send_product_images:",

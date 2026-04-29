@@ -3573,17 +3573,13 @@ Deno.serve(async (req) => {
       // ─── AI Auto-Reply ───
       const [storeRes, catalogRes, aiSettingsRes, historyRes, ordersRes] =
         await Promise.all([
-          supabase.from("stores").select("*").eq("id", storeId).single(),
+          getCachedStore(supabase, storeId),
           supabase
             .from("products")
             .select("category, price")
             .eq("store_id", storeId)
             .eq("active", true),
-          supabase
-            .from("ai_settings")
-            .select("*")
-            .eq("store_id", storeId)
-            .maybeSingle(),
+          getCachedAISettings(supabase, storeId),
           supabase
             .from("messages")
             .select("sender, content, created_at")

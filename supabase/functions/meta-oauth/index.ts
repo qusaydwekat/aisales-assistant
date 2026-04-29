@@ -700,6 +700,15 @@ Deno.serve(async (req) => {
             phone_number_id: page.id,
           };
 
+          await subscribeWhatsAppToWebhooks(
+            (page as any).waba_id,
+            page.access_token,
+            META_APP_ID,
+            META_APP_SECRET,
+            `${SUPABASE_URL}/functions/v1/platform-webhook`,
+            Deno.env.get("WEBHOOK_VERIFY_TOKEN") || "aisales_verify_2024"
+          );
+
           if (existingConn?.id) {
             await supabase
               .from("platform_connections")

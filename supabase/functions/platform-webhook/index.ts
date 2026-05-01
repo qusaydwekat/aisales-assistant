@@ -973,6 +973,77 @@ const LIST_CATEGORIES_TOOL = {
   },
 };
 
+const GET_ACTIVE_PROMOTIONS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "get_active_promotions",
+    description:
+      "Return all currently active promotions / discount codes for this store (label, code, type, value, conditions, expiry). Use ONLY when the customer asks about discounts, deals, promo codes, sales, or coupons. NEVER invent a code that isn't returned by this tool.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+
+const APPLY_DISCOUNT_CODE_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "apply_discount_code",
+    description:
+      "Validate and apply a customer-provided discount code to a SPECIFIC existing order. The order total is recomputed and the discount is persisted. Use AFTER an order has been created (you have its order_number) and the customer typed a code.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number to apply the code to (e.g. ORD-00042)." },
+        code: { type: "string", description: "The discount code the customer typed." },
+      },
+      required: ["order_number", "code"],
+    },
+  },
+};
+
+const FLAG_KNOWLEDGE_GAP_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "flag_knowledge_gap",
+    description:
+      "Log a customer question that you genuinely cannot answer from the store information, custom instructions, or catalog. Call this AT MOST ONCE per conversation, and only when you would otherwise have to say 'let me confirm that for you'. The store owner will see the question and add an answer that future replies can use.",
+    parameters: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "The customer's question, in their own words, in the language they wrote it." },
+      },
+      required: ["question"],
+    },
+  },
+};
+
+const REGISTER_RESTOCK_INTEREST_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "register_restock_interest",
+    description:
+      "Register a customer's interest in being notified when a specific product (or variant) is back in stock. Use ONLY when search_products / get_product_details confirmed the item exists but stock is 0, AND the customer agreed to be notified.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_id: { type: "string", description: "UUID of the product from search_products results." },
+        product_name: { type: "string", description: "Plain-language product name for the confirmation message." },
+        variant: { type: "string", description: "Optional size/color/variant the customer wanted, e.g. 'Size L, Black'." },
+      },
+      required: ["product_id"],
+    },
+  },
+};
+
+const GET_STORE_CONTEXT_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "get_store_context",
+    description:
+      "Re-fetch the latest store info: working hours, delivery info, return policy, payment methods, and active promotions. Use only when the customer asks an operational question (hours, delivery, returns, payment, promos) AND you need fresh data — otherwise rely on the Store Information already in your prompt.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,

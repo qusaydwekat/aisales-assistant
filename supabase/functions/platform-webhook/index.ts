@@ -3106,6 +3106,21 @@ PRODUCT IMAGES RULES:
           } else if (tc.function?.name === "list_categories") {
             console.log("AI triggered list_categories");
             result = await executeListCategories(supabase, storeId);
+          } else if (tc.function?.name === "get_active_promotions") {
+            console.log("AI triggered get_active_promotions");
+            result = await executeGetActivePromotions(supabase, storeId);
+          } else if (tc.function?.name === "apply_discount_code") {
+            console.log("AI triggered apply_discount_code:", JSON.stringify(args));
+            result = await executeApplyDiscountCode(supabase, storeId, conversationId, args);
+          } else if (tc.function?.name === "flag_knowledge_gap") {
+            console.log("AI triggered flag_knowledge_gap:", JSON.stringify(args));
+            result = await executeFlagKnowledgeGap(supabase, storeId, conversationId, args);
+          } else if (tc.function?.name === "register_restock_interest") {
+            console.log("AI triggered register_restock_interest:", JSON.stringify(args));
+            result = await executeRegisterRestockInterest(supabase, storeId, conversationId, args);
+          } else if (tc.function?.name === "get_store_context") {
+            console.log("AI triggered get_store_context");
+            result = await executeGetStoreContext(supabase, storeId);
           } else {
             result = JSON.stringify({ error: "Unknown tool" });
           }

@@ -1771,6 +1771,219 @@ async function executeListCategories(
   });
 }
 
+// ─── Promotions ───────────────────────────────────────────────────────────
+async function fetchActivePromotions(supabase: any, storeId: string) {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("promotions")
+    .select("*")
+    .eq("store_id", storeId)
+    .eq("active", true);
+  if (error) {
+    console.warn("fetchActivePromotions error:", error.message);
+    return [];
+  }
+  return (data || []).filter((p: any) => {
+    if (p.starts_at && p.starts_at > nowIso) return false;
+    if (p.ends_at && p.ends_at < nowIso) return false;
+    if (p.max_uses && p.uses >= p.max_uses) return false;
+    return true;
+  });
+}
+
+async function executeGetActivePromotions(
+  supabase: any,
+  storeId: string
+): Promise<string> {
+  const promos = await fetchActivePromotions(supabase, storeId);
+  return JSON.stringify({
+    success: true,
+    promotions: promos.map((p: any) => ({
+      code: p.code,
+      label: p.label,
+      type: p.type,
+      value: p.value,
+      min_order: p.min_order,
+      ends_at: p.ends_at,
+    })),
+  });
+}
+
+async function executeApplyDiscountCode(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: { order_number?: string; code?: string }
+): Promise<string> {
+  const code = (args.code || "").trim();
+  const orderNumber = (args.order_number || "").trim();
+  if (!code || !orderNumber) {
+    return JSON.stringify({ success: false, error: "Missing code or order_number." });
+  }
+  const { data: order } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("store_id", storeId)
+    .eq("conversation_id", conversationId)
+    .eq("order_number", orderNumber)
+    .maybeSingle();
+  if (!order) return JSON.stringify({ success: false, error: "Order not found." });
+
+  const { data: promo } = await supabase
+    .from("promotions")
+    .select("*")
+    .eq("store_id", storeId)
+    .ilike("code", code)
+    .eq("active", true)
+    .maybeSingle();
+  if (!promo) return JSON.stringify({ success: false, error: "Invalid code." });
+
+  const nowIso = new Date().toISOString();
+  if (promo.starts_at && promo.starts_at > nowIso)
+    return JSON.stringify({ success: false, error: "Code is not active yet." });
+  if (promo.ends_at && promo.ends_at < nowIso)
+    return JSON.stringify({ success: false, error: "Code has expired." });
+  if (promo.max_uses && promo.uses >= promo.max_uses)
+    return JSON.stringify({ success: false, error: "Code usage limit reached." });
+
+  const subtotal = Number(order.total) + Number(order.discount_amount || 0);
+  if (promo.min_order && subtotal < Number(promo.min_order)) {
+    return JSON.stringify({
+      success: false,
+      error: `Minimum order ${promo.min_order} required for this code.`,
+    });
+  }
+
+  let discount = 0;
+  if (promo.type === "percent") discount = Math.round(subtotal * (Number(promo.value) / 100) * 100) / 100;
+  else if (promo.type === "fixed") discount = Math.min(subtotal, Number(promo.value));
+  else if (promo.type === "free_shipping") discount = 0;
+  const newTotal = Math.max(0, subtotal - discount);
+
+  await supabase
+    .from("orders")
+    .update({
+      discount_code: promo.code,
+      discount_amount: discount,
+      total: newTotal,
+    })
+    .eq("id", order.id);
+
+  await supabase
+    .from("promotions")
+    .update({ uses: (promo.uses || 0) + 1 })
+    .eq("id", promo.id);
+
+  return JSON.stringify({
+    success: true,
+    order_number: orderNumber,
+    code: promo.code,
+    discount_amount: discount,
+    new_total: newTotal,
+  });
+}
+
+async function executeFlagKnowledgeGap(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: { question?: string }
+): Promise<string> {
+  const q = (args.question || "").trim();
+  if (!q) return JSON.stringify({ success: false, error: "Empty question." });
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: existing } = await supabase
+    .from("knowledge_gaps")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("status", "open")
+    .ilike("customer_question", q.slice(0, 80))
+    .gte("created_at", since)
+    .maybeSingle();
+  if (existing?.id) return JSON.stringify({ success: true, id: existing.id, deduped: true });
+
+  const { data, error } = await supabase
+    .from("knowledge_gaps")
+    .insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      customer_question: q,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.warn("flag_knowledge_gap insert error:", error.message);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+  return JSON.stringify({ success: true, id: data?.id });
+}
+
+async function executeRegisterRestockInterest(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: { product_id?: string; product_name?: string; variant?: string }
+): Promise<string> {
+  if (!args.product_id) return JSON.stringify({ success: false, error: "Missing product_id." });
+  const { data: convo } = await supabase
+    .from("conversations")
+    .select("customer_name, customer_phone, platform_conversation_id, platform")
+    .eq("id", conversationId)
+    .maybeSingle();
+  const contact = convo?.customer_phone || convo?.platform_conversation_id || "";
+  if (!contact) return JSON.stringify({ success: false, error: "No contact info on conversation." });
+
+  const { data: existing } = await supabase
+    .from("restock_signups")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("product_id", args.product_id)
+    .eq("contact", contact)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (existing?.id) {
+    return JSON.stringify({ success: true, id: existing.id, deduped: true, product_name: args.product_name });
+  }
+
+  const { data, error } = await supabase
+    .from("restock_signups")
+    .insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      customer_name: convo?.customer_name || "",
+      contact,
+      platform: convo?.platform || null,
+      product_id: args.product_id,
+      variant: args.variant || null,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.warn("register_restock_interest insert error:", error.message);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+  return JSON.stringify({ success: true, id: data?.id, product_name: args.product_name });
+}
+
+async function executeGetStoreContext(
+  supabase: any,
+  storeId: string
+): Promise<string> {
+  const { data: store } = await supabase
+    .from("stores")
+    .select("name, working_hours, delivery_info, return_policy, payment_methods, custom_ai_instructions")
+    .eq("id", storeId)
+    .maybeSingle();
+  const promos = await fetchActivePromotions(supabase, storeId);
+  return JSON.stringify({
+    success: true,
+    store: store || {},
+    promotions: promos.map((p: any) => ({
+      code: p.code, label: p.label, type: p.type, value: p.value, ends_at: p.ends_at,
+    })),
+  });
+}
+
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts.
 // When `allowEmpty` is true the function returns an empty string instead of
 // the greeting fallback — used when the turn already includes images and a

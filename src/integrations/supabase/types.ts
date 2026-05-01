@@ -204,6 +204,8 @@ export type Database = {
           platform_conversation_id: string | null
           quality_breakdown: Json | null
           quality_score: number | null
+          satisfaction: string | null
+          satisfaction_asked_at: string | null
           status: Database["public"]["Enums"]["conversation_status"]
           store_id: string
           unread: boolean
@@ -234,6 +236,8 @@ export type Database = {
           platform_conversation_id?: string | null
           quality_breakdown?: Json | null
           quality_score?: number | null
+          satisfaction?: string | null
+          satisfaction_asked_at?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
           store_id: string
           unread?: boolean
@@ -264,6 +268,8 @@ export type Database = {
           platform_conversation_id?: string | null
           quality_breakdown?: Json | null
           quality_score?: number | null
+          satisfaction?: string | null
+          satisfaction_asked_at?: string | null
           status?: Database["public"]["Enums"]["conversation_status"]
           store_id?: string
           unread?: boolean
@@ -278,6 +284,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      knowledge_gaps: {
+        Row: {
+          answer: string | null
+          answered_at: string | null
+          conversation_id: string | null
+          created_at: string
+          customer_question: string
+          detected_at: string
+          id: string
+          status: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          answer?: string | null
+          answered_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          customer_question: string
+          detected_at?: string
+          id?: string
+          status?: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          answer?: string | null
+          answered_at?: string | null
+          conversation_id?: string | null
+          created_at?: string
+          customer_question?: string
+          detected_at?: string
+          id?: string
+          status?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       messages: {
         Row: {
@@ -422,6 +467,9 @@ export type Database = {
           conversation_id: string | null
           created_at: string
           customer_name: string
+          discount_amount: number
+          discount_code: string | null
+          followup_sent_at: string | null
           id: string
           items: Json
           notes: string | null
@@ -441,6 +489,9 @@ export type Database = {
           conversation_id?: string | null
           created_at?: string
           customer_name: string
+          discount_amount?: number
+          discount_code?: string | null
+          followup_sent_at?: string | null
           id?: string
           items?: Json
           notes?: string | null
@@ -460,6 +511,9 @@ export type Database = {
           conversation_id?: string | null
           created_at?: string
           customer_name?: string
+          discount_amount?: number
+          discount_code?: string | null
+          followup_sent_at?: string | null
           id?: string
           items?: Json
           notes?: string | null
@@ -583,6 +637,7 @@ export type Database = {
           post_id: string
           product_id: string
           store_id: string
+          story_id: string | null
           updated_at: string
         }
         Insert: {
@@ -593,6 +648,7 @@ export type Database = {
           post_id: string
           product_id: string
           store_id: string
+          story_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -603,6 +659,7 @@ export type Database = {
           post_id?: string
           product_id?: string
           store_id?: string
+          story_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -610,18 +667,25 @@ export type Database = {
       products: {
         Row: {
           active: boolean
+          allergens: string[] | null
           auto_description: string | null
+          brand: string | null
           category: string | null
           color: string[] | null
           compare_price: number | null
+          compatibility: string | null
           created_at: string
+          custom_attributes: Json
           description: string | null
+          dimensions: string | null
           fit: string | null
           id: string
           image_embedding: string | null
           images: string[] | null
+          ingredients: string | null
           length: string | null
           material: string | null
+          model: string | null
           name: string
           neckline: string | null
           occasion: string[] | null
@@ -637,21 +701,31 @@ export type Database = {
           type: string | null
           updated_at: string
           variants: Json | null
+          volume: string | null
+          warranty: string | null
+          weight: string | null
         }
         Insert: {
           active?: boolean
+          allergens?: string[] | null
           auto_description?: string | null
+          brand?: string | null
           category?: string | null
           color?: string[] | null
           compare_price?: number | null
+          compatibility?: string | null
           created_at?: string
+          custom_attributes?: Json
           description?: string | null
+          dimensions?: string | null
           fit?: string | null
           id?: string
           image_embedding?: string | null
           images?: string[] | null
+          ingredients?: string | null
           length?: string | null
           material?: string | null
+          model?: string | null
           name: string
           neckline?: string | null
           occasion?: string[] | null
@@ -667,21 +741,31 @@ export type Database = {
           type?: string | null
           updated_at?: string
           variants?: Json | null
+          volume?: string | null
+          warranty?: string | null
+          weight?: string | null
         }
         Update: {
           active?: boolean
+          allergens?: string[] | null
           auto_description?: string | null
+          brand?: string | null
           category?: string | null
           color?: string[] | null
           compare_price?: number | null
+          compatibility?: string | null
           created_at?: string
+          custom_attributes?: Json
           description?: string | null
+          dimensions?: string | null
           fit?: string | null
           id?: string
           image_embedding?: string | null
           images?: string[] | null
+          ingredients?: string | null
           length?: string | null
           material?: string | null
+          model?: string | null
           name?: string
           neckline?: string | null
           occasion?: string[] | null
@@ -697,6 +781,9 @@ export type Database = {
           type?: string | null
           updated_at?: string
           variants?: Json | null
+          volume?: string | null
+          warranty?: string | null
+          weight?: string | null
         }
         Relationships: [
           {
@@ -747,12 +834,115 @@ export type Database = {
         }
         Relationships: []
       }
+      promotions: {
+        Row: {
+          active: boolean
+          applies_to: string
+          applies_value: Json
+          code: string
+          created_at: string
+          ends_at: string | null
+          id: string
+          label: string
+          max_uses: number | null
+          min_order: number
+          starts_at: string | null
+          store_id: string
+          type: string
+          updated_at: string
+          uses: number
+          value: number
+        }
+        Insert: {
+          active?: boolean
+          applies_to?: string
+          applies_value?: Json
+          code: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          label?: string
+          max_uses?: number | null
+          min_order?: number
+          starts_at?: string | null
+          store_id: string
+          type?: string
+          updated_at?: string
+          uses?: number
+          value?: number
+        }
+        Update: {
+          active?: boolean
+          applies_to?: string
+          applies_value?: Json
+          code?: string
+          created_at?: string
+          ends_at?: string | null
+          id?: string
+          label?: string
+          max_uses?: number | null
+          min_order?: number
+          starts_at?: string | null
+          store_id?: string
+          type?: string
+          updated_at?: string
+          uses?: number
+          value?: number
+        }
+        Relationships: []
+      }
+      restock_signups: {
+        Row: {
+          contact: string
+          conversation_id: string | null
+          created_at: string
+          customer_name: string
+          id: string
+          notified_at: string | null
+          platform: string | null
+          product_id: string
+          status: string
+          store_id: string
+          updated_at: string
+          variant: string | null
+        }
+        Insert: {
+          contact: string
+          conversation_id?: string | null
+          created_at?: string
+          customer_name?: string
+          id?: string
+          notified_at?: string | null
+          platform?: string | null
+          product_id: string
+          status?: string
+          store_id: string
+          updated_at?: string
+          variant?: string | null
+        }
+        Update: {
+          contact?: string
+          conversation_id?: string | null
+          created_at?: string
+          customer_name?: string
+          id?: string
+          notified_at?: string | null
+          platform?: string | null
+          product_id?: string
+          status?: string
+          store_id?: string
+          updated_at?: string
+          variant?: string | null
+        }
+        Relationships: []
+      }
       stores: {
         Row: {
           address: string | null
           category: string | null
           cover_image_url: string | null
           created_at: string
+          custom_ai_instructions: string | null
           delivery_info: string | null
           description: string | null
           email: string | null
@@ -771,6 +961,7 @@ export type Database = {
           category?: string | null
           cover_image_url?: string | null
           created_at?: string
+          custom_ai_instructions?: string | null
           delivery_info?: string | null
           description?: string | null
           email?: string | null
@@ -789,6 +980,7 @@ export type Database = {
           category?: string | null
           cover_image_url?: string | null
           created_at?: string
+          custom_ai_instructions?: string | null
           delivery_info?: string | null
           description?: string | null
           email?: string | null

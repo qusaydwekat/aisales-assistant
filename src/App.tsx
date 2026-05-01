@@ -20,6 +20,7 @@ import NotificationsPage from "@/pages/NotificationsPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import AdminPage from "@/pages/AdminPage";
+import GrowthPage from "@/pages/GrowthPage";
 import StorefrontPage from "@/pages/StorefrontPage";
 import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
 import TermsOfUsePage from "@/pages/TermsOfUsePage";
@@ -55,6 +56,7 @@ const App = () => (
                 <Route path="/reports" element={<ReportsPage />} />
                 <Route path="/ai-settings" element={<AISettingsPage />} />
                 <Route path="/notifications" element={<NotificationsPage />} />
+                <Route path="/growth" element={<GrowthPage />} />
                 <Route path="/admin" element={<AdminPage />} />
               </Route>
               <Route path="*" element={<NotFound />} />

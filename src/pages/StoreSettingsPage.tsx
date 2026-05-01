@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Store, Clock, Truck, RotateCcw, Loader2, Upload, Image as ImageIcon } from "lucide-react";
+import { Store, Clock, Truck, RotateCcw, Loader2, Upload, Image as ImageIcon, Sparkles } from "lucide-react";
 import { useStore, useUpdateStore } from "@/hooks/useSupabaseData";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -20,6 +20,7 @@ export default function StoreSettingsPage() {
   const [form, setForm] = useState({
     name: '', description: '', category: '', address: '', phone: '', email: '',
     delivery_info: '', return_policy: '', logo_url: '', cover_image_url: '',
+    custom_ai_instructions: '',
   });
   const [hours, setHours] = useState<WorkingHours>({});
 
@@ -30,6 +31,7 @@ export default function StoreSettingsPage() {
         address: store.address || '', phone: store.phone || '', email: store.email || '',
         delivery_info: store.delivery_info || '', return_policy: store.return_policy || '',
         logo_url: store.logo_url || '', cover_image_url: store.cover_image_url || '',
+        custom_ai_instructions: (store as any).custom_ai_instructions || '',
       });
       setHours((store.working_hours as WorkingHours) || days.reduce((acc, d) => ({ ...acc, [d]: { open: d !== 'Friday', from: '09:00', to: '18:00' } }), {}));
     }
@@ -142,6 +144,22 @@ export default function StoreSettingsPage() {
       <div className="glass rounded-xl p-6 space-y-4">
         <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><RotateCcw className="h-4 w-4 text-primary" /> {t("return_policy")}</h2>
         <textarea value={form.return_policy} onChange={e => setForm(f => ({ ...f, return_policy: e.target.value }))} rows={3} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none" />
+      </div>
+
+      <div className="glass rounded-xl p-6 space-y-3">
+        <h2 className="font-heading font-semibold text-foreground flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-primary" /> Custom AI Instructions
+        </h2>
+        <p className="text-xs text-muted-foreground">
+          Extra rules your AI must always follow (highest priority). Example: "Always offer gift wrapping", "Never quote shipping over $20", or specific FAQs.
+        </p>
+        <textarea
+          value={form.custom_ai_instructions}
+          onChange={e => setForm(f => ({ ...f, custom_ai_instructions: e.target.value }))}
+          rows={5}
+          placeholder="e.g. We close on Fridays. Free delivery for orders over $50. Always greet returning customers by name."
+          className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none"
+        />
       </div>
 
       <button onClick={handleSave} disabled={updateStore.isPending}

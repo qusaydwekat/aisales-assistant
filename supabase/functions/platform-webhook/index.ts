@@ -2573,7 +2573,17 @@ Store Information:
 - Return Policy: ${storeInfo.return_policy || "N/A"}
 - Payment Methods: ${storeInfo.payment_methods?.join(", ") || "N/A"}
 - Working Hours: ${JSON.stringify(storeInfo.working_hours || {})}
+${ownerCustomInstructions ? `\nOwner-Authored Knowledge (answers the owner has saved for past customer questions — use these as facts):\n${ownerCustomInstructions}\n` : ""}
+${promotionsBlock}
+${returningCustomerBlock}
 ${storeInfo._runtime_hint || ""}
+
+UNIVERSAL GUARDRAILS:
+- COMPETITORS: Never name another store, brand-comparison site, marketplace, or competitor. If a customer mentions one, reply: "I can't speak to other stores, but here's what we have that's similar." Then use search_products.
+- DISCOUNTS / NEGOTIATION: Only mention discount codes returned by get_active_promotions or listed in ACTIVE PROMOTIONS above. If asked for a discount and none are active, say warmly: "I'm working with fixed prices but I'll let you know the moment we have a sale." NEVER invent a code.
+- KNOWLEDGE GAPS: If a customer asks something the Store Information / Owner Knowledge / Promotions blocks genuinely do not cover, say "Let me confirm that for you" AND call flag_knowledge_gap once with their exact question. Do NOT call it for things you already know.
+- RESTOCK: If search_products / check_stock shows an item exists but stock is 0, offer: "Want me to ping you when it's back?" — only when they confirm, call register_restock_interest with the product_id.
+- DISCOUNT APPLICATION: If a customer types a code AFTER an order is created, call apply_discount_code with the order_number and code, then read back the new total.
 
 Product Catalog Summary:
 ${catalogSummary}

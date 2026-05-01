@@ -4291,8 +4291,24 @@ Deno.serve(async (req) => {
       const isOutsideHours = ooHoursEnabled && hasSchedule && !storeOpen;
 
       // Build runtime hint block injected into the AI system prompt
+      // Build runtime hint block injected into the AI system prompt
       const runtimeHints: string[] = [];
-      if (detectedLang) {
+
+      const giftRe = /(\bgift\b|\bpresent\b|هدية|هديه|كادو|للهدية)/i;
+      if (giftRe.test(combinedCustomerMessage)) {
+        runtimeHints.push(
+          "RUNTIME GIFT MODE: The customer mentioned this is a gift. Ask ONCE about the recipient and offer a gift note. After create_order succeeds, append 'GIFT: <details>' via add_order_note."
+        );
+      }
+      try {
+        const aiReplyCount = (history || []).filter((m: any) => m.sender === "ai").length;
+        if (aiReplyCount === 0 && (existingOrders || []).length === 0) {
+          runtimeHints.push(
+            "RUNTIME FIRST-TIME CUSTOMER: First interaction with the store. Be slightly warmer. After answering, mention ONCE in a single sentence the delivery info and accepted payment methods so they feel oriented."
+          );
+        }
+      } catch {}
+
         runtimeHints.push(
           detectedLang === "ar"
             ? "RUNTIME LANGUAGE: The customer is writing in Arabic. You MUST reply in Arabic for this turn, regardless of the store's default language. If the customer switches language mid-conversation, follow the switch from the next reply."

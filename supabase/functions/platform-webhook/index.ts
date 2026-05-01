@@ -973,6 +973,77 @@ const LIST_CATEGORIES_TOOL = {
   },
 };
 
+const GET_ACTIVE_PROMOTIONS_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "get_active_promotions",
+    description:
+      "Return all currently active promotions / discount codes for this store (label, code, type, value, conditions, expiry). Use ONLY when the customer asks about discounts, deals, promo codes, sales, or coupons. NEVER invent a code that isn't returned by this tool.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+
+const APPLY_DISCOUNT_CODE_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "apply_discount_code",
+    description:
+      "Validate and apply a customer-provided discount code to a SPECIFIC existing order. The order total is recomputed and the discount is persisted. Use AFTER an order has been created (you have its order_number) and the customer typed a code.",
+    parameters: {
+      type: "object",
+      properties: {
+        order_number: { type: "string", description: "The order number to apply the code to (e.g. ORD-00042)." },
+        code: { type: "string", description: "The discount code the customer typed." },
+      },
+      required: ["order_number", "code"],
+    },
+  },
+};
+
+const FLAG_KNOWLEDGE_GAP_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "flag_knowledge_gap",
+    description:
+      "Log a customer question that you genuinely cannot answer from the store information, custom instructions, or catalog. Call this AT MOST ONCE per conversation, and only when you would otherwise have to say 'let me confirm that for you'. The store owner will see the question and add an answer that future replies can use.",
+    parameters: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "The customer's question, in their own words, in the language they wrote it." },
+      },
+      required: ["question"],
+    },
+  },
+};
+
+const REGISTER_RESTOCK_INTEREST_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "register_restock_interest",
+    description:
+      "Register a customer's interest in being notified when a specific product (or variant) is back in stock. Use ONLY when search_products / get_product_details confirmed the item exists but stock is 0, AND the customer agreed to be notified.",
+    parameters: {
+      type: "object",
+      properties: {
+        product_id: { type: "string", description: "UUID of the product from search_products results." },
+        product_name: { type: "string", description: "Plain-language product name for the confirmation message." },
+        variant: { type: "string", description: "Optional size/color/variant the customer wanted, e.g. 'Size L, Black'." },
+      },
+      required: ["product_id"],
+    },
+  },
+};
+
+const GET_STORE_CONTEXT_TOOL = {
+  type: "function" as const,
+  function: {
+    name: "get_store_context",
+    description:
+      "Re-fetch the latest store info: working hours, delivery info, return policy, payment methods, and active promotions. Use only when the customer asks an operational question (hours, delivery, returns, payment, promos) AND you need fresh data — otherwise rely on the Store Information already in your prompt.",
+    parameters: { type: "object", properties: {}, required: [] },
+  },
+};
+
 async function executeCreateOrder(
   supabase: any,
   storeId: string,
@@ -1700,6 +1771,219 @@ async function executeListCategories(
   });
 }
 
+// ─── Promotions ───────────────────────────────────────────────────────────
+async function fetchActivePromotions(supabase: any, storeId: string) {
+  const nowIso = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("promotions")
+    .select("*")
+    .eq("store_id", storeId)
+    .eq("active", true);
+  if (error) {
+    console.warn("fetchActivePromotions error:", error.message);
+    return [];
+  }
+  return (data || []).filter((p: any) => {
+    if (p.starts_at && p.starts_at > nowIso) return false;
+    if (p.ends_at && p.ends_at < nowIso) return false;
+    if (p.max_uses && p.uses >= p.max_uses) return false;
+    return true;
+  });
+}
+
+async function executeGetActivePromotions(
+  supabase: any,
+  storeId: string
+): Promise<string> {
+  const promos = await fetchActivePromotions(supabase, storeId);
+  return JSON.stringify({
+    success: true,
+    promotions: promos.map((p: any) => ({
+      code: p.code,
+      label: p.label,
+      type: p.type,
+      value: p.value,
+      min_order: p.min_order,
+      ends_at: p.ends_at,
+    })),
+  });
+}
+
+async function executeApplyDiscountCode(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: { order_number?: string; code?: string }
+): Promise<string> {
+  const code = (args.code || "").trim();
+  const orderNumber = (args.order_number || "").trim();
+  if (!code || !orderNumber) {
+    return JSON.stringify({ success: false, error: "Missing code or order_number." });
+  }
+  const { data: order } = await supabase
+    .from("orders")
+    .select("*")
+    .eq("store_id", storeId)
+    .eq("conversation_id", conversationId)
+    .eq("order_number", orderNumber)
+    .maybeSingle();
+  if (!order) return JSON.stringify({ success: false, error: "Order not found." });
+
+  const { data: promo } = await supabase
+    .from("promotions")
+    .select("*")
+    .eq("store_id", storeId)
+    .ilike("code", code)
+    .eq("active", true)
+    .maybeSingle();
+  if (!promo) return JSON.stringify({ success: false, error: "Invalid code." });
+
+  const nowIso = new Date().toISOString();
+  if (promo.starts_at && promo.starts_at > nowIso)
+    return JSON.stringify({ success: false, error: "Code is not active yet." });
+  if (promo.ends_at && promo.ends_at < nowIso)
+    return JSON.stringify({ success: false, error: "Code has expired." });
+  if (promo.max_uses && promo.uses >= promo.max_uses)
+    return JSON.stringify({ success: false, error: "Code usage limit reached." });
+
+  const subtotal = Number(order.total) + Number(order.discount_amount || 0);
+  if (promo.min_order && subtotal < Number(promo.min_order)) {
+    return JSON.stringify({
+      success: false,
+      error: `Minimum order ${promo.min_order} required for this code.`,
+    });
+  }
+
+  let discount = 0;
+  if (promo.type === "percent") discount = Math.round(subtotal * (Number(promo.value) / 100) * 100) / 100;
+  else if (promo.type === "fixed") discount = Math.min(subtotal, Number(promo.value));
+  else if (promo.type === "free_shipping") discount = 0;
+  const newTotal = Math.max(0, subtotal - discount);
+
+  await supabase
+    .from("orders")
+    .update({
+      discount_code: promo.code,
+      discount_amount: discount,
+      total: newTotal,
+    })
+    .eq("id", order.id);
+
+  await supabase
+    .from("promotions")
+    .update({ uses: (promo.uses || 0) + 1 })
+    .eq("id", promo.id);
+
+  return JSON.stringify({
+    success: true,
+    order_number: orderNumber,
+    code: promo.code,
+    discount_amount: discount,
+    new_total: newTotal,
+  });
+}
+
+async function executeFlagKnowledgeGap(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: { question?: string }
+): Promise<string> {
+  const q = (args.question || "").trim();
+  if (!q) return JSON.stringify({ success: false, error: "Empty question." });
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const { data: existing } = await supabase
+    .from("knowledge_gaps")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("status", "open")
+    .ilike("customer_question", q.slice(0, 80))
+    .gte("created_at", since)
+    .maybeSingle();
+  if (existing?.id) return JSON.stringify({ success: true, id: existing.id, deduped: true });
+
+  const { data, error } = await supabase
+    .from("knowledge_gaps")
+    .insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      customer_question: q,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.warn("flag_knowledge_gap insert error:", error.message);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+  return JSON.stringify({ success: true, id: data?.id });
+}
+
+async function executeRegisterRestockInterest(
+  supabase: any,
+  storeId: string,
+  conversationId: string,
+  args: { product_id?: string; product_name?: string; variant?: string }
+): Promise<string> {
+  if (!args.product_id) return JSON.stringify({ success: false, error: "Missing product_id." });
+  const { data: convo } = await supabase
+    .from("conversations")
+    .select("customer_name, customer_phone, platform_conversation_id, platform")
+    .eq("id", conversationId)
+    .maybeSingle();
+  const contact = convo?.customer_phone || convo?.platform_conversation_id || "";
+  if (!contact) return JSON.stringify({ success: false, error: "No contact info on conversation." });
+
+  const { data: existing } = await supabase
+    .from("restock_signups")
+    .select("id")
+    .eq("store_id", storeId)
+    .eq("product_id", args.product_id)
+    .eq("contact", contact)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (existing?.id) {
+    return JSON.stringify({ success: true, id: existing.id, deduped: true, product_name: args.product_name });
+  }
+
+  const { data, error } = await supabase
+    .from("restock_signups")
+    .insert({
+      store_id: storeId,
+      conversation_id: conversationId,
+      customer_name: convo?.customer_name || "",
+      contact,
+      platform: convo?.platform || null,
+      product_id: args.product_id,
+      variant: args.variant || null,
+    })
+    .select("id")
+    .maybeSingle();
+  if (error) {
+    console.warn("register_restock_interest insert error:", error.message);
+    return JSON.stringify({ success: false, error: error.message });
+  }
+  return JSON.stringify({ success: true, id: data?.id, product_name: args.product_name });
+}
+
+async function executeGetStoreContext(
+  supabase: any,
+  storeId: string
+): Promise<string> {
+  const { data: store } = await supabase
+    .from("stores")
+    .select("name, working_hours, delivery_info, return_policy, payment_methods, custom_ai_instructions")
+    .eq("id", storeId)
+    .maybeSingle();
+  const promos = await fetchActivePromotions(supabase, storeId);
+  return JSON.stringify({
+    success: true,
+    store: store || {},
+    promotions: promos.map((p: any) => ({
+      code: p.code, label: p.label, type: p.type, value: p.value, ends_at: p.ends_at,
+    })),
+  });
+}
+
 // Sanitize AI output: strip code blocks, excessive emojis, and technical artifacts.
 // When `allowEmpty` is true the function returns an empty string instead of
 // the greeting fallback — used when the turn already includes images and a
@@ -2203,6 +2487,47 @@ async function generateAIReply(
       : "\n\nNo existing orders for this conversation.";
 
   const customInstructions = aiSettings?.ai_instructions || "";
+  const ownerCustomInstructions = (storeInfo as any)?.custom_ai_instructions || "";
+
+  // Active promotions injected into prompt so the AI mentions them naturally without inventing codes.
+  const activePromotions = await fetchActivePromotions(supabase, storeId);
+  const promotionsBlock = activePromotions.length
+    ? `\nACTIVE PROMOTIONS (mention naturally when relevant; NEVER invent codes that aren't listed here):\n${activePromotions
+        .map((p: any) => {
+          const v =
+            p.type === "percent" ? `${p.value}% off` :
+            p.type === "fixed" ? `${p.value} off` :
+            "free shipping";
+          const minOrd = p.min_order ? ` (min order ${p.min_order})` : "";
+          const ends = p.ends_at ? ` until ${new Date(p.ends_at).toISOString().slice(0, 10)}` : "";
+          return `- ${p.label || p.code}: code ${p.code}, ${v}${minOrd}${ends}`;
+        })
+        .join("\n")}\n`
+    : "";
+
+  // Returning-customer summary based on prior orders for the same phone.
+  let returningCustomerBlock = "";
+  try {
+    const phone = (existingOrders?.[0]?.phone || "").trim();
+    if (phone) {
+      const { data: priorOrders } = await supabase
+        .from("orders")
+        .select("order_number, address, items, created_at, customer_name")
+        .eq("store_id", storeId)
+        .eq("phone", phone)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const others = (priorOrders || []).filter(
+        (o: any) => !existingOrders.some((e: any) => e.order_number === o.order_number)
+      );
+      if (others.length > 0) {
+        const lastAddress = others.find((o: any) => o.address)?.address || "";
+        returningCustomerBlock = `\nRETURNING CUSTOMER:\n- This customer has ${others.length} prior order(s).${lastAddress ? `\n- Last delivery address: ${lastAddress}` : ""}\n- If they want to order again, ASK ONCE: "Same address as last time?" instead of re-collecting all details.\n`;
+      }
+    }
+  } catch (e) {
+    console.warn("returning-customer lookup failed:", e);
+  }
 
   const systemPrompt = `You are ${personaName}, a PROFESSIONAL SALES REPRESENTATIVE for "${
     storeInfo.name
@@ -2248,7 +2573,17 @@ Store Information:
 - Return Policy: ${storeInfo.return_policy || "N/A"}
 - Payment Methods: ${storeInfo.payment_methods?.join(", ") || "N/A"}
 - Working Hours: ${JSON.stringify(storeInfo.working_hours || {})}
+${ownerCustomInstructions ? `\nOwner-Authored Knowledge (answers the owner has saved for past customer questions — use these as facts):\n${ownerCustomInstructions}\n` : ""}
+${promotionsBlock}
+${returningCustomerBlock}
 ${storeInfo._runtime_hint || ""}
+
+UNIVERSAL GUARDRAILS:
+- COMPETITORS: Never name another store, brand-comparison site, marketplace, or competitor. If a customer mentions one, reply: "I can't speak to other stores, but here's what we have that's similar." Then use search_products.
+- DISCOUNTS / NEGOTIATION: Only mention discount codes returned by get_active_promotions or listed in ACTIVE PROMOTIONS above. If asked for a discount and none are active, say warmly: "I'm working with fixed prices but I'll let you know the moment we have a sale." NEVER invent a code.
+- KNOWLEDGE GAPS: If a customer asks something the Store Information / Owner Knowledge / Promotions blocks genuinely do not cover, say "Let me confirm that for you" AND call flag_knowledge_gap once with their exact question. Do NOT call it for things you already know.
+- RESTOCK: If search_products / check_stock shows an item exists but stock is 0, offer: "Want me to ping you when it's back?" — only when they confirm, call register_restock_interest with the product_id.
+- DISCOUNT APPLICATION: If a customer types a code AFTER an order is created, call apply_discount_code with the order_number and code, then read back the new total.
 
 Product Catalog Summary:
 ${catalogSummary}
@@ -2531,6 +2866,11 @@ PRODUCT IMAGES RULES:
     SEND_PRODUCT_IMAGES_TOOL,
     SEARCH_PRODUCTS_TOOL,
     LIST_CATEGORIES_TOOL,
+    GET_ACTIVE_PROMOTIONS_TOOL,
+    APPLY_DISCOUNT_CODE_TOOL,
+    FLAG_KNOWLEDGE_GAP_TOOL,
+    REGISTER_RESTOCK_INTEREST_TOOL,
+    GET_STORE_CONTEXT_TOOL,
   ];
 
   // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
@@ -2817,6 +3157,21 @@ PRODUCT IMAGES RULES:
           } else if (tc.function?.name === "list_categories") {
             console.log("AI triggered list_categories");
             result = await executeListCategories(supabase, storeId);
+          } else if (tc.function?.name === "get_active_promotions") {
+            console.log("AI triggered get_active_promotions");
+            result = await executeGetActivePromotions(supabase, storeId);
+          } else if (tc.function?.name === "apply_discount_code") {
+            console.log("AI triggered apply_discount_code:", JSON.stringify(args));
+            result = await executeApplyDiscountCode(supabase, storeId, conversationId, args);
+          } else if (tc.function?.name === "flag_knowledge_gap") {
+            console.log("AI triggered flag_knowledge_gap:", JSON.stringify(args));
+            result = await executeFlagKnowledgeGap(supabase, storeId, conversationId, args);
+          } else if (tc.function?.name === "register_restock_interest") {
+            console.log("AI triggered register_restock_interest:", JSON.stringify(args));
+            result = await executeRegisterRestockInterest(supabase, storeId, conversationId, args);
+          } else if (tc.function?.name === "get_store_context") {
+            console.log("AI triggered get_store_context");
+            result = await executeGetStoreContext(supabase, storeId);
           } else {
             result = JSON.stringify({ error: "Unknown tool" });
           }
@@ -3937,6 +4292,22 @@ Deno.serve(async (req) => {
 
       // Build runtime hint block injected into the AI system prompt
       const runtimeHints: string[] = [];
+
+      const giftRe = /(\bgift\b|\bpresent\b|هدية|هديه|كادو|للهدية)/i;
+      if (giftRe.test(combinedCustomerMessage)) {
+        runtimeHints.push(
+          "RUNTIME GIFT MODE: The customer mentioned this is a gift. Ask ONCE about the recipient and offer a gift note. After create_order succeeds, append 'GIFT: <details>' via add_order_note."
+        );
+      }
+      try {
+        const aiReplyCount = (history || []).filter((m: any) => m.sender === "ai").length;
+        if (aiReplyCount === 0 && (existingOrders || []).length === 0) {
+          runtimeHints.push(
+            "RUNTIME FIRST-TIME CUSTOMER: First interaction with the store. Be slightly warmer. After answering, mention ONCE in a single sentence the delivery info and accepted payment methods so they feel oriented."
+          );
+        }
+      } catch {}
+
       if (detectedLang) {
         runtimeHints.push(
           detectedLang === "ar"

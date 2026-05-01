@@ -4291,7 +4291,6 @@ Deno.serve(async (req) => {
       const isOutsideHours = ooHoursEnabled && hasSchedule && !storeOpen;
 
       // Build runtime hint block injected into the AI system prompt
-      // Build runtime hint block injected into the AI system prompt
       const runtimeHints: string[] = [];
 
       const giftRe = /(\bgift\b|\bpresent\b|هدية|هديه|كادو|للهدية)/i;
@@ -4309,6 +4308,7 @@ Deno.serve(async (req) => {
         }
       } catch {}
 
+      if (detectedLang) {
         runtimeHints.push(
           detectedLang === "ar"
             ? "RUNTIME LANGUAGE: The customer is writing in Arabic. You MUST reply in Arabic for this turn, regardless of the store's default language. If the customer switches language mid-conversation, follow the switch from the next reply."

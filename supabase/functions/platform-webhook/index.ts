@@ -2487,6 +2487,47 @@ async function generateAIReply(
       : "\n\nNo existing orders for this conversation.";
 
   const customInstructions = aiSettings?.ai_instructions || "";
+  const ownerCustomInstructions = (storeInfo as any)?.custom_ai_instructions || "";
+
+  // Active promotions injected into prompt so the AI mentions them naturally without inventing codes.
+  const activePromotions = await fetchActivePromotions(supabase, storeId);
+  const promotionsBlock = activePromotions.length
+    ? `\nACTIVE PROMOTIONS (mention naturally when relevant; NEVER invent codes that aren't listed here):\n${activePromotions
+        .map((p: any) => {
+          const v =
+            p.type === "percent" ? `${p.value}% off` :
+            p.type === "fixed" ? `${p.value} off` :
+            "free shipping";
+          const minOrd = p.min_order ? ` (min order ${p.min_order})` : "";
+          const ends = p.ends_at ? ` until ${new Date(p.ends_at).toISOString().slice(0, 10)}` : "";
+          return `- ${p.label || p.code}: code ${p.code}, ${v}${minOrd}${ends}`;
+        })
+        .join("\n")}\n`
+    : "";
+
+  // Returning-customer summary based on prior orders for the same phone.
+  let returningCustomerBlock = "";
+  try {
+    const phone = (existingOrders?.[0]?.phone || "").trim();
+    if (phone) {
+      const { data: priorOrders } = await supabase
+        .from("orders")
+        .select("order_number, address, items, created_at, customer_name")
+        .eq("store_id", storeId)
+        .eq("phone", phone)
+        .order("created_at", { ascending: false })
+        .limit(3);
+      const others = (priorOrders || []).filter(
+        (o: any) => !existingOrders.some((e: any) => e.order_number === o.order_number)
+      );
+      if (others.length > 0) {
+        const lastAddress = others.find((o: any) => o.address)?.address || "";
+        returningCustomerBlock = `\nRETURNING CUSTOMER:\n- This customer has ${others.length} prior order(s).${lastAddress ? `\n- Last delivery address: ${lastAddress}` : ""}\n- If they want to order again, ASK ONCE: "Same address as last time?" instead of re-collecting all details.\n`;
+      }
+    }
+  } catch (e) {
+    console.warn("returning-customer lookup failed:", e);
+  }
 
   const systemPrompt = `You are ${personaName}, a PROFESSIONAL SALES REPRESENTATIVE for "${
     storeInfo.name

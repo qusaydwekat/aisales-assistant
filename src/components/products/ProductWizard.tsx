@@ -17,6 +17,9 @@ export type ProductForm = {
   sku: string;
   active: boolean;
   images: string[];
+  variants?: any[];
+  sizes_available?: string[];
+  stock_per_size?: Record<string, number>;
   // Visual / nameless-product attributes
   auto_description?: string;
   type?: string | null;
@@ -41,6 +44,9 @@ const EMPTY: ProductForm = {
   sku: "",
   active: true,
   images: [],
+  variants: [],
+  sizes_available: [],
+  stock_per_size: {},
   auto_description: "",
   type: null,
   color: [],
@@ -53,6 +59,24 @@ const EMPTY: ProductForm = {
   neckline: null,
   length: null,
 };
+
+const freshForm = (initial?: Partial<ProductForm> | null): ProductForm => ({
+  ...structuredClone(EMPTY),
+  ...(initial ? structuredClone(initial) : {}),
+});
+
+const parseList = (value: string) => value.split(",").map((s) => s.trim()).filter(Boolean);
+
+const formatStockPerSize = (stock?: Record<string, number>) =>
+  Object.entries(stock || {}).map(([size, qty]) => `${size}: ${qty}`).join(", ");
+
+const parseStockPerSize = (value: string) =>
+  Object.fromEntries(
+    value.split(",")
+      .map((part) => part.split(":").map((s) => s.trim()))
+      .filter(([size, qty]) => size && qty !== undefined)
+      .map(([size, qty]) => [size, Number(qty) || 0])
+  );
 
 interface Props {
   open: boolean;
@@ -81,13 +105,13 @@ export function ProductWizard({
 }: Props) {
   const { language, t, dir } = useLanguage();
   const [step, setStep] = useState<1 | 2 | 3>(initialStep);
-  const [form, setForm] = useState<ProductForm>({ ...EMPTY, ...(initial || {}) });
+  const [form, setForm] = useState<ProductForm>(freshForm(initial));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiHint, setAiHint] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm({ ...EMPTY, ...(initial || {}) });
+      setForm(freshForm(initial));
       setStep(initialStep);
       setAiHint(false);
     }
@@ -145,7 +169,7 @@ export function ProductWizard({
     }
     await onSubmit(form, { addAnother });
     if (addAnother) {
-      setForm({ ...EMPTY });
+      setForm(freshForm());
       setStep(1);
     }
   };
@@ -354,6 +378,29 @@ export function ProductWizard({
                     <input value={form.length || ""} onChange={(e) => set("length", e.target.value || null)} placeholder="Length (mini, midi…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
                     <input value={(form.occasion || []).join(", ")} onChange={(e) => set("occasion", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} placeholder="Occasion (daily, party…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
                   </div>
+                </div>
+                <div className="rounded-lg border border-border/50 p-3 space-y-3 bg-muted/30">
+                  <div className="text-xs font-medium text-foreground">{t("product_variations")}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={(form.sizes_available || []).join(", ")}
+                      onChange={(e) => set("sizes_available", parseList(e.target.value))}
+                      placeholder={t("sizes_placeholder")}
+                      className="rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <input
+                      value={(form.color || []).join(", ")}
+                      onChange={(e) => set("color", parseList(e.target.value))}
+                      placeholder={t("colors_placeholder")}
+                      className="rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <input
+                    value={formatStockPerSize(form.stock_per_size)}
+                    onChange={(e) => set("stock_per_size", parseStockPerSize(e.target.value))}
+                    placeholder={t("stock_per_size_placeholder")}
+                    className="w-full rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                  />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input

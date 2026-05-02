@@ -84,6 +84,20 @@ export default function ProductsPage() {
       sku: p.sku || "",
       active: p.active,
       images: p.images || [],
+      variants: Array.isArray(p.variants) ? structuredClone(p.variants) : [],
+      sizes_available: Array.isArray(p.sizes_available) ? [...p.sizes_available] : [],
+      stock_per_size: p.stock_per_size ? structuredClone(p.stock_per_size) : {},
+      auto_description: p.auto_description || "",
+      type: p.type || null,
+      color: Array.isArray(p.color) ? [...p.color] : [],
+      pattern: p.pattern || null,
+      style: p.style || null,
+      material: p.material || null,
+      fit: p.fit || null,
+      occasion: Array.isArray(p.occasion) ? [...p.occasion] : [],
+      sleeve: p.sleeve || null,
+      neckline: p.neckline || null,
+      length: p.length || null,
     });
     setInitialStep(1);
     setWizardOpen(true);
@@ -101,6 +115,20 @@ export default function ProductsPage() {
       sku: "",
       active: p.active,
       images: p.images || [],
+      variants: Array.isArray(p.variants) ? structuredClone(p.variants) : [],
+      sizes_available: Array.isArray(p.sizes_available) ? [...p.sizes_available] : [],
+      stock_per_size: p.stock_per_size ? structuredClone(p.stock_per_size) : {},
+      auto_description: p.auto_description || "",
+      type: p.type || null,
+      color: Array.isArray(p.color) ? [...p.color] : [],
+      pattern: p.pattern || null,
+      style: p.style || null,
+      material: p.material || null,
+      fit: p.fit || null,
+      occasion: Array.isArray(p.occasion) ? [...p.occasion] : [],
+      sleeve: p.sleeve || null,
+      neckline: p.neckline || null,
+      length: p.length || null,
     });
     setInitialStep(2);
     setWizardOpen(true);
@@ -397,6 +425,7 @@ export default function ProductsPage() {
       )}
 
       <ProductWizard
+        key={editingId || "new-product"}
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         initial={initialForm}

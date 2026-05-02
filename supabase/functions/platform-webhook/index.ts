@@ -3312,8 +3312,28 @@ PRODUCT IMAGES RULES:
         continue;
       }
 
+      // After create_order/update_order/cancel_order, push an explicit
+      // instruction so the AI always sends a confirmation reply (instead of
+      // going silent / falling back to "Thanks for your message").
+      const orderToolNames = new Set([
+        "create_order",
+        "update_order",
+        "cancel_order",
+      ]);
+      const calledOrderTool = toolCalls.some((tc: any) =>
+        orderToolNames.has(tc.function?.name)
+      );
+
       // Add assistant message + tool results for the next round
       currentMessages = [...currentMessages, choice.message, ...toolResults];
+
+      if (calledOrderTool) {
+        currentMessages.push({
+          role: "system",
+          content:
+            "You just performed an order action. Reply NOW in ONE short message in the customer's language: confirm what happened (use the order_number from the tool result), thank them, and invite them to ask anything else or add more items. Do NOT call any more tools. Do NOT go silent. If the tool result included `spawned_new_order: true`, explain that the previous order is already on its way and a NEW order was created for the additional items, mentioning both order numbers.",
+        });
+      }
 
       // Images are accumulated in allImageesToSend across rounds
       // Continue to next round to let AI compose a text response

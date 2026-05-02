@@ -17,6 +17,9 @@ export type ProductForm = {
   sku: string;
   active: boolean;
   images: string[];
+  variants?: any[];
+  sizes_available?: string[];
+  stock_per_size?: Record<string, number>;
   // Visual / nameless-product attributes
   auto_description?: string;
   type?: string | null;
@@ -41,6 +44,9 @@ const EMPTY: ProductForm = {
   sku: "",
   active: true,
   images: [],
+  variants: [],
+  sizes_available: [],
+  stock_per_size: {},
   auto_description: "",
   type: null,
   color: [],
@@ -53,6 +59,11 @@ const EMPTY: ProductForm = {
   neckline: null,
   length: null,
 };
+
+const freshForm = (initial?: Partial<ProductForm> | null): ProductForm => ({
+  ...structuredClone(EMPTY),
+  ...(initial ? structuredClone(initial) : {}),
+});
 
 interface Props {
   open: boolean;
@@ -81,13 +92,13 @@ export function ProductWizard({
 }: Props) {
   const { language, t, dir } = useLanguage();
   const [step, setStep] = useState<1 | 2 | 3>(initialStep);
-  const [form, setForm] = useState<ProductForm>({ ...EMPTY, ...(initial || {}) });
+  const [form, setForm] = useState<ProductForm>(freshForm(initial));
   const [aiLoading, setAiLoading] = useState(false);
   const [aiHint, setAiHint] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm({ ...EMPTY, ...(initial || {}) });
+      setForm(freshForm(initial));
       setStep(initialStep);
       setAiHint(false);
     }

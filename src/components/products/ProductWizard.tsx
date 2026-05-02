@@ -169,7 +169,7 @@ export function ProductWizard({
     }
     await onSubmit(form, { addAnother });
     if (addAnother) {
-      setForm({ ...EMPTY });
+      setForm(freshForm());
       setStep(1);
     }
   };

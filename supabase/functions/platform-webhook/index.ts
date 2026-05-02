@@ -1337,10 +1337,56 @@ async function executeUpdateOrder(
   }
 
   const order = orders[0];
-  if (["cancelled", "delivered", "shipped"].includes(order.status)) {
+
+  // ─── Auto-spawn behavior ───
+  // If the existing order is already shipped/delivered (no longer modifiable)
+  // AND the customer is trying to ADD/CHANGE items, create a NEW order instead
+  // of refusing. Address/phone/name updates on a shipped order are ignored
+  // (they wouldn't help anyway), but item changes become a fresh order.
+  if (["delivered", "shipped"].includes(order.status)) {
+    const wantsItemChange = Array.isArray(args.items) && args.items.length > 0;
+    if (wantsItemChange) {
+      console.log(
+        `Order ${order.order_number} is ${order.status}; spawning a NEW order for the requested items.`
+      );
+      // Reuse customer details from the shipped order if not re-provided.
+      const newArgs = {
+        customer_name: args.customer_name || order.customer_name,
+        phone: args.phone || order.phone || "",
+        address: args.address || order.address || "",
+        items: args.items,
+        notes: args.notes || `Follow-up to ${order.order_number} (already ${order.status}).`,
+      };
+      const created = await executeCreateOrder(
+        supabase,
+        storeId,
+        conversationId,
+        order.platform || "facebook",
+        newArgs
+      );
+      // Wrap so the AI knows it was a NEW order, not an update.
+      try {
+        const parsed = JSON.parse(created);
+        return JSON.stringify({
+          ...parsed,
+          spawned_new_order: true,
+          previous_order_number: order.order_number,
+          previous_order_status: order.status,
+          message: `Previous order ${order.order_number} is already ${order.status} and can't be modified. Created a NEW order ${parsed.order_number} for the customer — tell them their previous order is on its way and confirm the new order separately.`,
+        });
+      } catch {
+        return created;
+      }
+    }
     return JSON.stringify({
       success: false,
       error: `Order ${order.order_number} is ${order.status} and cannot be updated.`,
+    });
+  }
+  if (order.status === "cancelled") {
+    return JSON.stringify({
+      success: false,
+      error: `Order ${order.order_number} is cancelled and cannot be updated.`,
     });
   }
 
@@ -2681,6 +2727,18 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 1. **Existing orders are REFERENCE ONLY**: The "Existing Orders" section above is background context so you remember what the customer already bought. It does NOT mean every new message is about that order. Only act on an existing order when the customer EXPLICITLY references it (uses cancel/update/change/status trigger words OR mentions the order number / its specific items). If the customer asks about a DIFFERENT product, sends a greeting, asks a general question, or starts a NEW shopping inquiry → treat it as a normal conversation. Do NOT call update_order, do NOT call create_order, do NOT mention the existing order at all unless asked. Just answer their actual question (use search_products if they're asking about products).
 2. **NEVER invent order actions or statuses**: Do NOT say things like "your order has been reactivated", "تم إعادة تفعيل طلبك", "order resumed", "order reopened", "I reactivated your order" — these actions DO NOT EXIST in this system. The only real order actions are: create, update, cancel, check_status. If you did not call one of those tools in this turn, do NOT claim any order action happened. Never re-confirm or re-announce an old order unless the customer just asked about its status (then call check_order_status).
 3. **Create order**: Use create_order when the customer wants to buy a NEW product (even if they have a previous active order — multiple orders per conversation are allowed) AND you have collected: items with quantities, full name, phone, and address. YOU MUST CALL THE TOOL.
+
+**POST-ORDER BEHAVIOR — CRITICAL (DO NOT FREEZE)**:
+- After create_order returns success, you MUST send ONE short confirmation message in the customer's language (e.g. "تم تأكيد طلبك ✅ رقم الطلب ORD-XXXXX، سنتواصل معك قريبًا للتوصيل.") and then keep the conversation OPEN.
+- The customer can keep chatting normally — answer follow-up questions, send more product photos, accept new requests, upsell. NEVER go silent or refuse to reply just because an order exists.
+- If the customer asks for MORE products / images / info AFTER the order, treat it as a normal request (use search_products / send_product_images). Do NOT confuse it with an update to the existing order.
+
+**ORDER MODIFIABILITY BY STATUS — REMEMBER THIS**:
+- Each line in "Existing Orders" shows \`Status: <status>\`. Read it before deciding what to do.
+- Statuses **pending / confirmed / processing** → order is STILL MODIFIABLE. The customer is allowed to add items, change quantities, swap products, change address/phone/name, or cancel. Use update_order or cancel_order as appropriate. Do NOT tell the customer "the order is locked".
+- Status **shipped or delivered** → the original order is NO LONGER MODIFIABLE. If the customer wants to ADD or CHANGE items, do NOT call update_order on the shipped order; instead call **create_order** to make a NEW order for the new items, and tell the customer politely: "Your previous order is already on its way 🚚 — I created a new order for the additional items." If they want to change the address/phone of a shipped order, apologise and explain it has already left.
+- Status **cancelled** → do nothing on it; if they want to buy again, call create_order for a fresh order.
+
 4. **Update order**: Use update_order ONLY when the customer EXPLICITLY wants to change items, address, phone, name, or notes on a SPECIFIC existing active order (they used update trigger words and clearly referenced that order, not a new product inquiry).
 
    **STRICT FIELD ISOLATION — READ THIS TWICE**:
@@ -2706,7 +2764,7 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 Before calling any order tool, silently classify the customer's CURRENT (latest) message into ONE intent: [cancel | update_quantity | update_address | update_phone | update_name | update_items | new_order | question | other]. Then call the matching tool with ONLY the matching field. If the intent is cancel, you MUST call cancel_order, never update_order. If the intent is "question" or "other" (asking about price, delivery, shipping, hours, store info, product details, etc.) → DO NOT call any order tool. Just answer the question with text. Examples of pure questions that MUST NOT trigger update_order/create_order: "السعر بشمل التوصيل؟", "شو سعر التوصيل؟", "كم سعر التوصيل", "متى يوصل؟", "وين بتوصلوا؟", "is delivery included?", "how much is shipping?", "when will it arrive?". If you are unsure between two intents, ask one short clarifying question instead of guessing.
 5. Always reference orders by their order_number (e.g. ORD-00001) — this number comes ONLY from the tool response, never make one up.
 6. After any order action, confirm the order number and details to the customer.
-7. If an order is already shipped/delivered, it cannot be updated or cancelled.
+7. If an order is already shipped/delivered, it cannot be updated or cancelled — but if the customer wants more items, IMMEDIATELY call create_order to make a NEW order (reuse their saved name/phone/address from the existing order so you don't re-ask).
 8. Use exact product prices from search results. Never make up product information.
 9. **CRITICAL**: When creating or updating orders, ALWAYS include the product "id" field from search results as "product_id" in each order item. This is required for automatic stock tracking.
 10. Keep responses concise and helpful.
@@ -3254,8 +3312,28 @@ PRODUCT IMAGES RULES:
         continue;
       }
 
+      // After create_order/update_order/cancel_order, push an explicit
+      // instruction so the AI always sends a confirmation reply (instead of
+      // going silent / falling back to "Thanks for your message").
+      const orderToolNames = new Set([
+        "create_order",
+        "update_order",
+        "cancel_order",
+      ]);
+      const calledOrderTool = toolCalls.some((tc: any) =>
+        orderToolNames.has(tc.function?.name)
+      );
+
       // Add assistant message + tool results for the next round
       currentMessages = [...currentMessages, choice.message, ...toolResults];
+
+      if (calledOrderTool) {
+        currentMessages.push({
+          role: "system",
+          content:
+            "You just performed an order action. Reply NOW in ONE short message in the customer's language: confirm what happened (use the order_number from the tool result), thank them, and invite them to ask anything else or add more items. Do NOT call any more tools. Do NOT go silent. If the tool result included `spawned_new_order: true`, explain that the previous order is already on its way and a NEW order was created for the additional items, mentioning both order numbers.",
+        });
+      }
 
       // Images are accumulated in allImageesToSend across rounds
       // Continue to next round to let AI compose a text response

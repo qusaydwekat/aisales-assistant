@@ -23,8 +23,12 @@ export default function OrdersPage() {
 
   const { t, dir } = useLanguage();
   const { data: orders = [], isLoading } = useOrders();
+  const { data: products = [] } = useProducts();
   const updateStatus = useUpdateOrderStatus();
   const createOrder = useCreateOrder();
+
+  const productMap = new Map(products.map((p: any) => [p.id, p]));
+  const productByName = new Map(products.map((p: any) => [String(p.name).toLowerCase(), p]));
 
   const filtered = orders.filter(o => statusFilter === 'all' || o.status === statusFilter);
 

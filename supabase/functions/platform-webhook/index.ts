@@ -1337,10 +1337,56 @@ async function executeUpdateOrder(
   }
 
   const order = orders[0];
-  if (["cancelled", "delivered", "shipped"].includes(order.status)) {
+
+  // ─── Auto-spawn behavior ───
+  // If the existing order is already shipped/delivered (no longer modifiable)
+  // AND the customer is trying to ADD/CHANGE items, create a NEW order instead
+  // of refusing. Address/phone/name updates on a shipped order are ignored
+  // (they wouldn't help anyway), but item changes become a fresh order.
+  if (["delivered", "shipped"].includes(order.status)) {
+    const wantsItemChange = Array.isArray(args.items) && args.items.length > 0;
+    if (wantsItemChange) {
+      console.log(
+        `Order ${order.order_number} is ${order.status}; spawning a NEW order for the requested items.`
+      );
+      // Reuse customer details from the shipped order if not re-provided.
+      const newArgs = {
+        customer_name: args.customer_name || order.customer_name,
+        phone: args.phone || order.phone || "",
+        address: args.address || order.address || "",
+        items: args.items,
+        notes: args.notes || `Follow-up to ${order.order_number} (already ${order.status}).`,
+      };
+      const created = await executeCreateOrder(
+        supabase,
+        storeId,
+        conversationId,
+        order.platform || "facebook",
+        newArgs
+      );
+      // Wrap so the AI knows it was a NEW order, not an update.
+      try {
+        const parsed = JSON.parse(created);
+        return JSON.stringify({
+          ...parsed,
+          spawned_new_order: true,
+          previous_order_number: order.order_number,
+          previous_order_status: order.status,
+          message: `Previous order ${order.order_number} is already ${order.status} and can't be modified. Created a NEW order ${parsed.order_number} for the customer — tell them their previous order is on its way and confirm the new order separately.`,
+        });
+      } catch {
+        return created;
+      }
+    }
     return JSON.stringify({
       success: false,
       error: `Order ${order.order_number} is ${order.status} and cannot be updated.`,
+    });
+  }
+  if (order.status === "cancelled") {
+    return JSON.stringify({
+      success: false,
+      error: `Order ${order.order_number} is cancelled and cannot be updated.`,
     });
   }
 

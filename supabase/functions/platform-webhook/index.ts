@@ -725,7 +725,7 @@ const ORDER_TOOL = {
   function: {
     name: "create_order",
     description:
-      "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). Call this ONLY after all required info is collected.",
+      "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). IMPORTANT: If the product has variations (sizes_available, color, variants, or stock_per_size), you MUST have confirmed the specific variation with the customer BEFORE calling this tool, and pass it in the item.variant field (e.g. 'Size L / Black'). Call this ONLY after all required info AND variation are collected.",
     parameters: {
       type: "object",
       properties: {
@@ -747,6 +747,16 @@ const ORDER_TOOL = {
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
+              variant: {
+                type: "string",
+                description:
+                  "REQUIRED if the product has any variations (size, color, variants array, stock_per_size). Format like 'Size L', 'Black', 'Size M / Red'. Leave empty only if the product has no variations.",
+              },
+              image: {
+                type: "string",
+                description:
+                  "Optional. The primary image URL of the product (from search_products results) so the order shows the right photo.",
+              },
             },
             required: ["product_name", "quantity", "price"],
           },

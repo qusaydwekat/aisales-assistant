@@ -747,10 +747,20 @@ const ORDER_TOOL = {
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
+              size: {
+                type: "string",
+                description:
+                  "The customer's selected size (e.g. 'M', 'L', '42'). REQUIRED when the product has sizes_available or stock_per_size.",
+              },
+              color: {
+                type: "string",
+                description:
+                  "The customer's selected color (e.g. 'Black', 'Red'). REQUIRED when the product has color options.",
+              },
               variant: {
                 type: "string",
                 description:
-                  "REQUIRED if the product has any variations (size, color, variants array, stock_per_size). Format like 'Size L', 'Black', 'Size M / Red'. Leave empty only if the product has no variations.",
+                  "Combined variation label (e.g. 'Size L / Black') for legacy display. Fill this AND the size/color fields above when applicable.",
               },
               image: {
                 type: "string",

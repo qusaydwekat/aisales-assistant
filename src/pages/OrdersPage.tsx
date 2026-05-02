@@ -176,7 +176,15 @@ export default function OrdersPage() {
                             const name = (liveProduct?.name || item.product_name || item.name || 'Unknown') as string;
                             const qty = Number(item.quantity || 1);
                             const price = Number(liveProduct?.price ?? item.price ?? 0);
-                            const variant = (item.variant || item.variation || (item as any).size || (item as any).color || '') as string;
+                            // Customer-selected variation (what they actually ordered)
+                            const selectedSize = (item.size || (item as any).selected_size || '') as string;
+                            const selectedColor = (item.color || (item as any).selected_color || '') as string;
+                            const selectedVariant = (item.variant || item.variation || (item as any).option || '') as string;
+
+                            const selectedParts: string[] = [];
+                            if (selectedSize) selectedParts.push(`${t("size") || "Size"}: ${selectedSize}`);
+                            if (selectedColor) selectedParts.push(`${t("color") || "Color"}: ${selectedColor}`);
+                            if (selectedVariant && !selectedSize && !selectedColor) selectedParts.push(String(selectedVariant));
 
                             const snap = (selectedOrder.product_snapshot as any)?.items?.find?.(
                               (s: any) => s.product_id === itemPid
@@ -187,16 +195,6 @@ export default function OrdersPage() {
                                 item.image_url ||
                                 snap?.image_url ||
                                 '') as string;
-
-                            // Build variation summary from live product data
-                            const variationParts: string[] = [];
-                            if (variant) variationParts.push(String(variant));
-                            if (liveProduct?.sizes_available?.length) {
-                              variationParts.push(`${t("sizes") || "Sizes"}: ${liveProduct.sizes_available.join(", ")}`);
-                            }
-                            if (liveProduct?.color?.length) {
-                              variationParts.push(`${t("colors") || "Colors"}: ${liveProduct.color.join(", ")}`);
-                            }
 
                             return (
                               <tr key={idx} className="border-b border-border/50 last:border-0 align-top">
@@ -214,10 +212,15 @@ export default function OrdersPage() {
                                     )}
                                     <div className="min-w-0">
                                       <div className="truncate">{name}</div>
-                                      {variationParts.length > 0 && (
-                                        <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
-                                          {variationParts.map((v, i) => (
-                                            <div key={i}>{v}</div>
+                                      {selectedParts.length > 0 && (
+                                        <div className="mt-1 flex flex-wrap gap-1">
+                                          {selectedParts.map((v, i) => (
+                                            <span
+                                              key={i}
+                                              className="inline-flex items-center rounded-md bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-medium border border-primary/20"
+                                            >
+                                              {v}
+                                            </span>
                                           ))}
                                         </div>
                                       )}

@@ -425,6 +425,7 @@ export default function ProductsPage() {
       )}
 
       <ProductWizard
+        key={editingId || "new-product"}
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         initial={initialForm}

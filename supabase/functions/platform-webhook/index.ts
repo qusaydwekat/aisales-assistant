@@ -731,7 +731,10 @@ const ORDER_TOOL = {
       "DO NOT USE for: modifying an existing order (use update_order), cancelling (use cancel_order), or checking status (use check_order_status). " +
       "VARIATIONS: If the chosen product has sizes/colors/variants, you MUST have confirmed the exact size+color BEFORE calling this tool, and pass them as item.size, item.color and item.variant ('Size L / Black'). " +
       "QUANTITY: Parse from natural language ('I want 3', 'قطعتين' = 2, 'a dozen' = 12). Default to 1 only if no number is mentioned. " +
-      "PRODUCT_ID: Always include item.product_id from search_products results so stock auto-decrements.",
+      "PRODUCT_ID: Each item MUST carry the product_id (UUID) of THAT specific product from the search_products results. " +
+      "NEVER reuse the same product_id for two different products — if the customer ordered 2 different items, you need 2 different product_ids. " +
+      "If you don't have a product_id for one of the items, call search_products first to obtain it. " +
+      "PRICE: item.price MUST equal the price returned by search_products for that exact product_id. Do not invent or carry over prices from other items.",
     parameters: {
       type: "object",
       properties: {

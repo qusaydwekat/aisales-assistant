@@ -65,6 +65,19 @@ const freshForm = (initial?: Partial<ProductForm> | null): ProductForm => ({
   ...(initial ? structuredClone(initial) : {}),
 });
 
+const parseList = (value: string) => value.split(",").map((s) => s.trim()).filter(Boolean);
+
+const formatStockPerSize = (stock?: Record<string, number>) =>
+  Object.entries(stock || {}).map(([size, qty]) => `${size}: ${qty}`).join(", ");
+
+const parseStockPerSize = (value: string) =>
+  Object.fromEntries(
+    value.split(",")
+      .map((part) => part.split(":").map((s) => s.trim()))
+      .filter(([size, qty]) => size && qty !== undefined)
+      .map(([size, qty]) => [size, Number(qty) || 0])
+  );
+
 interface Props {
   open: boolean;
   onClose: () => void;

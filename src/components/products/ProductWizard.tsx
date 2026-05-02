@@ -379,6 +379,29 @@ export function ProductWizard({
                     <input value={(form.occasion || []).join(", ")} onChange={(e) => set("occasion", e.target.value.split(",").map(s => s.trim()).filter(Boolean))} placeholder="Occasion (daily, party…)" className="rounded-lg bg-background px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary" />
                   </div>
                 </div>
+                <div className="rounded-lg border border-border/50 p-3 space-y-3 bg-muted/30">
+                  <div className="text-xs font-medium text-foreground">{t("product_variations")}</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={(form.sizes_available || []).join(", ")}
+                      onChange={(e) => set("sizes_available", parseList(e.target.value))}
+                      placeholder={t("sizes_placeholder")}
+                      className="rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <input
+                      value={(form.color || []).join(", ")}
+                      onChange={(e) => set("color", parseList(e.target.value))}
+                      placeholder={t("colors_placeholder")}
+                      className="rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  </div>
+                  <input
+                    value={formatStockPerSize(form.stock_per_size)}
+                    onChange={(e) => set("stock_per_size", parseStockPerSize(e.target.value))}
+                    placeholder={t("stock_per_size_placeholder")}
+                    className="w-full rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"

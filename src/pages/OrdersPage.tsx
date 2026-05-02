@@ -168,14 +168,36 @@ export default function OrdersPage() {
                         </thead>
                         <tbody>
                           {items.map((item, idx) => {
-                            const name = (item.product_name || item.name || 'Unknown') as string;
+                            const itemPid = (item.product_id || (item as any).id) as string | undefined;
+                            const liveProduct: any =
+                              (itemPid && productMap.get(itemPid)) ||
+                              productByName.get(String(item.product_name || item.name || '').toLowerCase());
+
+                            const name = (liveProduct?.name || item.product_name || item.name || 'Unknown') as string;
                             const qty = Number(item.quantity || 1);
-                            const price = Number(item.price || 0);
-                            const variant = (item.variant || item.variation || '') as string;
+                            const price = Number(liveProduct?.price ?? item.price ?? 0);
+                            const variant = (item.variant || item.variation || (item as any).size || (item as any).color || '') as string;
+
                             const snap = (selectedOrder.product_snapshot as any)?.items?.find?.(
-                              (s: any) => s.product_id === item.product_id
+                              (s: any) => s.product_id === itemPid
                             );
-                            const image = (item.image || item.image_url || snap?.image_url || '') as string;
+                            const image =
+                              (liveProduct?.images?.[0] ||
+                                item.image ||
+                                item.image_url ||
+                                snap?.image_url ||
+                                '') as string;
+
+                            // Build variation summary from live product data
+                            const variationParts: string[] = [];
+                            if (variant) variationParts.push(String(variant));
+                            if (liveProduct?.sizes_available?.length) {
+                              variationParts.push(`${t("sizes") || "Sizes"}: ${liveProduct.sizes_available.join(", ")}`);
+                            }
+                            if (liveProduct?.color?.length) {
+                              variationParts.push(`${t("colors") || "Colors"}: ${liveProduct.color.join(", ")}`);
+                            }
+
                             return (
                               <tr key={idx} className="border-b border-border/50 last:border-0 align-top">
                                 <td className="px-3 py-2 text-foreground">
@@ -192,8 +214,17 @@ export default function OrdersPage() {
                                     )}
                                     <div className="min-w-0">
                                       <div className="truncate">{name}</div>
-                                      {variant && (
-                                        <div className="text-xs text-muted-foreground mt-0.5">{variant}</div>
+                                      {variationParts.length > 0 && (
+                                        <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                                          {variationParts.map((v, i) => (
+                                            <div key={i}>{v}</div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {liveProduct && Number(liveProduct.price) !== Number(item.price ?? liveProduct.price) && (
+                                        <div className="text-[10px] text-warning mt-0.5">
+                                          {t("price_updated") || "Price updated"}: ${Number(item.price).toFixed(2)} → ${Number(liveProduct.price).toFixed(2)}
+                                        </div>
                                       )}
                                     </div>
                                   </div>

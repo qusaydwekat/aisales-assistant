@@ -2652,6 +2652,12 @@ CRITICAL ORDER RULES — READ CAREFULLY:
 - Always confirm the detected quantity with the customer before creating the order.
 - Include the correct quantity in the order items — do NOT default everything to 1.
 
+**PRODUCT VARIATIONS — CRITICAL**:
+- Many products have variations: \`sizes_available\` (e.g. ["S","M","L"]), \`color\` (e.g. ["Black","Red"]), \`variants\` array, or \`stock_per_size\` (per-size inventory). The product image gallery (\`images\` array) often shows different colors/angles of the SAME product.
+- If the product the customer wants has ANY of these variations, you MUST proactively confirm the exact variation (size AND color, etc.) BEFORE creating the order. Ask in one short message: "Which size and color would you like? Available: Sizes S/M/L, Colors Black/Red." Use \`stock_per_size\` to avoid offering out-of-stock sizes.
+- When sending product photos, mention which images correspond to which color/variation if the customer is choosing.
+- When you finally call create_order, you MUST set \`item.variant\` to the chosen variation string (e.g. "Size L / Black"), and set \`item.image\` to the matching image URL from the product's images array. Never call create_order for a variant product without a confirmed variant.
+
 **SMART DATA COLLECTION — CRITICAL**:
 - ALWAYS ask for ALL missing customer details (full name, phone number, AND delivery address) in ONE SINGLE message. Do NOT ask for them one by one across multiple turns.
 - Example (good): "To confirm your order I just need: your full name, phone number, and delivery address. 🙂"

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Download, Plus, Facebook, Instagram, MessageCircle, X, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useOrders, useUpdateOrderStatus, useCreateOrder } from "@/hooks/useSupabaseData";
+import { useOrders, useUpdateOrderStatus, useCreateOrder, useProducts } from "@/hooks/useSupabaseData";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { platformColors } from "@/data/mock-data";
 import type { Tables } from "@/integrations/supabase/types";

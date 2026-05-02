@@ -1065,6 +1065,34 @@ async function executeCreateOrder(
   const { isOpen, hasSchedule } = isStoreOpenNow(storeRes?.data?.working_hours);
   const outsideHours = ooEnabled && hasSchedule && !isOpen;
 
+  // ─── Item integrity guard: detect AI tool-call mistakes BEFORE writing the order ───
+  // Common failure: AI reuses the same product_id for multiple items with different product_names
+  // (e.g. customer wanted 2 different products but AI passed the first product's UUID twice).
+  {
+    const items = Array.isArray(args.items) ? args.items : [];
+    const idToNames: Record<string, Set<string>> = {};
+    for (const it of items) {
+      if (!it?.product_id) continue;
+      const name = String(it.product_name || "").trim().toLowerCase();
+      if (!name) continue;
+      (idToNames[it.product_id] ||= new Set()).add(name);
+    }
+    const conflicts = Object.entries(idToNames)
+      .filter(([, names]) => names.size > 1)
+      .map(([pid, names]) => ({ product_id: pid, names: Array.from(names) }));
+    if (conflicts.length > 0) {
+      console.warn("create_order rejected — same product_id used for different product names:", conflicts);
+      return JSON.stringify({
+        success: false,
+        error:
+          "ITEM_MISMATCH: You used the same product_id for items with different product_name values. " +
+          "Each distinct product MUST have its own product_id obtained from a search_products result. " +
+          "Call search_products again to get the correct UUID for each item, then retry create_order.",
+        conflicts,
+      });
+    }
+  }
+
   // ─── Nameless mode: build product_snapshot to preserve visual identity at order time ───
   let productSnapshot: any = null;
   try {

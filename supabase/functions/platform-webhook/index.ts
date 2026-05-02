@@ -725,7 +725,13 @@ const ORDER_TOOL = {
   function: {
     name: "create_order",
     description:
-      "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). IMPORTANT: If the product has variations (sizes_available, color, variants, or stock_per_size), you MUST have confirmed the specific variation with the customer BEFORE calling this tool, and pass it in the item.variant field (e.g. 'Size L / Black'). Call this ONLY after all required info AND variation are collected.",
+      "Create a NEW order in the store database. " +
+      "WHEN TO USE: The customer has confirmed they want to buy specific items AND you already collected (across any number of messages) their full name, phone number, and delivery address. Multiple orders per conversation are allowed. " +
+      "Examples that justify calling this tool: 'I'll take the black dress', 'بدي أطلب الكنزة الزرقا', 'احجزلي ٢ منهم', 'place the order', 'okay let's do it', once name+phone+address are known. " +
+      "DO NOT USE for: modifying an existing order (use update_order), cancelling (use cancel_order), or checking status (use check_order_status). " +
+      "VARIATIONS: If the chosen product has sizes/colors/variants, you MUST have confirmed the exact size+color BEFORE calling this tool, and pass them as item.size, item.color and item.variant ('Size L / Black'). " +
+      "QUANTITY: Parse from natural language ('I want 3', 'قطعتين' = 2, 'a dozen' = 12). Default to 1 only if no number is mentioned. " +
+      "PRODUCT_ID: Always include item.product_id from search_products results so stock auto-decrements.",
     parameters: {
       type: "object",
       properties: {
@@ -735,46 +741,23 @@ const ORDER_TOOL = {
         items: {
           type: "array",
           description:
-            "List of ordered items. IMPORTANT: Always include product_id from search results for accurate stock tracking.",
+            "List of ordered items. Always include product_id from search results for accurate stock tracking.",
           items: {
             type: "object",
             properties: {
-              product_id: {
-                type: "string",
-                description:
-                  "The product UUID from search results. MUST be included for stock tracking.",
-              },
+              product_id: { type: "string", description: "Product UUID from search_products results." },
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
-              size: {
-                type: "string",
-                description:
-                  "The customer's selected size (e.g. 'M', 'L', '42'). REQUIRED when the product has sizes_available or stock_per_size.",
-              },
-              color: {
-                type: "string",
-                description:
-                  "The customer's selected color (e.g. 'Black', 'Red'). REQUIRED when the product has color options.",
-              },
-              variant: {
-                type: "string",
-                description:
-                  "Combined variation label (e.g. 'Size L / Black') for legacy display. Fill this AND the size/color fields above when applicable.",
-              },
-              image: {
-                type: "string",
-                description:
-                  "Optional. The primary image URL of the product (from search_products results) so the order shows the right photo.",
-              },
+              size: { type: "string", description: "Selected size (REQUIRED when product has sizes_available or stock_per_size)." },
+              color: { type: "string", description: "Selected color (REQUIRED when product has color options)." },
+              variant: { type: "string", description: "Combined variation label e.g. 'Size L / Black'." },
+              image: { type: "string", description: "Primary image URL of the product from search_products results." },
             },
             required: ["product_name", "quantity", "price"],
           },
         },
-        notes: {
-          type: "string",
-          description: "Any special notes or requests from the customer",
-        },
+        notes: { type: "string", description: "Special notes or requests from the customer" },
       },
       required: ["customer_name", "phone", "address", "items"],
     },
@@ -786,19 +769,16 @@ const CANCEL_ORDER_TOOL = {
   function: {
     name: "cancel_order",
     description:
-      "Cancel an existing order when the customer explicitly requests to cancel. Use the order number if provided, otherwise look up the most recent pending order for this conversation.",
+      "Cancel an EXISTING active order. " +
+      "WHEN TO USE: The customer expresses (in any language or dialect) that they no longer want their order, want to abort it, changed their mind, etc. Examples: 'cancel my order', 'I changed my mind', 'الغي الطلب', 'بطلت', 'كنسل', 'ما عاد بدي', 'nevermind'. " +
+      "Call this IMMEDIATELY in the same turn — do NOT ask the customer to confirm first, do NOT reply with text only. " +
+      "If the customer didn't mention an order number, leave it empty and the most recent pending/confirmed order for this conversation will be cancelled. " +
+      "DO NOT USE for: modifying items (use update_order), or for orders already shipped/delivered (those cannot be cancelled).",
     parameters: {
       type: "object",
       properties: {
-        order_number: {
-          type: "string",
-          description:
-            "The order number (e.g. ORD-00001). Optional — if not provided, the most recent pending order for this conversation will be cancelled.",
-        },
-        reason: {
-          type: "string",
-          description: "Reason for cancellation if the customer provides one",
-        },
+        order_number: { type: "string", description: "The order number (e.g. ORD-00001). Optional — defaults to most recent active order." },
+        reason: { type: "string", description: "Reason for cancellation if the customer provided one." },
       },
       required: [],
     },
@@ -808,47 +788,28 @@ const CANCEL_ORDER_TOOL = {
 const UPDATE_ORDER_TOOL = {
   type: "function" as const,
   function: {
-     name: "update_order",
-     description:
-       "Update an existing order. CRITICAL: Pass ONLY the fields the customer EXPLICITLY mentioned changing in their CURRENT message. Do NOT pass address unless the customer literally gave a new address in this turn. Do NOT pass phone unless they gave a new phone. Do NOT pass items unless they explicitly asked to change items/quantities. NEVER copy values from previous turns or from the existing order — only fields the user just changed. If the user is changing QUANTITY only, pass the full updated items array (with new quantity) and nothing else. If the user only wants to change one field, pass ONLY that field.",
+    name: "update_order",
+    description:
+      "Modify an EXISTING active order (status: pending, confirmed, or processing). " +
+      "WHEN TO USE: The customer wants to change something about an order they already placed — items, quantities, delivery address, phone, name, or notes. Examples: 'change quantity to 3', 'deliver to a different address', 'add another shirt to my order', 'بدي اعدل العنوان', 'خليها قطعتين', 'بدل الأسود بالأحمر'. " +
+      "STRICT FIELD ISOLATION: Pass ONLY the fields the customer just asked to change in their CURRENT message. NEVER copy unchanged fields from the existing order. If the customer changed only the address → pass address only. Only quantity → pass items only. Etc. " +
+      "DO NOT USE for: cancelling (use cancel_order), creating a new order (use create_order), or for orders already shipped/delivered (in that case call create_order to make a new order for the additional/changed items).",
     parameters: {
       type: "object",
       properties: {
-        order_number: {
-          type: "string",
-          description:
-            "The order number to update (e.g. ORD-00001). If not provided, the most recent active order for this conversation will be updated.",
-        },
-        customer_name: {
-          type: "string",
-          description: "Updated customer name (only if changed)",
-        },
-        phone: {
-          type: "string",
-          description: "Updated phone number (only if changed)",
-        },
-        address: {
-          type: "string",
-          description: "Updated delivery address (only if changed)",
-        },
+        order_number: { type: "string", description: "Order number to update. Defaults to most recent active order if omitted." },
+        customer_name: { type: "string", description: "New customer name (only if changed)." },
+        phone: { type: "string", description: "New phone number (only if changed)." },
+        address: { type: "string", description: "New delivery address (only if changed)." },
         items: {
           type: "array",
-          description:
-            "Updated full list of items (replaces existing items). Only provide if items changed. Parse quantities from natural language.",
+          description: "New full items list (replaces existing). Only provide if items/quantities changed.",
           items: {
             type: "object",
             properties: {
-              product_id: {
-                type: "string",
-                description:
-                  "The product UUID from search results. MUST be included for stock tracking.",
-              },
+              product_id: { type: "string" },
               product_name: { type: "string" },
-              quantity: {
-                type: "number",
-                description:
-                  "Quantity parsed from customer message. Default to 1 if not specified.",
-              },
+              quantity: { type: "number" },
               price: { type: "number" },
             },
             required: ["product_name", "quantity", "price"],
@@ -866,20 +827,15 @@ const ADD_ORDER_NOTE_TOOL = {
   function: {
     name: "add_order_note",
     description:
-      "Append a note to an existing order without overwriting other data. Use this to record special customer requests, delivery instructions, gift wrapping, color preferences, follow-up reminders, or any helpful context for the store owner. Notes are appended (history preserved) and timestamped automatically. Do NOT use this for changing items, address, phone, or name — use update_order for those.",
+      "Append a note to an existing order WITHOUT modifying its data. " +
+      "WHEN TO USE: The customer mentions a special request, delivery preference, or context that's helpful for the store owner but isn't a field change. Examples: 'please gift wrap it', 'leave at the door', 'call me before delivery', 'I'm allergic to nuts — confirm ingredients', 'وصلولي بعد ٤ العصر'. " +
+      "Notes are appended (history preserved) and timestamped automatically. " +
+      "DO NOT USE for: changing items, address, phone, or name (use update_order for those).",
     parameters: {
       type: "object",
       properties: {
-        order_number: {
-          type: "string",
-          description:
-            "The order number to add a note to (e.g. ORD-00001). If omitted, the most recent active order for this conversation will be used.",
-        },
-        note: {
-          type: "string",
-          description:
-            "The note text to append. Keep it short and informative (e.g. 'Customer wants gift wrapping', 'Prefers afternoon delivery', 'Allergic to nuts — confirm ingredients').",
-        },
+        order_number: { type: "string", description: "Order number. Defaults to most recent active order if omitted." },
+        note: { type: "string", description: "Short, informative note text in the customer's language." },
       },
       required: ["note"],
     },
@@ -891,15 +847,14 @@ const CHECK_ORDER_STATUS_TOOL = {
   function: {
     name: "check_order_status",
     description:
-      "Look up the current status and details of an order from the database. Use this whenever the customer asks about their order status, delivery progress, or order details. You can search by order number or get the most recent order for this conversation.",
+      "Look up the current status, items, and details of an existing order. " +
+      "WHEN TO USE: The customer asks about their order in ANY way — where it is, current status, when it ships, ETA, tracking, delivery progress, 'did you send it?', 'any update?'. Examples in any language: 'where is my order', 'وين طلبي', 'وين صار الطلب', 'متى يوصل', 'order status', 'tracking', 'تتبع', 'لسا ما وصل'. " +
+      "Call this BEFORE replying — never guess the status from chat history. After the tool returns, reply in the customer's language with the order number + current status + ETA if available. " +
+      "If no order_number is given, the most recent order for this conversation is returned.",
     parameters: {
       type: "object",
       properties: {
-        order_number: {
-          type: "string",
-          description:
-            "The order number to look up (e.g. ORD-00001). If not provided, returns the most recent order for this conversation.",
-        },
+        order_number: { type: "string", description: "Order number to look up. Defaults to most recent." },
       },
       required: [],
     },
@@ -911,33 +866,24 @@ const SEND_PRODUCT_IMAGES_TOOL = {
   function: {
     name: "send_product_images",
     description:
-      "Send product images to the customer. Each product in search_products results has an `images` array — these are DIFFERENT PHOTOS / ANGLES / VARIATIONS of the SAME product (front, back, side, color variants, detail shots), NOT different products. " +
-      "Use this tool when the customer asks to see a product, asks what it looks like, asks for more photos / other angles / different views / variations / colors, or when recommending/discussing products. " +
-      "Default behavior: send the FIRST image (cover) for each product when introducing or recommending. " +
-      "When the customer asks for more pictures, other angles, different sides, variations, or 'show me more' of a specific product → send ALL remaining images of that product (one entry per image_url, same product_name, captions like 'Front', 'Back', 'Side', 'Detail', or 'View 2', 'View 3'...). " +
-      "Always send images alongside your text description.",
+      "Send product photo(s) to the customer in the chat. " +
+      "WHEN TO USE: Whenever you mention, recommend, or describe a specific product — pair it with its photo. Also when the customer explicitly asks to see something: 'show me', 'send a picture', 'صورة', 'ورجيني'. " +
+      "DEFAULT: Send the FIRST image (cover) of each recommended product. " +
+      "MULTIPLE ANGLES: If the customer asks for 'more photos / other angles / different sides / colors / variations' of a SPECIFIC product → send ALL remaining images from that product's images array, with captions like 'Front', 'Back', 'Side', 'View 2'. " +
+      "Each product in search_products results has an `images` array — those are different photos/angles of the SAME product, NOT different products. " +
+      "Use exact image URLs from search results — never invent URLs.",
     parameters: {
       type: "object",
       properties: {
         products: {
           type: "array",
-          description: "List of products to send images for",
+          description: "List of products (or angles of one product) to send images for.",
           items: {
             type: "object",
             properties: {
-              product_name: {
-                type: "string",
-                description: "Name of the product",
-              },
-              image_url: {
-                type: "string",
-                description: "The image URL from the product catalog",
-              },
-              caption: {
-                type: "string",
-                description:
-                  "Short caption for the image (e.g. product name and price)",
-              },
+              product_name: { type: "string" },
+              image_url: { type: "string", description: "Image URL from the product catalog." },
+              caption: { type: "string", description: "Short caption (product name + price, or angle label)." },
             },
             required: ["product_name", "image_url"],
           },
@@ -953,19 +899,18 @@ const SEARCH_PRODUCTS_TOOL = {
   function: {
     name: "search_products",
     description:
-      "Visual-first product search. The store sells items WITHOUT product names — match by visual attributes. " +
-      "Pass any attributes you can infer from the customer's text or photo (type, color, pattern, style, fit, material, occasion). " +
-      "When the customer sent an image, the system has already pre-extracted its visual attributes for you and will blend them with whatever you pass. " +
-      "Returns ranked matches with `confidence` ('high' | 'medium' | 'low' | 'none') and `top_match_score`. " +
-      "Use the `note` field in the response to decide your reply: high → present the one item; medium → ask 'is it one of these?' with up to 3; low → ask ONE clarifying question; none → show closest alternatives honestly.",
+      "Search the store catalog for products matching the customer's request. " +
+      "WHEN TO USE: Whenever the customer asks about, looks for, or describes a product — by name, by visual attributes, by category, by price range, or by sending an image. Examples: 'do you have black dresses?', 'بدي شي تحت ٥٠ شيكل', 'فستان أحمر', 'هاد متوفر؟'. ALSO call this when an image is in the customer's message — the system pre-extracts visual attributes from the image and blends them with whatever you pass. " +
+      "Pass any attributes you can infer (type, color, pattern, style, fit, material, occasion) PLUS optional category/price filters. " +
+      "Returns ranked matches with `confidence` (high/medium/low/none) and a `note` telling you how to phrase your reply. " +
+      "DO NOT USE for: just confirming an order (no search needed), or for general store-info questions (hours, delivery, etc.).",
     parameters: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Free-text fallback (e.g. 'red dress', 'puzzle'). Optional when attributes are provided." },
+        query: { type: "string", description: "Free-text search (e.g. 'red dress', 'puzzle'). Optional when attributes are provided." },
         category: { type: "string", description: "Category prefilter (e.g. 'Dresses')" },
         min_price: { type: "number" },
         max_price: { type: "number" },
-        // Visual attributes
         type: { type: "string", description: "dress | top | pants | jacket | skirt | shoes | bag | accessory | ..." },
         color: { type: "array", items: { type: "string" }, description: "Lowercase English color names, e.g. ['red','white']" },
         pattern: { type: "string", description: "solid | floral | striped | checkered | polka | graphic | ..." },
@@ -984,12 +929,10 @@ const LIST_CATEGORIES_TOOL = {
   function: {
     name: "list_categories",
     description:
-      "List all product categories with their product counts and price ranges. Use this when the customer asks a vague question like 'what do you sell?', 'show me your products', or 'what categories do you have?'. This gives an overview without loading all products.",
-    parameters: {
-      type: "object",
-      properties: {},
-      required: [],
-    },
+      "Return all product categories with their product counts and price ranges (overview, no full product list). " +
+      "WHEN TO USE: The customer asks a vague, browse-style question with no specific product in mind. Examples: 'what do you sell?', 'show me your products', 'شو عندكم؟', 'وريني المنتجات', 'what categories do you have?'. " +
+      "Use this BEFORE search_products in those vague cases, then let the customer pick a category.",
+    parameters: { type: "object", properties: {}, required: [] },
   },
 };
 
@@ -998,7 +941,9 @@ const GET_ACTIVE_PROMOTIONS_TOOL = {
   function: {
     name: "get_active_promotions",
     description:
-      "Return all currently active promotions / discount codes for this store (label, code, type, value, conditions, expiry). Use ONLY when the customer asks about discounts, deals, promo codes, sales, or coupons. NEVER invent a code that isn't returned by this tool.",
+      "Return all currently active promotions / discount codes for this store. " +
+      "WHEN TO USE: The customer asks about discounts, deals, sales, coupons, promo codes, offers. Examples: 'any discount?', 'فيه خصم؟', 'كوبون', 'عروض', 'is there a sale?'. " +
+      "NEVER invent a code that isn't returned by this tool. If nothing is active, tell the customer warmly that prices are fixed right now.",
     parameters: { type: "object", properties: {}, required: [] },
   },
 };
@@ -1008,11 +953,13 @@ const APPLY_DISCOUNT_CODE_TOOL = {
   function: {
     name: "apply_discount_code",
     description:
-      "Validate and apply a customer-provided discount code to a SPECIFIC existing order. The order total is recomputed and the discount is persisted. Use AFTER an order has been created (you have its order_number) and the customer typed a code.",
+      "Validate and apply a customer-provided discount code to a SPECIFIC existing order. The order total is recomputed and the discount is persisted. " +
+      "WHEN TO USE: The customer typed a discount/coupon code AFTER an order has been created (you have its order_number). Examples: 'use code SAVE10', 'هاد الكوبون: WELCOME20'. " +
+      "After applying, read back the new total to the customer.",
     parameters: {
       type: "object",
       properties: {
-        order_number: { type: "string", description: "The order number to apply the code to (e.g. ORD-00042)." },
+        order_number: { type: "string", description: "Order number to apply the code to (e.g. ORD-00042)." },
         code: { type: "string", description: "The discount code the customer typed." },
       },
       required: ["order_number", "code"],
@@ -1025,11 +972,13 @@ const FLAG_KNOWLEDGE_GAP_TOOL = {
   function: {
     name: "flag_knowledge_gap",
     description:
-      "Log a customer question that you genuinely cannot answer from the store information, custom instructions, or catalog. Call this AT MOST ONCE per conversation, and only when you would otherwise have to say 'let me confirm that for you'. The store owner will see the question and add an answer that future replies can use.",
+      "Log a customer question you genuinely cannot answer from store info, owner knowledge, or the catalog, so the store owner can add an answer for next time. " +
+      "WHEN TO USE: ONLY when you would otherwise have to say 'let me check that for you' / 'I'm not sure'. Call AT MOST ONCE per conversation. " +
+      "DO NOT USE for things you already know from the store context, or when a different tool would answer it.",
     parameters: {
       type: "object",
       properties: {
-        question: { type: "string", description: "The customer's question, in their own words, in the language they wrote it." },
+        question: { type: "string", description: "The customer's question, in their own words and language." },
       },
       required: ["question"],
     },
@@ -1041,13 +990,14 @@ const REGISTER_RESTOCK_INTEREST_TOOL = {
   function: {
     name: "register_restock_interest",
     description:
-      "Register a customer's interest in being notified when a specific product (or variant) is back in stock. Use ONLY when search_products / get_product_details confirmed the item exists but stock is 0, AND the customer agreed to be notified.",
+      "Register a customer to be notified when an out-of-stock product is back. " +
+      "WHEN TO USE: ONLY after search_products confirms the item exists but stock is 0, AND the customer agreed to be notified (e.g. 'yes please ping me', 'أكيد خبرني').",
     parameters: {
       type: "object",
       properties: {
         product_id: { type: "string", description: "UUID of the product from search_products results." },
         product_name: { type: "string", description: "Plain-language product name for the confirmation message." },
-        variant: { type: "string", description: "Optional size/color/variant the customer wanted, e.g. 'Size L, Black'." },
+        variant: { type: "string", description: "Optional size/color/variant the customer wanted." },
       },
       required: ["product_id"],
     },
@@ -1059,7 +1009,8 @@ const GET_STORE_CONTEXT_TOOL = {
   function: {
     name: "get_store_context",
     description:
-      "Re-fetch the latest store info: working hours, delivery info, return policy, payment methods, and active promotions. Use only when the customer asks an operational question (hours, delivery, returns, payment, promos) AND you need fresh data — otherwise rely on the Store Information already in your prompt.",
+      "Re-fetch the latest store info: working hours, delivery info, return policy, payment methods, active promotions. " +
+      "WHEN TO USE: ONLY when the customer asks an operational question (hours, delivery cost, returns, payment) AND the Store Information block in your prompt is missing/outdated. Otherwise just answer from the store context already in your prompt — do NOT call this tool unnecessarily.",
     parameters: { type: "object", properties: {}, required: [] },
   },
 };

@@ -167,9 +167,33 @@ export default function OrdersPage() {
                             const name = (item.product_name || item.name || 'Unknown') as string;
                             const qty = Number(item.quantity || 1);
                             const price = Number(item.price || 0);
+                            const variant = (item.variant || item.variation || '') as string;
+                            const snap = (selectedOrder.product_snapshot as any)?.items?.find?.(
+                              (s: any) => s.product_id === item.product_id
+                            );
+                            const image = (item.image || item.image_url || snap?.image_url || '') as string;
                             return (
-                              <tr key={idx} className="border-b border-border/50 last:border-0">
-                                <td className="px-3 py-2 text-foreground">{name}</td>
+                              <tr key={idx} className="border-b border-border/50 last:border-0 align-top">
+                                <td className="px-3 py-2 text-foreground">
+                                  <div className="flex items-start gap-2">
+                                    {image ? (
+                                      <img
+                                        src={image}
+                                        alt={name}
+                                        className="h-12 w-12 rounded-md object-cover border border-border flex-shrink-0"
+                                        loading="lazy"
+                                      />
+                                    ) : (
+                                      <div className="h-12 w-12 rounded-md bg-muted flex-shrink-0" />
+                                    )}
+                                    <div className="min-w-0">
+                                      <div className="truncate">{name}</div>
+                                      {variant && (
+                                        <div className="text-xs text-muted-foreground mt-0.5">{variant}</div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
                                 <td className="px-3 py-2 text-center text-muted-foreground">{qty}</td>
                                 <td className="px-3 py-2 text-end text-muted-foreground">${price.toFixed(2)}</td>
                                 <td className="px-3 py-2 text-end font-medium text-foreground">${(qty * price).toFixed(2)}</td>

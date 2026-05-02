@@ -4107,6 +4107,45 @@ Deno.serve(async (req) => {
         catMap[cat].min = Math.min(catMap[cat].min, p.price);
         catMap[cat].max = Math.max(catMap[cat].max, p.price);
       }
+      // Identify products that have variations so the AI knows to confirm size/color
+      const productsWithVariations = catalogProducts
+        .filter((p: any) => {
+          const sizes = Array.isArray(p.sizes_available) ? p.sizes_available.length : 0;
+          const colors = Array.isArray(p.color) ? p.color.length : 0;
+          const variants = Array.isArray(p.variants) ? p.variants.length : 0;
+          const stockPerSize = p.stock_per_size && typeof p.stock_per_size === "object"
+            ? Object.keys(p.stock_per_size).length
+            : 0;
+          return sizes > 0 || colors > 0 || variants > 0 || stockPerSize > 0;
+        })
+        .slice(0, 30)
+        .map((p: any) => {
+          const label = p.name || p.auto_description || "Item";
+          const parts: string[] = [];
+          if (Array.isArray(p.sizes_available) && p.sizes_available.length) {
+            const sizeBits = p.sizes_available.map((s: string) => {
+              const stk = p.stock_per_size?.[s];
+              return stk != null ? `${s}(${stk})` : s;
+            });
+            parts.push(`sizes: ${sizeBits.join("/")}`);
+          }
+          if (Array.isArray(p.color) && p.color.length) {
+            parts.push(`colors: ${p.color.join("/")}`);
+          }
+          if (Array.isArray(p.variants) && p.variants.length) {
+            const vNames = p.variants
+              .map((v: any) => (typeof v === "string" ? v : v?.name || v?.title))
+              .filter(Boolean)
+              .slice(0, 6);
+            if (vNames.length) parts.push(`variants: ${vNames.join("/")}`);
+          }
+          return `- ${label} → ${parts.join("; ")}`;
+        });
+
+      const variationsSection = productsWithVariations.length
+        ? `\n\nProducts with variations (you MUST confirm the exact size/color BEFORE creating an order; numbers in parentheses = stock per size, skip out-of-stock options):\n${productsWithVariations.join("\n")}`
+        : "";
+
       const catalogSummary =
         catalogProducts.length === 0
           ? "No products available yet."
@@ -4119,7 +4158,7 @@ Deno.serve(async (req) => {
               )
               .join(
                 "\n"
-              )}\n\nIMPORTANT: Use search_products tool to get specific product details. Do NOT guess product names or prices.`;
+              )}${variationsSection}\n\nIMPORTANT: Use search_products tool to get full product details. Do NOT guess product names or prices.`;
 
       if (aiSettings?.auto_reply === false) {
         console.log("Auto-reply disabled for store:", storeId);

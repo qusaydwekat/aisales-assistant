@@ -449,3 +449,298 @@ export function ProductWizard({
     </AnimatePresence>
   );
 }
+
+// ---------- Friendly variations editor ----------
+const SIZE_PRESETS = ["XS", "S", "M", "L", "XL", "XXL"];
+const NUMERIC_SIZES = ["36", "38", "40", "42", "44", "46"];
+const COLOR_PRESETS: { name: string; hex: string }[] = [
+  { name: "Black", hex: "#000000" },
+  { name: "White", hex: "#FFFFFF" },
+  { name: "Gray", hex: "#9CA3AF" },
+  { name: "Red", hex: "#EF4444" },
+  { name: "Pink", hex: "#EC4899" },
+  { name: "Orange", hex: "#F97316" },
+  { name: "Yellow", hex: "#EAB308" },
+  { name: "Green", hex: "#22C55E" },
+  { name: "Blue", hex: "#3B82F6" },
+  { name: "Navy", hex: "#1E3A8A" },
+  { name: "Purple", hex: "#A855F7" },
+  { name: "Brown", hex: "#92400E" },
+  { name: "Beige", hex: "#D6C7A8" },
+];
+
+function VariationsSection({
+  form,
+  setForm,
+  t,
+}: {
+  form: ProductForm;
+  setForm: React.Dispatch<React.SetStateAction<ProductForm>>;
+  t: (k: string) => string;
+}) {
+  const sizes = form.sizes_available || [];
+  const colors = form.color || [];
+  const hasVariations = sizes.length > 0 || colors.length > 0;
+  const [enabled, setEnabled] = useState<boolean>(hasVariations);
+  const [sizeInput, setSizeInput] = useState("");
+  const [colorInput, setColorInput] = useState("");
+  const [sizeMode, setSizeMode] = useState<"letters" | "numbers">(
+    sizes.some((s) => /^\d/.test(s)) ? "numbers" : "letters"
+  );
+
+  const update = (patch: Partial<ProductForm>) => setForm((f) => ({ ...f, ...patch }));
+
+  const addSize = (s: string) => {
+    const v = s.trim().toUpperCase();
+    if (!v || sizes.includes(v)) return;
+    update({ sizes_available: [...sizes, v] });
+  };
+  const removeSize = (s: string) => {
+    const next = sizes.filter((x) => x !== s);
+    const stock = { ...(form.stock_per_size || {}) };
+    delete stock[s];
+    update({ sizes_available: next, stock_per_size: stock });
+  };
+
+  const addColor = (c: string) => {
+    const v = c.trim();
+    if (!v || colors.some((x) => x.toLowerCase() === v.toLowerCase())) return;
+    update({ color: [...colors, v] });
+  };
+  const removeColor = (c: string) => update({ color: colors.filter((x) => x !== c) });
+
+  const setStockFor = (size: string, qty: number) => {
+    update({ stock_per_size: { ...(form.stock_per_size || {}), [size]: Math.max(0, qty || 0) } });
+  };
+
+  return (
+    <div className="rounded-lg border border-border/50 bg-muted/30 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setEnabled((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 p-3 hover:bg-muted/40 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Layers className="h-4 w-4 text-primary" />
+          <div className="text-start">
+            <div className="text-sm font-medium text-foreground">{t("product_variations")}</div>
+            <div className="text-[11px] text-muted-foreground">
+              {hasVariations
+                ? `${sizes.length} ${t("sizes_count_label")} · ${colors.length} ${t("colors_count_label")}`
+                : t("variations_optional_hint")}
+            </div>
+          </div>
+        </div>
+        <span
+          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+            enabled ? "bg-primary" : "bg-muted-foreground/30"
+          }`}
+        >
+          <span
+            className={`inline-block h-4 w-4 transform rounded-full bg-background transition-transform ${
+              enabled ? "translate-x-4" : "translate-x-0.5"
+            }`}
+          />
+        </span>
+      </button>
+
+      {enabled && (
+        <div className="px-3 pb-3 space-y-4 border-t border-border/50 pt-3">
+          {/* Sizes */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-foreground">{t("sizes_label")}</label>
+              <div className="flex rounded-md bg-background border border-border overflow-hidden text-[11px]">
+                <button
+                  type="button"
+                  onClick={() => setSizeMode("letters")}
+                  className={`px-2 py-0.5 ${sizeMode === "letters" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                >
+                  S/M/L
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSizeMode("numbers")}
+                  className={`px-2 py-0.5 ${sizeMode === "numbers" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+                >
+                  36/38/40
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {(sizeMode === "letters" ? SIZE_PRESETS : NUMERIC_SIZES).map((s) => {
+                const active = sizes.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => (active ? removeSize(s) : addSize(s))}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium border transition-colors ${
+                      active
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-foreground border-border hover:border-primary/50"
+                    }`}
+                  >
+                    {s}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={sizeInput}
+                onChange={(e) => setSizeInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addSize(sizeInput);
+                    setSizeInput("");
+                  }
+                }}
+                placeholder={t("custom_size_placeholder")}
+                className="flex-1 rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary border border-border"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  addSize(sizeInput);
+                  setSizeInput("");
+                }}
+                className="px-3 rounded-lg bg-muted hover:bg-muted/70 text-foreground"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            {sizes.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {sizes.map((s) => (
+                  <span
+                    key={s}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/15 text-primary text-xs"
+                  >
+                    {s}
+                    <button type="button" onClick={() => removeSize(s)} className="hover:text-destructive">
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Colors */}
+          <div className="space-y-2">
+            <label className="text-xs font-medium text-foreground">{t("colors_label")}</label>
+            <div className="flex flex-wrap gap-1.5">
+              {COLOR_PRESETS.map((c) => {
+                const active = colors.some((x) => x.toLowerCase() === c.name.toLowerCase());
+                return (
+                  <button
+                    key={c.name}
+                    type="button"
+                    onClick={() =>
+                      active
+                        ? removeColor(colors.find((x) => x.toLowerCase() === c.name.toLowerCase())!)
+                        : addColor(c.name)
+                    }
+                    className={`flex items-center gap-1.5 pl-1 pr-2 py-1 rounded-md text-xs border transition-colors ${
+                      active
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border bg-background text-foreground hover:border-primary/50"
+                    }`}
+                  >
+                    <span
+                      className="h-4 w-4 rounded-full border border-border/60"
+                      style={{ backgroundColor: c.hex }}
+                    />
+                    {c.name}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex gap-2">
+              <input
+                value={colorInput}
+                onChange={(e) => setColorInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === ",") {
+                    e.preventDefault();
+                    addColor(colorInput);
+                    setColorInput("");
+                  }
+                }}
+                placeholder={t("custom_color_placeholder")}
+                className="flex-1 rounded-lg bg-background px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary border border-border"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  addColor(colorInput);
+                  setColorInput("");
+                }}
+                className="px-3 rounded-lg bg-muted hover:bg-muted/70 text-foreground"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+            </div>
+            {colors.filter((c) => !COLOR_PRESETS.some((p) => p.name.toLowerCase() === c.toLowerCase())).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {colors
+                  .filter((c) => !COLOR_PRESETS.some((p) => p.name.toLowerCase() === c.toLowerCase()))
+                  .map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/15 text-primary text-xs"
+                    >
+                      {c}
+                      <button type="button" onClick={() => removeColor(c)} className="hover:text-destructive">
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Stock per size */}
+          {sizes.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-foreground">{t("stock_per_size_label")}</label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const stock: Record<string, number> = {};
+                    sizes.forEach((s) => (stock[s] = form.stock || 0));
+                    update({ stock_per_size: stock });
+                  }}
+                  className="text-[11px] text-primary hover:underline"
+                >
+                  {t("fill_all_with")} {form.stock || 0}
+                </button>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {sizes.map((s) => (
+                  <div
+                    key={s}
+                    className="flex items-center gap-2 bg-background rounded-lg border border-border px-2 py-1.5"
+                  >
+                    <span className="text-xs font-medium text-foreground w-8">{s}</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={form.stock_per_size?.[s] ?? ""}
+                      onChange={(e) => setStockFor(s, Number(e.target.value))}
+                      placeholder="0"
+                      className="flex-1 w-full bg-transparent text-sm text-foreground outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

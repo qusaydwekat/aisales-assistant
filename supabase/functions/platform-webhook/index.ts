@@ -4066,7 +4066,7 @@ Deno.serve(async (req) => {
           getCachedStore(supabase, storeId),
           supabase
             .from("products")
-            .select("category, price")
+            .select("name, auto_description, category, price, sizes_available, color, stock_per_size, variants, stock")
             .eq("store_id", storeId)
             .eq("active", true),
           getCachedAISettings(supabase, storeId),

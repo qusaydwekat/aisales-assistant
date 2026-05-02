@@ -1147,6 +1147,21 @@ async function executeCreateOrder(
     console.warn("product_snapshot build failed (non-fatal):", snapErr);
   }
 
+  // Enrich items with image (from snapshot) so the Orders UI can render the product photo,
+  // and keep variant text on the item itself.
+  const snapshotById: Record<string, any> = {};
+  if (productSnapshot?.items) {
+    for (const it of productSnapshot.items) snapshotById[it.product_id] = it;
+  }
+  const enrichedItems = (args.items || []).map((it: any) => {
+    const snap = it.product_id ? snapshotById[it.product_id] : null;
+    return {
+      ...it,
+      variant: it.variant || null,
+      image: it.image || snap?.image_url || null,
+    };
+  });
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
@@ -1155,7 +1170,7 @@ async function executeCreateOrder(
       customer_name: args.customer_name,
       phone: args.phone || "",
       address: args.address || "",
-      items: args.items || [],
+      items: enrichedItems,
       total,
       notes: args.notes || "",
       platform,

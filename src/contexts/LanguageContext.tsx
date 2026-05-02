@@ -257,6 +257,10 @@ const translations: Record<Language, Record<string, string>> = {
     description_placeholder: "Tell customers what makes this product special...",
     category_label: "Category",
     active_visible: "Active (visible in storefront)",
+    product_variations: "Product variations",
+    sizes_placeholder: "Sizes (S, M, L)",
+    colors_placeholder: "Colors (black, white)",
+    stock_per_size_placeholder: "Stock per size (S: 4, M: 8)",
     save_and_add_another: "Save & add another",
     save: "Save",
     // Category combobox
@@ -530,6 +534,10 @@ const translations: Record<Language, Record<string, string>> = {
     description_placeholder: "أخبر العملاء ما يميز هذا المنتج...",
     category_label: "الفئة",
     active_visible: "نشط (مرئي في المتجر)",
+    product_variations: "خيارات المنتج",
+    sizes_placeholder: "المقاسات (S, M, L)",
+    colors_placeholder: "الألوان (أسود، أبيض)",
+    stock_per_size_placeholder: "المخزون لكل مقاس (S: 4, M: 8)",
     save_and_add_another: "حفظ وإضافة آخر",
     save: "حفظ",
     // Category combobox

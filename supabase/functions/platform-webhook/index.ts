@@ -725,7 +725,7 @@ const ORDER_TOOL = {
   function: {
     name: "create_order",
     description:
-      "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). Call this ONLY after all required info is collected.",
+      "Create a new order when the customer has confirmed items and you have collected their full name, phone number, and delivery address (possibly across multiple messages). Parse quantities from natural language (e.g. 'I want 3 of X' means quantity=3, 'give me two Y' means quantity=2, if no quantity mentioned assume 1). IMPORTANT: If the product has variations (sizes_available, color, variants, or stock_per_size), you MUST have confirmed the specific variation with the customer BEFORE calling this tool, and pass it in the item.variant field (e.g. 'Size L / Black'). Call this ONLY after all required info AND variation are collected.",
     parameters: {
       type: "object",
       properties: {
@@ -747,6 +747,16 @@ const ORDER_TOOL = {
               product_name: { type: "string" },
               quantity: { type: "number" },
               price: { type: "number" },
+              variant: {
+                type: "string",
+                description:
+                  "REQUIRED if the product has any variations (size, color, variants array, stock_per_size). Format like 'Size L', 'Black', 'Size M / Red'. Leave empty only if the product has no variations.",
+              },
+              image: {
+                type: "string",
+                description:
+                  "Optional. The primary image URL of the product (from search_products results) so the order shows the right photo.",
+              },
             },
             required: ["product_name", "quantity", "price"],
           },
@@ -1137,6 +1147,21 @@ async function executeCreateOrder(
     console.warn("product_snapshot build failed (non-fatal):", snapErr);
   }
 
+  // Enrich items with image (from snapshot) so the Orders UI can render the product photo,
+  // and keep variant text on the item itself.
+  const snapshotById: Record<string, any> = {};
+  if (productSnapshot?.items) {
+    for (const it of productSnapshot.items) snapshotById[it.product_id] = it;
+  }
+  const enrichedItems = (args.items || []).map((it: any) => {
+    const snap = it.product_id ? snapshotById[it.product_id] : null;
+    return {
+      ...it,
+      variant: it.variant || null,
+      image: it.image || snap?.image_url || null,
+    };
+  });
+
   const { data: order, error } = await supabase
     .from("orders")
     .insert({
@@ -1145,7 +1170,7 @@ async function executeCreateOrder(
       customer_name: args.customer_name,
       phone: args.phone || "",
       address: args.address || "",
-      items: args.items || [],
+      items: enrichedItems,
       total,
       notes: args.notes || "",
       platform,
@@ -2626,6 +2651,12 @@ CRITICAL ORDER RULES — READ CAREFULLY:
   - If the customer says just "I want this" or "أبي هذا" with no number → quantity: 1
 - Always confirm the detected quantity with the customer before creating the order.
 - Include the correct quantity in the order items — do NOT default everything to 1.
+
+**PRODUCT VARIATIONS — CRITICAL**:
+- Many products have variations: \`sizes_available\` (e.g. ["S","M","L"]), \`color\` (e.g. ["Black","Red"]), \`variants\` array, or \`stock_per_size\` (per-size inventory). The product image gallery (\`images\` array) often shows different colors/angles of the SAME product.
+- If the product the customer wants has ANY of these variations, you MUST proactively confirm the exact variation (size AND color, etc.) BEFORE creating the order. Ask in one short message: "Which size and color would you like? Available: Sizes S/M/L, Colors Black/Red." Use \`stock_per_size\` to avoid offering out-of-stock sizes.
+- When sending product photos, mention which images correspond to which color/variation if the customer is choosing.
+- When you finally call create_order, you MUST set \`item.variant\` to the chosen variation string (e.g. "Size L / Black"), and set \`item.image\` to the matching image URL from the product's images array. Never call create_order for a variant product without a confirmed variant.
 
 **SMART DATA COLLECTION — CRITICAL**:
 - ALWAYS ask for ALL missing customer details (full name, phone number, AND delivery address) in ONE SINGLE message. Do NOT ask for them one by one across multiple turns.

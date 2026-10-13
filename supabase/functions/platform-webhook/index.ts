@@ -4023,8 +4023,8 @@ Deno.serve(async (req) => {
             .from("messages")
             .select("sender, content, created_at")
             .eq("conversation_id", conversation.id)
-            .order("created_at", { ascending: true })
-            .limit(20),
+            .order("created_at", { ascending: false })
+            .limit(30),
           supabase
             .from("orders")
             .select(
@@ -4038,7 +4038,8 @@ Deno.serve(async (req) => {
 
       const storeInfo = storeRes.data;
       const aiSettings = aiSettingsRes.data;
-      const history = historyRes.data || [];
+      // Fetched newest-first so long chats keep the latest messages; flip to chronological.
+      const history = [...(historyRes.data || [])].reverse();
       const existingOrders = ordersRes.data || [];
       const initialBurstDepth = collectPendingCustomerBurst(history).length;
 
@@ -4286,8 +4287,9 @@ Deno.serve(async (req) => {
         .from("messages")
         .select("sender, content, created_at")
         .eq("conversation_id", conversation.id)
-        .order("created_at", { ascending: true })
-        .limit(20);
+        .order("created_at", { ascending: false })
+        .limit(30);
+      freshHistory?.reverse();
 
       // Combine the latest consecutive customer messages into one prompt.
       const allHistory = freshHistory || history;

@@ -52,6 +52,32 @@ Deno.serve(async (req) => {
 
     // ─── 1) Vision extraction ───────────────────────────────────────
     const visionModel = model;
+    // GPT-6 Astra can't use function tools on chat completions; use JSON schema output instead.
+    const useJsonSchema = /^openai\/gpt-6-astra/.test(visionModel);
+    const productSchema = {
+                type: "object",
+                properties: {
+                  // Customer-facing
+                  auto_description: { type: "string", description: "ONE short natural sentence describing the item visually, in the requested language" },
+                  name: { type: "string", description: "Optional short internal label (max 60 chars). Can equal auto_description." },
+                  description: { type: "string", description: "1-2 sentence marketing description" },
+                  category: { type: "string", description: "Single category word (e.g. 'Dresses', 'Tops', 'Pants', 'Shoes', 'Accessories')" },
+                  suggested_price: { type: "number", description: "Estimated retail price in USD, 0 if unknown" },
+
+                  // Visual attributes
+                  type: { type: ["string", "null"], description: "Item type: dress | top | pants | jacket | skirt | shoes | bag | accessory | ..." },
+                  color: { type: "array", items: { type: "string" }, description: "Visible colors, lowercase English (e.g. ['red', 'white'])" },
+                  pattern: { type: ["string", "null"], description: "solid | floral | striped | checkered | polka | graphic | abstract | ..." },
+                  style: { type: ["string", "null"], description: "casual | formal | sporty | bohemian | streetwear | vintage | ..." },
+                  material: { type: ["string", "null"], description: "cotton | chiffon | denim | leather | knit | polyester | ..." },
+                  fit: { type: ["string", "null"], description: "slim | regular | oversized | tailored | loose | fitted" },
+                  occasion: { type: "array", items: { type: "string" }, description: "['daily', 'beach', 'wedding', 'office', 'party', ...]" },
+                  sleeve: { type: ["string", "null"], description: "sleeveless | short | long | 3/4 (or null if not applicable)" },
+                  neckline: { type: ["string", "null"], description: "v-neck | round | collar | off-shoulder | turtleneck | ..." },
+                  length: { type: ["string", "null"], description: "mini | knee | midi | maxi | crop | regular | long" },
+                },
+                required: ["auto_description", "name", "description", "category", "suggested_price", "color"],
+              };
 
     const resp = await fetch(endpoint, {
       method: "POST",
@@ -79,40 +105,21 @@ Deno.serve(async (req) => {
             ],
           },
         ],
-        tools: [
+        ...(useJsonSchema ? {} : { tools: [
           {
             type: "function",
             function: {
               name: "suggest_visual_product",
               description: "Return all visual product attributes extracted from the image",
-              parameters: {
-                type: "object",
-                properties: {
-                  // Customer-facing
-                  auto_description: { type: "string", description: "ONE short natural sentence describing the item visually, in the requested language" },
-                  name: { type: "string", description: "Optional short internal label (max 60 chars). Can equal auto_description." },
-                  description: { type: "string", description: "1-2 sentence marketing description" },
-                  category: { type: "string", description: "Single category word (e.g. 'Dresses', 'Tops', 'Pants', 'Shoes', 'Accessories')" },
-                  suggested_price: { type: "number", description: "Estimated retail price in USD, 0 if unknown" },
-
-                  // Visual attributes
-                  type: { type: ["string", "null"], description: "Item type: dress | top | pants | jacket | skirt | shoes | bag | accessory | ..." },
-                  color: { type: "array", items: { type: "string" }, description: "Visible colors, lowercase English (e.g. ['red', 'white'])" },
-                  pattern: { type: ["string", "null"], description: "solid | floral | striped | checkered | polka | graphic | abstract | ..." },
-                  style: { type: ["string", "null"], description: "casual | formal | sporty | bohemian | streetwear | vintage | ..." },
-                  material: { type: ["string", "null"], description: "cotton | chiffon | denim | leather | knit | polyester | ..." },
-                  fit: { type: ["string", "null"], description: "slim | regular | oversized | tailored | loose | fitted" },
-                  occasion: { type: "array", items: { type: "string" }, description: "['daily', 'beach', 'wedding', 'office', 'party', ...]" },
-                  sleeve: { type: ["string", "null"], description: "sleeveless | short | long | 3/4 (or null if not applicable)" },
-                  neckline: { type: ["string", "null"], description: "v-neck | round | collar | off-shoulder | turtleneck | ..." },
-                  length: { type: ["string", "null"], description: "mini | knee | midi | maxi | crop | regular | long" },
-                },
-                required: ["auto_description", "name", "description", "category", "suggested_price", "color"],
-              },
+              parameters: productSchema,
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "suggest_visual_product" } },
+        tool_choice: { type: "function", function: { name: "suggest_visual_product" } } }),
+        ...(useJsonSchema ? {
+          reasoning_effort: "low",
+          response_format: { type: "json_schema", json_schema: { name: "suggest_visual_product", strict: false, schema: productSchema } },
+        } : {}),
       }),
     });
 
@@ -127,7 +134,7 @@ Deno.serve(async (req) => {
 
     const data = await resp.json();
     const toolCall = data?.choices?.[0]?.message?.tool_calls?.[0];
-    const args = toolCall?.function?.arguments;
+    const args = useJsonSchema ? data?.choices?.[0]?.message?.content : toolCall?.function?.arguments;
     let parsed: any = {};
     try {
       parsed = typeof args === "string" ? JSON.parse(args) : args || {};

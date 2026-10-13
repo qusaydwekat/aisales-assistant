@@ -51,8 +51,7 @@ Deno.serve(async (req) => {
     const lang = language === "ar" ? "Arabic" : language === "en" ? "English" : "the same language as typically used by the store (default English)";
 
     // ─── 1) Vision extraction ───────────────────────────────────────
-    // Force gpt-4o (vision-capable) when the configured autofill_model is text-only.
-    const visionModel = /mini|gpt-3|3\.5/i.test(model) ? "gpt-4o" : model;
+    const visionModel = model;
 
     const resp = await fetch(endpoint, {
       method: "POST",
@@ -163,18 +162,18 @@ Deno.serve(async (req) => {
     // produce meaningful cosine similarities.
     let embedding: number[] | null = null;
     try {
-      // Embeddings only via OpenAI direct (Lovable AI gateway doesn't expose this).
-      const openaiKey = Deno.env.get("OPENAI_API_KEY");
-      if (openaiKey) {
+      // Embeddings via Lovable AI gateway (same model = same embedding space).
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+      if (lovableKey) {
         const embedText = buildEmbeddingText(suggestion);
-        const embResp = await fetch("https://api.openai.com/v1/embeddings", {
+        const embResp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${lovableKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "text-embedding-3-small",
+            model: "openai/text-embedding-3-small",
             input: embedText,
           }),
         });

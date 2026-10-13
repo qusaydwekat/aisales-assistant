@@ -4835,11 +4835,34 @@ async function callResponsesAsChat(body: any, apiKey: string): Promise<Response>
   const toolCalls: any[] = [];
   for (const it of items) {
     if (it.type === "message") for (const c of it.content || []) { if (c.type === "output_text") text += c.text || ""; }
-    if (it.type === "function_call") toolCalls.push({ id: it.call_id, type: "function", function: { name: it.name, arguments: it.arguments || "{}" } });
+    if (it.type === "function_call") {
+      const schema = (body.tools || []).find((t: any) => t.function?.name === it.name)?.function?.parameters;
+      let argStr = it.arguments || "{}";
+      try { argStr = JSON.stringify(pruneEmptyOptionalArgs(JSON.parse(argStr), schema)); } catch (_) { /* keep raw */ }
+      toolCalls.push({ id: it.call_id, type: "function", function: { name: it.name, arguments: argStr } });
+    }
   }
   const message: any = { role: "assistant", content: text || null, _responsesItems: items };
   if (toolCalls.length) message.tool_calls = toolCalls;
   return new Response(JSON.stringify({ choices: [{ message, finish_reason: toolCalls.length ? "tool_calls" : "stop" }] }), {
     status: 200, headers: { "Content-Type": "application/json" },
   });
+}
+
+// GPT-6 models fill every optional tool argument with placeholders ("", [], 0).
+// Those act as real filters (e.g. max_price: 0 → no products), so strip them.
+function pruneEmptyOptionalArgs(value: any, schema: any): any {
+  if (Array.isArray(value)) return value.map((v) => pruneEmptyOptionalArgs(v, schema?.items));
+  if (!value || typeof value !== "object") return value;
+  const required: string[] = Array.isArray(schema?.required) ? schema.required : [];
+  const props = schema?.properties || {};
+  const out: any = {};
+  for (const [k, v] of Object.entries(value)) {
+    const isEmpty = v === null || v === "" || (Array.isArray(v) && v.length === 0) ||
+      (v === 0 && !required.includes(k)) ||
+      (typeof v === "object" && v && !Array.isArray(v) && Object.keys(v).length === 0);
+    if (isEmpty && !required.includes(k)) continue;
+    out[k] = pruneEmptyOptionalArgs(v, props[k]);
+  }
+  return out;
 }

@@ -9,6 +9,11 @@ const MODELS: { value: string; label: string; hint?: string }[] = [
   { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", hint: "Newest, smarter & fast" },
   { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", hint: "Best reasoning, slower & pricier" },
   { value: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", hint: "Fastest & cheapest" },
+  { value: "openai/gpt-6-astra", label: "GPT-6 Astra", hint: "Latest flagship — strongest reasoning" },
+  { value: "openai/gpt-6-sol", label: "GPT-6 Sol", hint: "Latest — fast & capable" },
+  { value: "openai/gpt-6-luna", label: "GPT-6 Luna", hint: "Latest — lightest & cheapest GPT-6" },
+  { value: "openai/gpt-5.5", label: "GPT-5.5", hint: "Previous gen flagship" },
+  { value: "openai/gpt-5.4-mini", label: "GPT-5.4 Mini", hint: "Cheap & fast" },
 ];
 
 export default function AIProviderSettings() {

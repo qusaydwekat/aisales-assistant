@@ -3034,16 +3034,23 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
               const nameRe = /(اسمي|my name|i am called|name is)/i;
               // Items can change via: add/remove/swap words OR quantity change words
               const itemsRe = /(ضيف|اضف|أضف|زيد|احذف|شيل|بدل|غير المنتج|بدال|بدلاً|كمية|قطعتين|قطعتان|ثلاث قطع|أربع قطع|بدي ٢|بدي ٣|بدي 2|بدي 3|اعدل الكمية|خليها|خليهم|اجعلها|add|remove|delete|swap|replace|instead of|change to|make it \d|quantity|pieces?|units?)/i;
+              const msgText = String(customerMessage || "");
+              const norm = (s: string) => String(s || "").replace(/[\s\-–—,،.]+/g, "").toLowerCase();
+              // Keep a field if the customer typed its value directly (e.g. replying with just the new address)
+              const valueInMsg = (v: any) => {
+                const nv = norm(String(v ?? ""));
+                return nv.length >= 3 && norm(msgText).includes(nv);
+              };
               const sanitized: any = { ...args };
-              if (sanitized.address && !addressRe.test(customerMessage || "")) {
+              if (sanitized.address && !addressRe.test(msgText) && !valueInMsg(sanitized.address)) {
                 console.log("Intent guard: dropping address from update_order (not mentioned)");
                 delete sanitized.address;
               }
-              if (sanitized.phone && !phoneRe.test(customerMessage || "")) {
+              if (sanitized.phone && !phoneRe.test(msgText) && !valueInMsg(sanitized.phone)) {
                 console.log("Intent guard: dropping phone from update_order (not mentioned)");
                 delete sanitized.phone;
               }
-              if (sanitized.customer_name && !nameRe.test(customerMessage || "")) {
+              if (sanitized.customer_name && !nameRe.test(msgText) && !valueInMsg(sanitized.customer_name)) {
                 console.log("Intent guard: dropping customer_name from update_order (not mentioned)");
                 delete sanitized.customer_name;
               }

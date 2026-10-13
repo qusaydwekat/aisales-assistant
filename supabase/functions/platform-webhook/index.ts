@@ -2848,6 +2848,7 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
       const modelLower = String(aiModel || "").toLowerCase();
       const supportsCustomTemperature =
         !modelLower.startsWith("gpt-5") &&
+        !modelLower.startsWith("openai/") &&
         !modelLower.startsWith("o1") &&
         !modelLower.startsWith("o3") &&
         !modelLower.startsWith("o4");
@@ -2889,7 +2890,10 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
         messages: requestBody.messages.map(serializeAIMessageForLog),
       });
 
-      const response = await fetch(
+      const useResponsesApi = modelLower.startsWith("openai/");
+      const response = useResponsesApi
+        ? await callResponsesAsChat(requestBody, AI_API_KEY)
+        : await fetch(
         AI_ENDPOINT,
         {
           method: "POST",
@@ -4750,3 +4754,92 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+// ─── OpenAI Responses adapter ───────────────────────────────────────
+// OpenAI models (e.g. GPT-6 Astra) can't use function tools with reasoning on
+// /v1/chat/completions, so we translate the chat-completions request to
+// /v1/responses, stream it, and return a chat-completions-shaped Response.
+async function callResponsesAsChat(body: any, apiKey: string): Promise<Response> {
+  const toText = (c: any) => typeof c === "string" ? c : Array.isArray(c) ? c.map((p: any) => p?.text ?? "").join("\n") : String(c ?? "");
+  const input: any[] = [];
+  for (const m of body.messages || []) {
+    if (m.role === "system") input.push({ role: "system", content: toText(m.content) });
+    else if (m.role === "user") {
+      const parts = Array.isArray(m.content)
+        ? m.content.map((p: any) => p?.type === "image_url"
+            ? { type: "input_image", image_url: typeof p.image_url === "string" ? p.image_url : p.image_url?.url }
+            : { type: "input_text", text: p?.text ?? "" })
+        : [{ type: "input_text", text: toText(m.content) }];
+      input.push({ role: "user", content: parts });
+    } else if (m.role === "assistant") {
+      if (Array.isArray(m._responsesItems)) { input.push(...m._responsesItems); continue; }
+      if (m.content) input.push({ role: "assistant", content: toText(m.content) });
+      for (const tc of m.tool_calls || []) {
+        input.push({ type: "function_call", call_id: tc.id, name: tc.function?.name, arguments: tc.function?.arguments || "{}" });
+      }
+    } else if (m.role === "tool") {
+      input.push({ type: "function_call_output", call_id: m.tool_call_id, output: toText(m.content) });
+    }
+  }
+  const reqBody: any = {
+    model: body.model,
+    input,
+    stream: true,
+    store: false,
+    reasoning: { effort: "low", summary: "auto" },
+    include: ["reasoning.encrypted_content"],
+  };
+  if (body.tools?.length) {
+    reqBody.tools = body.tools.map((t: any) => ({
+      type: "function", name: t.function?.name, description: t.function?.description, parameters: t.function?.parameters,
+    }));
+    if (body.tool_choice && typeof body.tool_choice === "object") reqBody.tool_choice = { type: "function", name: body.tool_choice.function?.name };
+    else reqBody.tool_choice = body.tool_choice || "auto";
+  }
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/responses", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "fetch" },
+    body: JSON.stringify(reqBody),
+  });
+  if (!res.ok || !res.body) return new Response(await res.text().catch(() => ""), { status: res.status || 500 });
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "";
+  let output: any[] | null = null;
+  const done: any[] = [];
+  let streamError: string | null = null;
+  while (true) {
+    const { value, done: end } = await reader.read();
+    if (end) break;
+    buf += dec.decode(value, { stream: true });
+    let idx;
+    while ((idx = buf.indexOf("\n\n")) >= 0) {
+      const frame = buf.slice(0, idx); buf = buf.slice(idx + 2);
+      for (const line of frame.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const d = line.slice(5).trim();
+        if (!d || d === "[DONE]") continue;
+        try {
+          const ev = JSON.parse(d);
+          if (ev.type === "response.output_item.done" && ev.item) done.push(ev.item);
+          else if (ev.type === "response.completed") output = ev.response?.output ?? null;
+          else if (ev.type === "response.failed" || ev.type === "error") streamError = JSON.stringify(ev.response?.error ?? ev.error ?? ev);
+        } catch (_) { /* ignore partial */ }
+      }
+    }
+  }
+  if (streamError) return new Response(streamError, { status: 500 });
+  const items = (output && output.length ? output : done);
+  let text = "";
+  const toolCalls: any[] = [];
+  for (const it of items) {
+    if (it.type === "message") for (const c of it.content || []) { if (c.type === "output_text") text += c.text || ""; }
+    if (it.type === "function_call") toolCalls.push({ id: it.call_id, type: "function", function: { name: it.name, arguments: it.arguments || "{}" } });
+  }
+  const message: any = { role: "assistant", content: text || null, _responsesItems: items };
+  if (toolCalls.length) message.tool_calls = toolCalls;
+  return new Response(JSON.stringify({ choices: [{ message, finish_reason: toolCalls.length ? "tool_calls" : "stop" }] }), {
+    status: 200, headers: { "Content-Type": "application/json" },
+  });
+}

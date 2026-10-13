@@ -12,9 +12,8 @@ serve(async (req) => {
   try {
     const { message, personaName, tone, language } = await req.json();
 
-    // Load admin AI provider config
-    let provider = "openai";
-    let model = "gpt-4o-mini";
+    // Load admin AI model config (Lovable AI gateway)
+    let model = "google/gemini-3-flash-preview";
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
@@ -22,23 +21,19 @@ serve(async (req) => {
       );
       const { data: cfg } = await supabase
         .from("platform_ai_config")
-        .select("provider, test_model")
+        .select("test_model")
         .limit(1)
         .maybeSingle();
-      if (cfg?.provider) provider = cfg.provider;
       if (cfg?.test_model) model = cfg.test_model;
     } catch (e) {
       console.warn("platform_ai_config fetch failed:", e);
     }
 
-    const isLovable = provider === "lovable";
-    const apiKey = isLovable ? Deno.env.get("LOVABLE_API_KEY") : Deno.env.get("OPENAI_API_KEY");
-    const endpoint = isLovable
-      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const endpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
     if (!apiKey) {
-      throw new Error(`${isLovable ? "LOVABLE_API_KEY" : "OPENAI_API_KEY"} is not configured`);
+      throw new Error("LOVABLE_API_KEY is not configured");
     }
 
     const toneDesc = tone === 'professional' ? 'professional and formal' : tone === 'casual' ? 'casual and fun' : 'friendly and warm';

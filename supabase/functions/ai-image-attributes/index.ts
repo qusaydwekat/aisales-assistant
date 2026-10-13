@@ -22,8 +22,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    let provider = "openai";
-    let model = "gpt-4o-mini";
+    let model = "google/gemini-3-flash-preview";
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
@@ -31,20 +30,16 @@ Deno.serve(async (req) => {
       );
       const { data: cfg } = await supabase
         .from("platform_ai_config")
-        .select("provider, autofill_model")
+        .select("autofill_model")
         .limit(1)
         .maybeSingle();
-      if (cfg?.provider) provider = cfg.provider;
       if (cfg?.autofill_model) model = cfg.autofill_model;
     } catch (e) {
       console.warn("platform_ai_config fetch failed:", e);
     }
 
-    const isLovable = provider === "lovable";
-    const apiKey = isLovable ? Deno.env.get("LOVABLE_API_KEY") : Deno.env.get("OPENAI_API_KEY");
-    const endpoint = isLovable
-      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const endpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
     if (!apiKey) {
       return new Response(JSON.stringify({ error: "AI key missing" }), {
@@ -53,7 +48,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const visionModel = /mini|gpt-3|3\.5/i.test(model) ? "gpt-4o" : model;
+    const visionModel = model;
 
     const resp = await fetch(endpoint, {
       method: "POST",
@@ -149,16 +144,16 @@ Deno.serve(async (req) => {
     // Embedding (same schema as products)
     let embedding: number[] | null = null;
     try {
-      const openaiKey = Deno.env.get("OPENAI_API_KEY");
-      if (openaiKey) {
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+      if (lovableKey) {
         const text = buildEmbeddingText(attributes);
-        const embResp = await fetch("https://api.openai.com/v1/embeddings", {
+        const embResp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${lovableKey}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ model: "text-embedding-3-small", input: text }),
+          body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text }),
         });
         if (embResp.ok) {
           const embData = await embResp.json();

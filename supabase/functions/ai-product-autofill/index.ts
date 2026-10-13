@@ -22,8 +22,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    let provider = "openai";
-    let model = "gpt-4o-mini";
+    let model = "google/gemini-3-flash-preview";
     try {
       const supabase = createClient(
         Deno.env.get("SUPABASE_URL")!,
@@ -31,23 +30,19 @@ Deno.serve(async (req) => {
       );
       const { data: cfg } = await supabase
         .from("platform_ai_config")
-        .select("provider, autofill_model")
+        .select("autofill_model")
         .limit(1)
         .maybeSingle();
-      if (cfg?.provider) provider = cfg.provider;
       if (cfg?.autofill_model) model = cfg.autofill_model;
     } catch (e) {
       console.warn("platform_ai_config fetch failed:", e);
     }
 
-    const isLovable = provider === "lovable";
-    const apiKey = isLovable ? Deno.env.get("LOVABLE_API_KEY") : Deno.env.get("OPENAI_API_KEY");
-    const endpoint = isLovable
-      ? "https://ai.gateway.lovable.dev/v1/chat/completions"
-      : "https://api.openai.com/v1/chat/completions";
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    const endpoint = "https://ai.gateway.lovable.dev/v1/chat/completions";
 
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: `${isLovable ? "LOVABLE_API_KEY" : "OPENAI_API_KEY"} missing` }), {
+      return new Response(JSON.stringify({ error: "LOVABLE_API_KEY missing" }), {
         status: 500,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -56,8 +51,7 @@ Deno.serve(async (req) => {
     const lang = language === "ar" ? "Arabic" : language === "en" ? "English" : "the same language as typically used by the store (default English)";
 
     // ─── 1) Vision extraction ───────────────────────────────────────
-    // Force gpt-4o (vision-capable) when the configured autofill_model is text-only.
-    const visionModel = /mini|gpt-3|3\.5/i.test(model) ? "gpt-4o" : model;
+    const visionModel = model;
 
     const resp = await fetch(endpoint, {
       method: "POST",
@@ -168,18 +162,18 @@ Deno.serve(async (req) => {
     // produce meaningful cosine similarities.
     let embedding: number[] | null = null;
     try {
-      // Embeddings only via OpenAI direct (Lovable AI gateway doesn't expose this).
-      const openaiKey = Deno.env.get("OPENAI_API_KEY");
-      if (openaiKey) {
+      // Embeddings via Lovable AI gateway (same model = same embedding space).
+      const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+      if (lovableKey) {
         const embedText = buildEmbeddingText(suggestion);
-        const embResp = await fetch("https://api.openai.com/v1/embeddings", {
+        const embResp = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
           method: "POST",
           headers: {
-            Authorization: `Bearer ${openaiKey}`,
+            Authorization: `Bearer ${lovableKey}`,
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "text-embedding-3-small",
+            model: "openai/text-embedding-3-small",
             input: embedText,
           }),
         });

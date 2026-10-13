@@ -4131,7 +4131,7 @@ Deno.serve(async (req) => {
       // Window duration is configurable per store via ai_settings (3-10s, default 5).
       const configuredWindowSec = Math.min(
         10,
-        Math.max(3, Number(aiSettings?.collection_window_seconds) || 5)
+        Math.max(2, Number(aiSettings?.collection_window_seconds) || 3)
       );
       const QUIET_MS = configuredWindowSec * 1000;
       // Meta can deliver separate messages from the same user burst very late
@@ -4594,10 +4594,8 @@ Deno.serve(async (req) => {
         let anyChunkFailed = false;
         for (let i = 0; i < replyChunks.length; i++) {
           const chunk = replyChunks[i];
-          const typingMs = Math.max(
-            900,
-            Math.min(3000, Math.round(chunk.length * 22))
-          );
+          // Short typing pause only — the AI call already took time.
+          const typingMs = i === 0 ? 0 : Math.min(800, Math.round(chunk.length * 6));
           sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
           await new Promise((r) => setTimeout(r, typingMs));
 

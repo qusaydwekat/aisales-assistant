@@ -59,19 +59,19 @@ You help customers with product inquiries, order placement, and general question
 
     if (!response.ok) {
       const errText = await response.text();
-      console.error("AI provider error:", provider, response.status, errText);
+      console.error("AI provider error:", response.status, errText);
       let parsedErr: any = {};
       try { parsedErr = JSON.parse(errText); } catch { /* ignore */ }
       const code = parsedErr?.error?.code || parsedErr?.error?.type || "";
       const detailMsg = parsedErr?.error?.message || errText || `AI error ${response.status}`;
 
       if (response.status === 402 || code === "insufficient_quota" || /quota/i.test(detailMsg)) {
-        return new Response(JSON.stringify({ error: isLovable ? "Lovable AI credits exhausted. Add credits in Workspace Settings → Usage." : "OpenAI quota exceeded. Add billing/credits to your OpenAI account.", detail: detailMsg }), {
+        return new Response(JSON.stringify({ error: "Lovable AI credits exhausted. Add credits in Workspace Settings → Usage.", detail: detailMsg }), {
           status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (code === "invalid_api_key" || response.status === 401) {
-        return new Response(JSON.stringify({ error: `Invalid ${isLovable ? "Lovable" : "OpenAI"} API key.`, detail: detailMsg }), {
+        return new Response(JSON.stringify({ error: "Invalid Lovable API key.", detail: detailMsg }), {
           status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -88,7 +88,7 @@ You help customers with product inquiries, order placement, and general question
     const data = await response.json();
     const reply = data.choices?.[0]?.message?.content || "I'm here to help! Could you tell me more?";
 
-    return new Response(JSON.stringify({ reply, provider, model }), {
+    return new Response(JSON.stringify({ reply, provider: "lovable", model }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

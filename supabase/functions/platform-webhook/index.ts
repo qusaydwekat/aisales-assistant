@@ -4023,8 +4023,8 @@ Deno.serve(async (req) => {
             .from("messages")
             .select("sender, content, created_at")
             .eq("conversation_id", conversation.id)
-            .order("created_at", { ascending: true })
-            .limit(20),
+            .order("created_at", { ascending: false })
+            .limit(30),
           supabase
             .from("orders")
             .select(
@@ -4038,7 +4038,8 @@ Deno.serve(async (req) => {
 
       const storeInfo = storeRes.data;
       const aiSettings = aiSettingsRes.data;
-      const history = historyRes.data || [];
+      // Fetched newest-first so long chats keep the latest messages; flip to chronological.
+      const history = [...(historyRes.data || [])].reverse();
       const existingOrders = ordersRes.data || [];
       const initialBurstDepth = collectPendingCustomerBurst(history).length;
 
@@ -4130,7 +4131,7 @@ Deno.serve(async (req) => {
       // Window duration is configurable per store via ai_settings (3-10s, default 5).
       const configuredWindowSec = Math.min(
         10,
-        Math.max(3, Number(aiSettings?.collection_window_seconds) || 5)
+        Math.max(2, Number(aiSettings?.collection_window_seconds) || 3)
       );
       const QUIET_MS = configuredWindowSec * 1000;
       // Meta can deliver separate messages from the same user burst very late
@@ -4286,8 +4287,9 @@ Deno.serve(async (req) => {
         .from("messages")
         .select("sender, content, created_at")
         .eq("conversation_id", conversation.id)
-        .order("created_at", { ascending: true })
-        .limit(20);
+        .order("created_at", { ascending: false })
+        .limit(30);
+      freshHistory?.reverse();
 
       // Combine the latest consecutive customer messages into one prompt.
       const allHistory = freshHistory || history;
@@ -4592,10 +4594,8 @@ Deno.serve(async (req) => {
         let anyChunkFailed = false;
         for (let i = 0; i < replyChunks.length; i++) {
           const chunk = replyChunks[i];
-          const typingMs = Math.max(
-            900,
-            Math.min(3000, Math.round(chunk.length * 22))
-          );
+          // Short typing pause only — the AI call already took time.
+          const typingMs = i === 0 ? 0 : Math.min(800, Math.round(chunk.length * 6));
           sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
           await new Promise((r) => setTimeout(r, typingMs));
 

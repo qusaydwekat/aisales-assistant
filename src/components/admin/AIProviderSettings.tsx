@@ -3,16 +3,12 @@ import { Loader2, Save, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 
+// Models compatible with the agent's tool-calling + vision requests.
 const MODELS: { value: string; label: string; hint?: string }[] = [
-  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Preview)", hint: "Recommended default" },
-  { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro (Preview)", hint: "Top-tier multimodal" },
-  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-  { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", hint: "Balanced" },
-  { value: "google/gemini-2.5-flash-lite", label: "Gemini 2.5 Flash Lite", hint: "Fastest & cheapest" },
-  { value: "openai/gpt-5", label: "GPT-5 (via gateway)", hint: "Best reasoning & tool use" },
-  { value: "openai/gpt-5-mini", label: "GPT-5 Mini (via gateway)" },
-  { value: "openai/gpt-5-nano", label: "GPT-5 Nano (via gateway)" },
-  { value: "openai/gpt-5.2", label: "GPT-5.2 (via gateway)" },
+  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash", hint: "Recommended — balanced speed & cost" },
+  { value: "google/gemini-3.8-flash", label: "Gemini 3.8 Flash", hint: "Newest, smarter & fast" },
+  { value: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro", hint: "Best reasoning, slower & pricier" },
+  { value: "google/gemini-3.1-flash-lite", label: "Gemini 3.1 Flash Lite", hint: "Fastest & cheapest" },
 ];
 
 export default function AIProviderSettings() {

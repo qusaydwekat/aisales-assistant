@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX IF NOT EXISTS stores_user_id_unique ON public.stores(user_id);

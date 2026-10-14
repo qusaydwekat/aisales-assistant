@@ -10,6 +10,8 @@ const corsHeaders = {
 // ─── In-memory caches (per warm instance) for hot, rarely-changing data ───
 // Avoids re-fetching store info and AI settings on every incoming webhook.
 const STORE_CACHE_TTL_MS = 30_000;
+// Placeholder content for a customer photo that is still being downloaded.
+const IMAGE_PENDING_MARK = "📷 ⏳ (photo uploading)";
 const AI_SETTINGS_CACHE_TTL_MS = 30_000;
 const _storeCache = new Map<string, { value: any; expiresAt: number }>();
 const _aiSettingsCache = new Map<string, { value: any; expiresAt: number }>();
@@ -4331,6 +4333,32 @@ Deno.serve(async (req) => {
       }
 
       if (!shouldProceed) continue;
+
+      // Wait for any photo in this burst that is still downloading (max 20s),
+      // so text + photo are answered together in one reply.
+      {
+        const imgWaitStart = Date.now();
+        while (Date.now() - imgWaitStart < 20000) {
+          const { count: pendingImgs } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "customer")
+            .eq("content", IMAGE_PENDING_MARK)
+            .gte("created_at", new Date(earliestUnanswered.created_at!).toISOString());
+          if (!pendingImgs) break;
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        // Give a just-finished photo a brief moment, then a final short quiet check.
+        if (Date.now() - imgWaitStart > 0) {
+          await supabase
+            .from("messages")
+            .update({ content: "[Image]" })
+            .eq("conversation_id", conversation.id)
+            .eq("content", IMAGE_PENDING_MARK)
+            .lt("created_at", new Date(Date.now() - 60000).toISOString());
+        }
+      }
 
 
       // Re-fetch conversation history after debounce to include all batched messages

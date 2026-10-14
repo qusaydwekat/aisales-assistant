@@ -8,6 +8,13 @@
       "when": 1791988847780,
       "tag": "0000_stores_unique_user",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791989450919,
+      "tag": "0001_protect_profile_status",
+      "breakpoints": true
     }
   ]
 }

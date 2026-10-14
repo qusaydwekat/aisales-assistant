@@ -3058,7 +3058,10 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
                 console.log("Intent guard: dropping customer_name from update_order (not mentioned)");
                 delete sanitized.customer_name;
               }
-              if (sanitized.items && !itemsRe.test(customerMessage || "")) {
+              // Quantity/number words or digits also signal an item change
+              const qtyRe = /([0-9٠-٩]|حبة|حبه|حبتين|حبات|قطعة|قطعه|قطع|واحدة|واحده|وحدة|ثنتين|اثنين|إثنين|تنتين|زوج|ثلاث|تلات|تلاتة|أربع|اربع|خمس|يصيروا|يصيرو|يصير|صيرهم|صيرها|كمان|زيادة|زياده|أكثر|اكثر|أقل|اقل|نقص|بدل|one|two|three|four|five|more|less|another|extra)/i;
+              const itemsIntent = itemsRe.test(msgText) || qtyRe.test(msgText);
+              if (sanitized.items && !itemsIntent) {
                 console.log("Intent guard: dropping items from update_order (no add/remove/quantity intent in latest message)");
                 delete sanitized.items;
                 delete sanitized.total;

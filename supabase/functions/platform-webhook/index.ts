@@ -2630,6 +2630,10 @@ HUMAN-LIKE STYLE
 - Match the customer's energy: short for short, detailed for detailed.
 - If they sent text + an image together, address BOTH in one cohesive reply.
 - For one-word or emoji-only messages, reply briefly and naturally.
+- BURSTS: the customer often sends several quick messages. Treat them as ONE thought and reply ONCE, like a human rep who waited for them to finish typing.
+  - If a later message corrects an earlier one (size, color, quantity, address, product), the LATEST value wins — silently use it, don't point out the change.
+  - Answer every question in the burst, in the order asked, in one natural flowing reply (no lists).
+  - If the burst is only a greeting, greet back briefly and invite them to continue.
 - Read EVERY line of multi-message bursts (greeting + question = greet briefly AND answer). Never reply with only a greeting when there's an unanswered question in the same burst.
 - After a tool returns, reply in the customer's language using the actual tool data — never guess.
 
@@ -4146,8 +4150,19 @@ Deno.serve(async (req) => {
       // FB/IG grace period so greeting + question bursts are answered once.
       const DELIVERY_GRACE_MS =
         platform === "facebook" || platform === "instagram"
-          ? Math.max(QUIET_MS, 20000)
+          ? Math.max(QUIET_MS, 6000)
           : QUIET_MS;
+      // Human-like pacing: if the latest message looks unfinished (only a
+      // greeting, trailing "...", a dangling connector), give the customer a
+      // little extra time to finish their thought before replying.
+      const INCOMPLETE_EXTRA_MS = 3000;
+      const looksIncomplete = (t: string) => {
+        const x = (t || "").trim().toLowerCase();
+        if (!x) return false;
+        if (/(\.\.\.|…|,|،|:)$/.test(x)) return true;
+        if (/(^|\s)(و|او|أو|بس|and|or|but|also|كمان)$/.test(x)) return true;
+        return /^(hi|hello|hey|salam|مرحبا|مرحباً|هلا|السلام عليكم|سلام|اهلا|أهلا|مساء الخير|صباح الخير)[!.\s]*$/.test(x);
+      };
       const MAX_TOTAL_WAIT_MS = 60000;
       const POLL_MS = 400;
       const myMsgId = insertedMsg?.id;
@@ -4241,7 +4256,7 @@ Deno.serve(async (req) => {
         //    UNLESS the burst guard has tripped, in which case we stop extending.
         const { data: newerCustomer } = await supabase
           .from("messages")
-          .select("created_at")
+          .select("created_at, content")
           .eq("conversation_id", conversation.id)
           .eq("sender", "customer")
           .gt("created_at", new Date(latestCustomerMs).toISOString())
@@ -4270,7 +4285,8 @@ Deno.serve(async (req) => {
             const newerMs = new Date(newerCustomer.created_at).getTime();
             if (newerMs > latestCustomerMs) {
               latestCustomerMs = newerMs;
-              windowEndsAt = latestCustomerMs + QUIET_MS;
+              windowEndsAt = latestCustomerMs + QUIET_MS +
+                (looksIncomplete(String(newerCustomer.content || "")) ? INCOMPLETE_EXTRA_MS : 0);
               console.log(
                 `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
               );

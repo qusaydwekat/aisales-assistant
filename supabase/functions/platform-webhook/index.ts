@@ -3849,6 +3849,24 @@ Deno.serve(async (req) => {
 
       // Prepare content to store + use for AI
       let storedContent = msg.text;
+      // For photos, save a placeholder row IMMEDIATELY (in arrival order) so the
+      // burst collector knows a photo is on its way and waits for it, instead of
+      // replying to the text first while the photo is still downloading.
+      let placeholderMsgId: string | null = null;
+      if (msg.kind === "image") {
+        const { data: ph } = await supabase
+          .from("messages")
+          .insert({
+            conversation_id: conversation.id,
+            sender: "customer",
+            content: IMAGE_PENDING_MARK,
+            created_at: new Date().toISOString(),
+            platform_message_id: inferredPlatformMessageId,
+          })
+          .select("id")
+          .single();
+        placeholderMsgId = ph?.id || null;
+      }
       if (msg.kind === "image") {
         let publicUrl: string | null = null;
         const safeId = safeStorageId(inferredPlatformMessageId);
@@ -3986,17 +4004,24 @@ Deno.serve(async (req) => {
       // arrive late/out-of-order; using them as created_at made late burst messages
       // look older than the AI reply and therefore "already answered".
       const receivedAt = new Date().toISOString();
-      const { data: insertedMsg, error: insertCustomerErr } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversation.id,
-          sender: "customer",
-          content: storedContent,
-          created_at: receivedAt,
-          platform_message_id: inferredPlatformMessageId,
-        })
-        .select("id, created_at")
-        .single();
+      const { data: insertedMsg, error: insertCustomerErr } = placeholderMsgId
+        ? await supabase
+            .from("messages")
+            .update({ content: storedContent })
+            .eq("id", placeholderMsgId)
+            .select("id, created_at")
+            .single()
+        : await supabase
+            .from("messages")
+            .insert({
+              conversation_id: conversation.id,
+              sender: "customer",
+              content: storedContent,
+              created_at: receivedAt,
+              platform_message_id: inferredPlatformMessageId,
+            })
+            .select("id, created_at")
+            .single();
 
       if (insertCustomerErr) {
         console.error(

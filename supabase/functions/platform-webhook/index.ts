@@ -10,6 +10,8 @@ const corsHeaders = {
 // ─── In-memory caches (per warm instance) for hot, rarely-changing data ───
 // Avoids re-fetching store info and AI settings on every incoming webhook.
 const STORE_CACHE_TTL_MS = 30_000;
+// Placeholder content for a customer photo that is still being downloaded.
+const IMAGE_PENDING_MARK = "📷 ⏳ (photo uploading)";
 const AI_SETTINGS_CACHE_TTL_MS = 30_000;
 const _storeCache = new Map<string, { value: any; expiresAt: number }>();
 const _aiSettingsCache = new Map<string, { value: any; expiresAt: number }>();
@@ -3849,6 +3851,24 @@ Deno.serve(async (req) => {
 
       // Prepare content to store + use for AI
       let storedContent = msg.text;
+      // For photos, save a placeholder row IMMEDIATELY (in arrival order) so the
+      // burst collector knows a photo is on its way and waits for it, instead of
+      // replying to the text first while the photo is still downloading.
+      let placeholderMsgId: string | null = null;
+      if (msg.kind === "image") {
+        const { data: ph } = await supabase
+          .from("messages")
+          .insert({
+            conversation_id: conversation.id,
+            sender: "customer",
+            content: IMAGE_PENDING_MARK,
+            created_at: new Date().toISOString(),
+            platform_message_id: inferredPlatformMessageId,
+          })
+          .select("id")
+          .single();
+        placeholderMsgId = ph?.id || null;
+      }
       if (msg.kind === "image") {
         let publicUrl: string | null = null;
         const safeId = safeStorageId(inferredPlatformMessageId);
@@ -3986,17 +4006,24 @@ Deno.serve(async (req) => {
       // arrive late/out-of-order; using them as created_at made late burst messages
       // look older than the AI reply and therefore "already answered".
       const receivedAt = new Date().toISOString();
-      const { data: insertedMsg, error: insertCustomerErr } = await supabase
-        .from("messages")
-        .insert({
-          conversation_id: conversation.id,
-          sender: "customer",
-          content: storedContent,
-          created_at: receivedAt,
-          platform_message_id: inferredPlatformMessageId,
-        })
-        .select("id, created_at")
-        .single();
+      const { data: insertedMsg, error: insertCustomerErr } = placeholderMsgId
+        ? await supabase
+            .from("messages")
+            .update({ content: storedContent })
+            .eq("id", placeholderMsgId)
+            .select("id, created_at")
+            .single()
+        : await supabase
+            .from("messages")
+            .insert({
+              conversation_id: conversation.id,
+              sender: "customer",
+              content: storedContent,
+              created_at: receivedAt,
+              platform_message_id: inferredPlatformMessageId,
+            })
+            .select("id, created_at")
+            .single();
 
       if (insertCustomerErr) {
         console.error(
@@ -4306,6 +4333,32 @@ Deno.serve(async (req) => {
       }
 
       if (!shouldProceed) continue;
+
+      // Wait for any photo in this burst that is still downloading (max 20s),
+      // so text + photo are answered together in one reply.
+      {
+        const imgWaitStart = Date.now();
+        while (Date.now() - imgWaitStart < 20000) {
+          const { count: pendingImgs } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("conversation_id", conversation.id)
+            .eq("sender", "customer")
+            .eq("content", IMAGE_PENDING_MARK)
+            .gte("created_at", new Date(earliestUnanswered.created_at!).toISOString());
+          if (!pendingImgs) break;
+          await new Promise((r) => setTimeout(r, 400));
+        }
+        // Give a just-finished photo a brief moment, then a final short quiet check.
+        if (Date.now() - imgWaitStart > 0) {
+          await supabase
+            .from("messages")
+            .update({ content: "[Image]" })
+            .eq("conversation_id", conversation.id)
+            .eq("content", IMAGE_PENDING_MARK)
+            .lt("created_at", new Date(Date.now() - 60000).toISOString());
+        }
+      }
 
 
       // Re-fetch conversation history after debounce to include all batched messages

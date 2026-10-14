@@ -1,5 +1,17 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Platform connections require an admin-confirmed subscription that has not expired.
+async function storeHasPaidSubscription(supabase: any, storeId: string): Promise<boolean> {
+  const { data: store } = await supabase.from("stores").select("user_id").eq("id", storeId).maybeSingle();
+  if (!store?.user_id) return false;
+  const { data: isAdmin } = await supabase.rpc("has_role", { _user_id: store.user_id, _role: "admin" });
+  if (isAdmin) return true;
+  const { data: profile } = await supabase
+    .from("profiles").select("status, paid_until").eq("user_id", store.user_id).maybeSingle();
+  return !!profile && profile.status === "active" && !!profile.paid_until &&
+    new Date(profile.paid_until).getTime() > Date.now();
+}
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -383,6 +395,19 @@ Deno.serve(async (req) => {
       });
     }
 
+    const gate = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+    if (!(await storeHasPaidSubscription(gate, storeId))) {
+      if (redirectUrl) {
+        const back = new URL(redirectUrl);
+        back.searchParams.set("error", "subscription_required");
+        return new Response(null, { status: 302, headers: { Location: back.toString() } });
+      }
+      return new Response(JSON.stringify({ error: "subscription_required" }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Build scopes based on platform
     // pages_manage_metadata is required for /{page-id}/subscribed_apps to succeed (all platforms)
     let scopes = "pages_show_list,pages_messaging,pages_manage_metadata";
@@ -647,6 +672,13 @@ Deno.serve(async (req) => {
       const creds = pending.credentials as any;
       const storeId = pending.store_id;
       const platform = pending.platform;
+
+      if (!(await storeHasPaidSubscription(supabase, storeId))) {
+        return new Response(
+          JSON.stringify({ error: "subscription_required" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
       const connectedPages: string[] = [];
       const failedPages: string[] = [];
       const conflictPages: string[] = [];

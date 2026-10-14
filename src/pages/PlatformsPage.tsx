@@ -25,8 +25,15 @@ const platformLabels: Record<Platform, string> = { facebook: "Messenger", instag
 
 export default function PlatformsPage() {
   const { data: connections = [], isLoading } = usePlatformConnections();
-  const { store } = useAuth();
+  const { store, profile, role } = useAuth();
   const { t, dir } = useLanguage();
+  const paidUntil = (profile as any)?.paid_until as string | null | undefined;
+  const hasPaidSubscription =
+    role === "admin" ||
+    (profile?.status === "active" && !!paidUntil && new Date(paidUntil).getTime() > Date.now());
+  const subscriptionMsg = dir === "rtl"
+    ? "لا يمكنك ربط المنصات قبل تأكيد اشتراكك المدفوع من قبل الإدارة."
+    : "You can connect your platforms once your paid subscription is confirmed by the admin.";
   const qc = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -49,6 +56,7 @@ export default function PlatformsPage() {
 
     if (error) {
       const errorMessages: Record<string, string> = {
+        subscription_required: subscriptionMsg,
         no_pages_found: "No Facebook pages found. Make sure you have a Facebook Page.",
         no_whatsapp_numbers_found: "No WhatsApp Business phone numbers found. Make sure you have a WhatsApp Business Account with a registered phone number.",
         token_exchange_failed: "Failed to authenticate with Meta. Please try again.",
@@ -149,6 +157,10 @@ export default function PlatformsPage() {
   const startOAuth = (platform: Platform) => {
     if (!store?.id) {
       toast.error("Store not found. Please set up your store first.");
+      return;
+    }
+    if (!hasPaidSubscription) {
+      toast.error(subscriptionMsg);
       return;
     }
     setConnectingPlatform(platform);

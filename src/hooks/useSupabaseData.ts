@@ -86,7 +86,18 @@ export function useBulkCreateProducts() {
       name: string; description?: string; category?: string; price: number;
       compare_price?: number; stock: number; sku?: string; images?: string[]; active?: boolean;
     }>) => {
-      const rows = products.map((p) => ({ ...p, store_id: store!.id }));
+      // Copy external image links into our own storage so they always display
+      const external = Array.from(new Set(products.flatMap((p) => p.images || []).filter((u) => /^https?:\/\//i.test(u) && !u.includes("/storage/v1/object/public/"))));
+      const map = new Map<string, string | null>();
+      if (external.length) {
+        const { data } = await supabase.functions.invoke("import-image", { body: { urls: external, store_id: store!.id } });
+        (data?.results || []).forEach((r: string | null, i: number) => map.set(external[i], r));
+      }
+      const rows = products.map((p) => ({
+        ...p,
+        images: (p.images || []).map((u) => (map.has(u) ? map.get(u) : u)).filter(Boolean) as string[],
+        store_id: store!.id,
+      }));
       const { error } = await supabase.from("products").insert(rows);
       if (error) throw error;
     },

@@ -3060,11 +3060,11 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
               }
               // Quantity/number words or digits also signal an item change
               const qtyRe = /([0-9٠-٩]|حبة|حبه|حبتين|حبات|قطعة|قطعه|قطع|واحدة|واحده|وحدة|ثنتين|اثنين|إثنين|تنتين|زوج|ثلاث|تلات|تلاتة|أربع|اربع|خمس|يصيروا|يصيرو|يصير|صيرهم|صيرها|كمان|زيادة|زياده|أكثر|اكثر|أقل|اقل|نقص|بدل|one|two|three|four|five|more|less|another|extra)/i;
+              // Item changes are decided semantically by the AI (any language/dialect).
+              // Only log when no obvious keyword is present — never block the change.
               const itemsIntent = itemsRe.test(msgText) || qtyRe.test(msgText);
               if (sanitized.items && !itemsIntent) {
-                console.log("Intent guard: dropping items from update_order (no add/remove/quantity intent in latest message)");
-                delete sanitized.items;
-                delete sanitized.total;
+                console.log("Intent guard: items change without keyword match — trusting AI intent");
               }
               const hasUpdate = Object.keys(sanitized).some(
                 (k) => k !== "order_number" && sanitized[k] !== undefined

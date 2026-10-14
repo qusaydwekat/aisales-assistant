@@ -708,9 +708,9 @@ export function useConfirmPayment() {
         });
       if (paymentError) throw paymentError;
 
-      // Update profile: set paid_until and activate if suspended
+      // Update profile: set paid_until and activate any non-active account (pending or suspended)
       const updates: any = { paid_until: expiresAt.toISOString() };
-      if (profile?.status === 'suspended') {
+      if (profile?.status && profile.status !== 'active') {
         updates.status = 'active';
       }
       const { error: profileError } = await supabase

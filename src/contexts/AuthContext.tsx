@@ -59,12 +59,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         (profileRes.data as any)?.full_name?.trim() ||
         (profileRes.data as any)?.email?.split("@")[0] ||
         "My Store";
-      const { data: newStore } = await supabase
+      // One store per owner (unique on user_id): concurrent auth events can't create duplicates
+      await supabase
         .from("stores")
-        .insert({ user_id: userId, name: defaultName })
+        .upsert({ user_id: userId, name: defaultName }, { onConflict: "user_id", ignoreDuplicates: true });
+      const { data: existing } = await supabase
+        .from("stores")
         .select("id, name")
-        .single();
-      if (newStore) setStore(newStore);
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (existing) setStore(existing);
     }
   };
 

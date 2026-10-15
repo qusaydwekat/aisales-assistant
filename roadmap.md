@@ -1,5 +1,7 @@
 # Website experience refresh
 
+- [ ] Match legal pages to the homepage with shared navigation and footer; verify English/Arabic and signed-in links.
+
 - [x] Localize homepage controls and adapt its welcome and actions to the signed-in account; verify both languages and account navigation.
 
 - [x] Replace the dark theme with a light AI-inspired palette.

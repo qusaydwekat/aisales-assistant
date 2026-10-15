@@ -48,7 +48,7 @@ export function sanitizeAIResponse(text: string, allowEmpty = false): string {
   return clean;
 }
 
-interface AIReplyResult {
+export interface AIReplyResult {
   text: string;
   images: { url: string; caption: string }[];
 }

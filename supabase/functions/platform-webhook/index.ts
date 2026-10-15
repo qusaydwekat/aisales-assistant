@@ -5014,3 +5014,11 @@ function pruneEmptyOptionalArgs(value: any, schema: any): any {
   }
   return out;
 }
+
+// Fallback chain for the AI circuit breaker: switch provider family so a
+// single upstream outage cannot stall customer replies.
+function pickFallbackModel(primary: string): string {
+  const p = String(primary || "").toLowerCase();
+  if (p.startsWith("google/")) return "openai/gpt-6-sol";
+  return "google/gemini-3-flash-preview";
+}

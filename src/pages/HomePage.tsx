@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { ArrowUpRight, ArrowRight, Bot, Check, ChevronRight, Globe, Menu, MessageCircle, MessageSquare, Package, ShieldCheck, Sparkles, Workflow, X, Zap } from "lucide-react";
+import { ArrowUpRight, ArrowRight, Bot, Check, Globe, Menu, MessageCircle, MessageSquare, Package, ShieldCheck, Sparkles, Workflow, X, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { navigationItems, adminNavigationItem } from "@/components/navigation-items";

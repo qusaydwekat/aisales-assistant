@@ -1,5 +1,9 @@
 # Website experience refresh
 
+- [x] Replace the dark theme with a light AI-inspired palette.
+- [x] Create a public homepage covering existing sections with AI automation imagery.
+- [x] Verify homepage navigation, Arabic, and desktop/mobile layouts; check the signed-in dashboard, products, orders, inbox, and AI settings.
+
 - [x] Refresh shared styling, controls, and accessible motion.
 - [x] Improve desktop and mobile navigation, including Arabic layouts.
 - [x] Refine dashboard, sign-in, and page-wide presentation without changing workflows.

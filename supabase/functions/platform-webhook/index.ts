@@ -4234,11 +4234,20 @@ Deno.serve(async (req) => {
       // Only the worker that owns the earliest unanswered message handles the
       // window. Later messages' workers yield immediately — their content will
       // simply extend the active worker's rolling timer via DB polling.
-      if (!earliestUnanswered?.id || earliestUnanswered.id !== myMsgId) {
+      // If the earliest worker died (deploy/shutdown), its message is "stale" —
+      // take over instead of yielding forever.
+      const earliestAgeMs = earliestUnanswered?.created_at
+        ? Date.now() - new Date(earliestUnanswered.created_at).getTime()
+        : 0;
+      const earliestIsStale = earliestAgeMs > MAX_TOTAL_WAIT_MS + 15000;
+      if (earliestUnanswered?.id && earliestUnanswered.id !== myMsgId && !earliestIsStale) {
         console.log(
           `[${platform}] Not the earliest unanswered worker (earliest=${earliestUnanswered?.id}, mine=${myMsgId}) — yielding to active batcher.`
         );
         continue;
+      }
+      if (earliestIsStale && earliestUnanswered?.id !== myMsgId) {
+        console.log(`[${platform}] Earliest worker is stale (${earliestAgeMs}ms) — taking over the batch.`);
       }
 
       // Track the latest customer message timestamp we've seen; the rolling
@@ -4836,8 +4845,9 @@ Deno.serve(async (req) => {
     // Acknowledge Meta immediately; finish replies in the background so slow
     // customers never block or delay others (and Meta doesn't retry on timeout).
     const runtime = (globalThis as any).EdgeRuntime;
-    if (runtime?.waitUntil) runtime.waitUntil(allWork);
-    else await allWork;
+    void runtime;
+    // Await so the runtime never kills in-flight replies; groups still run in parallel.
+    await allWork;
 
     return new Response(
       JSON.stringify({ success: true, processed: messages.length, conversations: groups.size }),

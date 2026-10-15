@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { crypto } from "https://deno.land/std@0.224.0/crypto/mod.ts";
+import { startTypingSession } from "../_shared/typing-session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -232,6 +233,7 @@ async function sendTypingIndicator(
         recipient: { id: recipientId },
         sender_action: action,
       }),
+      signal: AbortSignal.timeout(5000),
     });
   } catch (err) {
     console.warn(`[${platform}] sender_action ${action} failed:`, err);
@@ -4271,12 +4273,17 @@ Deno.serve(async (req) => {
       let burstCount = 1;
       let highVolumeFlagged = false;
 
-      // Best-effort: show typing bubble while we batch.
+      // Renew Meta's expiring typing action while collecting, thinking, and sending.
       if (pageAccessToken) {
-        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "mark_seen");
-        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+        await sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "mark_seen");
       }
+      const typingSession = pageAccessToken &&
+        (msg.platform === "facebook" || msg.platform === "instagram")
+        ? startTypingSession((action) =>
+            sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, action))
+        : undefined;
 
+      try {
       while (Date.now() < windowEndsAt && Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
         // 1) Bail if another worker already replied for this burst.
         const { data: latestAi } = await supabase
@@ -4338,9 +4345,7 @@ Deno.serve(async (req) => {
               console.log(
                 `[${platform}] Rolling window reset — new customer message at ${new Date(newerMs).toISOString()}, waiting another ${QUIET_MS}ms of silence.`
               );
-              if (pageAccessToken) {
-                sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
-              }
+              typingSession?.refresh();
             }
           }
         }
@@ -4350,7 +4355,11 @@ Deno.serve(async (req) => {
         await new Promise((r) => setTimeout(r, Math.min(POLL_MS, remaining)));
       }
 
-      if (!shouldProceed) continue;
+      if (!shouldProceed) {
+        // The winning worker owns the visible indicator; don't switch it off.
+        await typingSession?.stop(false);
+        continue;
+      }
 
       // Wait for any photo in this burst that is still downloading (max 20s),
       // so text + photo are answered together in one reply.
@@ -4693,7 +4702,7 @@ Deno.serve(async (req) => {
           const chunk = replyChunks[i];
           // Short typing pause only — the AI call already took time.
           const typingMs = i === 0 ? 0 : Math.min(800, Math.round(chunk.length * 6));
-          sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_on");
+          typingSession?.refresh();
           await new Promise((r) => setTimeout(r, typingMs));
 
           const sendOutcome = await sendMetaReplyWithRetry(
@@ -4716,7 +4725,6 @@ Deno.serve(async (req) => {
             break;
           }
         }
-        sendTypingIndicator(msg.platform, msg.sender, pageAccessToken, "typing_off");
         const replySendResult = lastSendResult;
 
         // Clear delivery_failed flag if reply landed cleanly
@@ -4776,6 +4784,7 @@ Deno.serve(async (req) => {
             console.error(`[${platform}] Failed to send image:`, imgErr);
           }
         }
+        await typingSession?.stop();
       } else {
         console.warn(
           `[${platform}] No page access token found in platform_connections for page ${msg.pageId}, cannot send reply`
@@ -4833,6 +4842,10 @@ Deno.serve(async (req) => {
             countErr
           );
         }
+      }
+      } finally {
+        // Also release the heartbeat on failures and early exits.
+        await typingSession?.stop();
       }
     }
     };

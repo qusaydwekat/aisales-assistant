@@ -1092,11 +1092,75 @@ export type Database = {
         }
         Relationships: []
       }
+      webhook_queue: {
+        Row: {
+          attempts: number
+          body: string
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_until: string | null
+          next_attempt_at: string
+          processed_at: string | null
+          query_string: string | null
+          signature: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          body: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_until?: string | null
+          next_attempt_at?: string
+          processed_at?: string | null
+          query_string?: string | null
+          signature?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          body?: string
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          locked_until?: string | null
+          next_attempt_at?: string
+          processed_at?: string | null
+          query_string?: string | null
+          signature?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      claim_webhook_item: {
+        Args: { _id?: string }
+        Returns: {
+          attempts: number
+          body: string
+          created_at: string
+          id: string
+          last_error: string | null
+          locked_until: string | null
+          next_attempt_at: string
+          processed_at: string | null
+          query_string: string | null
+          signature: string | null
+          status: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "webhook_queue"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

@@ -6,14 +6,19 @@ import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { navigationItems, adminNavigationItem } from "@/components/navigation-items";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 import heroImage from "@/assets/ai-automation-hero.jpg";
 import commerceImage from "@/assets/ai-commerce.jpg";
 
 export default function HomePage() {
   const { language, setLanguage, dir, t } = useLanguage();
+  const { user, profile, store, signOut, loading } = useAuth();
   const ar = language === "ar";
   const [menuOpen, setMenuOpen] = useState(false);
   const text = (en: string, arabic: string) => ar ? arabic : en;
+  const accountUrl = "/dashboard";
+  const primaryUrl = user ? accountUrl : "/signup";
+  const workspaceLabel = text("Open workspace", "افتح مساحة العمل");
   const descriptions: Record<string, [string, string]> = {
     dashboard: ["Your messages, orders, and revenue at a glance.", "رسائلك وطلباتك وإيراداتك في نظرة واحدة."],
     inbox: ["Every conversation. One inbox. AI and your team, together.", "كل المحادثات في صندوق واحد، للذكاء الاصطناعي وفريقك."],
@@ -40,16 +45,16 @@ export default function HomePage() {
     <div className="home-page bg-background text-foreground" dir={dir}>
       <header className="sticky top-0 z-40 border-b border-border/70 bg-background/95 backdrop-blur-xl">
         <div className="home-container flex h-20 items-center justify-between gap-4">
-          <Link to="/" aria-label="AISales home" className="flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Zap className="h-5 w-5" fill="currentColor" /></span><span className="font-heading text-2xl font-bold">AI<span className="text-primary">Sales</span><span className="text-primary">.</span></span></Link>
+          <Link to="/" aria-label={text("AISales home", "الصفحة الرئيسية لـ AISales")} className="flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground"><Zap className="h-5 w-5" fill="currentColor" /></span><span className="font-heading text-2xl font-bold">AI<span className="text-primary">Sales</span><span className="text-primary">.</span></span></Link>
           <nav className="hidden items-center gap-7 lg:flex" aria-label={text("Main navigation", "التنقل الرئيسي")}>{nav.map(([href, label]) => <a key={href} href={href} className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">{label}</a>)}</nav>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="icon" aria-label={ar ? "English" : "العربية"} title={ar ? "English" : "العربية"} onClick={() => setLanguage(ar ? "en" : "ar")}><Globe /></Button>
-            <Button asChild variant="ghost" className="hidden sm:inline-flex"><Link to="/login">{text("Log in", "تسجيل الدخول")}</Link></Button>
-            <Button asChild className="hidden sm:inline-flex"><Link to="/signup">{text("Get started", "ابدأ الآن")}<ArrowUpRight className="rtl:-scale-x-100" /></Link></Button>
+            <Button variant="ghost" aria-label={ar ? "English" : "العربية"} title={ar ? "English" : "العربية"} onClick={() => setLanguage(ar ? "en" : "ar")}><Globe /><span>{ar ? "English" : "العربية"}</span></Button>
+            {!loading && (user ? <Button variant="ghost" className="hidden sm:inline-flex" onClick={() => void signOut()}>{t("sign_out")}</Button> : <Button asChild variant="ghost" className="hidden sm:inline-flex"><Link to="/login">{text("Log in", "تسجيل الدخول")}</Link></Button>)}
+            {!loading && <Button asChild className="hidden sm:inline-flex"><Link to={primaryUrl}>{user ? workspaceLabel : text("Get started", "ابدأ الآن")}<ArrowUpRight className="rtl:-scale-x-100" /></Link></Button>}
             <Button variant="ghost" size="icon" className="lg:hidden" aria-label={text("Toggle menu", "فتح القائمة")} aria-expanded={menuOpen} onClick={() => setMenuOpen(!menuOpen)}>{menuOpen ? <X /> : <Menu />}</Button>
           </div>
         </div>
-        {menuOpen && <nav className="home-container grid gap-1 border-t border-border py-4 lg:hidden">{nav.map(([href, label]) => <Button key={href} asChild variant="ghost" className="justify-start"><a href={href} onClick={() => setMenuOpen(false)}>{label}</a></Button>)}<Button asChild variant="outline"><Link to="/login">{text("Log in", "تسجيل الدخول")}</Link></Button><Button asChild><Link to="/signup">{text("Get started", "ابدأ الآن")}</Link></Button></nav>}
+        {menuOpen && <nav className="home-container grid gap-1 border-t border-border py-4 lg:hidden">{nav.map(([href, label]) => <Button key={href} asChild variant="ghost" className="justify-start"><a href={href} onClick={() => setMenuOpen(false)}>{label}</a></Button>)}{!loading && <>{user ? <Button variant="outline" onClick={() => { setMenuOpen(false); void signOut(); }}>{t("sign_out")}</Button> : <Button asChild variant="outline"><Link to="/login">{text("Log in", "تسجيل الدخول")}</Link></Button>}<Button asChild><Link to={primaryUrl}>{user ? workspaceLabel : text("Get started", "ابدأ الآن")}</Link></Button></>}</nav>}
       </header>
 
       <main>
@@ -57,17 +62,18 @@ export default function HomePage() {
           <img src={heroImage} width={1920} height={1024} fetchPriority="high" alt={text("Glass AI processor connecting customer messages, products, and orders", "معالج ذكاء اصطناعي يربط رسائل العملاء بالمنتجات والطلبات")} className="home-hero-art absolute inset-0 -z-10 h-full w-full object-cover" />
           <div className="home-container relative flex h-full items-center">
             <motion.div {...reveal} className="home-hero-copy max-w-xl py-16">
-              <span className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-secondary/80 px-3 py-1.5 text-xs font-semibold text-primary"><Sparkles className="h-3.5 w-3.5" />{text("THE NEXT CHAPTER OF SOCIAL COMMERCE", "مستقبل التجارة عبر المحادثات")}</span>
+              <span className="inline-flex max-w-full items-center gap-2 rounded-full border border-primary/20 bg-secondary/80 px-3 py-1.5 text-xs font-semibold text-primary"><Sparkles className="h-3.5 w-3.5 shrink-0" /><span className="break-words">{user ? `${text("Welcome back", "مرحباً بعودتك")}${profile?.full_name ? `، ${profile.full_name}` : ""}` : text("THE NEXT CHAPTER OF SOCIAL COMMERCE", "مستقبل التجارة عبر المحادثات")}</span></span>
               <h1 className="mt-7 font-heading text-6xl font-semibold leading-[1.08]">AISales<span className="text-primary">.</span><br /><span className="text-primary">{text("AI sales automation", "أتمتة المبيعات")}</span></h1>
-              <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground">{text("Turn conversations into customers. An AI sales assistant that knows your products, answers naturally, and keeps your orders moving.", "حوّل المحادثات إلى مبيعات. مساعد ذكي يعرف منتجاتك، يرد بأسلوب طبيعي، ويتابع طلباتك.")}</p>
-              <div className="mt-8 flex flex-wrap items-center gap-3"><Button asChild size="lg"><Link to="/signup">{text("Build your AI sales team", "أنشئ فريق مبيعاتك الذكي")}<ArrowUpRight className="rtl:-scale-x-100" /></Link></Button><Button asChild size="lg" variant="outline"><a href="#capabilities">{text("Explore the platform", "اكتشف المنصة")}<ArrowRight className="rtl:-scale-x-100" /></a></Button></div>
+              <p className="mt-6 max-w-md text-lg leading-relaxed text-muted-foreground">{user ? text("Your conversations, products, and orders are one click away. Pick up where you left off.", "محادثاتك ومنتجاتك وطلباتك على بُعد نقرة واحدة. تابع من حيث توقفت.") : text("Turn conversations into customers. An AI sales assistant that knows your products, answers naturally, and keeps your orders moving.", "حوّل المحادثات إلى مبيعات. مساعد ذكي يعرف منتجاتك، يرد بأسلوب طبيعي، ويتابع طلباتك.")}</p>
+              {user && store?.name && <p className="mt-3 break-words text-sm font-medium text-primary">{store.name}</p>}
+              <div className="mt-8 flex flex-wrap items-center gap-3"><Button asChild size="lg" disabled={loading}><Link to={primaryUrl}>{user ? workspaceLabel : text("Build your AI sales team", "أنشئ فريق مبيعاتك الذكي")}<ArrowUpRight className="rtl:-scale-x-100" /></Link></Button><Button asChild size="lg" variant="outline">{user ? <Link to="/inbox">{text("Go to inbox", "افتح صندوق الوارد")}<MessageSquare /></Link> : <a href="#capabilities">{text("Explore the platform", "اكتشف المنصة")}<ArrowRight className="rtl:-scale-x-100" /></a>}</Button></div>
               <div className="mt-7 flex flex-wrap gap-x-5 gap-y-2 text-xs text-muted-foreground"><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-primary" />{text("English & Arabic", "العربية والإنجليزية")}</span><span className="flex items-center gap-1.5"><Check className="h-3.5 w-3.5 text-primary" />{text("Your catalog. Your voice.", "منتجاتك. أسلوبك.")}</span></div>
             </motion.div>
           </div>
         </section>
 
         <section className="border-y border-border bg-card">
-          <div className="home-container flex flex-col items-center justify-between gap-6 py-7 md:flex-row"><p className="max-w-xs text-sm text-muted-foreground">{text("Connected conversations.\nOne intelligent workspace.", "محادثات مترابطة. مساحة عمل ذكية واحدة.")}</p><div className="flex flex-wrap justify-center gap-6 sm:gap-12">{[[MessageCircle, "Messenger"], [MessageSquare, "Instagram"], [MessageCircle, "WhatsApp"]].map(([Icon, name]) => { const ChannelIcon = Icon as typeof MessageCircle; return <span key={String(name)} className="flex items-center gap-2 font-heading text-lg font-medium"><ChannelIcon className="h-5 w-5 text-primary" />{String(name)}</span>; })}</div><span className="text-xs text-muted-foreground">{text("Powered by Meta connections", "عبر اتصالات ميتا")}</span></div>
+          <div className="home-container flex flex-col items-center justify-between gap-6 py-7 md:flex-row"><p className="max-w-xs text-sm text-muted-foreground">{text("Connected conversations.\nOne intelligent workspace.", "محادثات مترابطة. مساحة عمل ذكية واحدة.")}</p><div className="flex flex-wrap justify-center gap-6 sm:gap-12">{[[MessageCircle, text("Messenger", "ماسنجر")], [MessageSquare, text("Instagram", "إنستغرام")], [MessageCircle, text("WhatsApp", "واتساب")]].map(([Icon, name]) => { const ChannelIcon = Icon as typeof MessageCircle; return <span key={String(name)} className="flex items-center gap-2 font-heading text-lg font-medium"><ChannelIcon className="h-5 w-5 text-primary" />{String(name)}</span>; })}</div><span className="text-xs text-muted-foreground">{text("Powered by Meta connections", "عبر اتصالات ميتا")}</span></div>
         </section>
 
         <section id="capabilities" className="home-container home-section">

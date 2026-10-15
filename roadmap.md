@@ -1,5 +1,7 @@
 # Website experience refresh
 
+- [ ] Localize homepage controls and adapt its welcome and actions to the signed-in account; verify both languages and account navigation.
+
 - [x] Replace the dark theme with a light AI-inspired palette.
 - [x] Create a public homepage covering existing sections with AI automation imagery.
 - [x] Verify homepage navigation, Arabic, and desktop/mobile layouts; check the signed-in dashboard, products, orders, inbox, and AI settings.

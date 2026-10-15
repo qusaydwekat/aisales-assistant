@@ -15,6 +15,13 @@
       "when": 1791989450919,
       "tag": "0001_protect_profile_status",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792059317044,
+      "tag": "0002_production_hardening",
+      "breakpoints": true
     }
   ]
 }

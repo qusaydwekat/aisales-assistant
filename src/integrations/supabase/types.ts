@@ -590,6 +590,10 @@ export type Database = {
           platform: Database["public"]["Enums"]["platform_type"]
           status: string
           store_id: string
+          token_checked_at: string | null
+          token_error: string | null
+          token_expires_at: string | null
+          token_status: string
           updated_at: string
         }
         Insert: {
@@ -603,6 +607,10 @@ export type Database = {
           platform: Database["public"]["Enums"]["platform_type"]
           status?: string
           store_id: string
+          token_checked_at?: string | null
+          token_error?: string | null
+          token_expires_at?: string | null
+          token_status?: string
           updated_at?: string
         }
         Update: {
@@ -616,6 +624,10 @@ export type Database = {
           platform?: Database["public"]["Enums"]["platform_type"]
           status?: string
           store_id?: string
+          token_checked_at?: string | null
+          token_error?: string | null
+          token_expires_at?: string | null
+          token_status?: string
           updated_at?: string
         }
         Relationships: [
@@ -1044,6 +1056,39 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_failures: {
+        Row: {
+          created_at: string
+          error: string | null
+          id: string
+          page_id: string | null
+          payload: Json | null
+          platform: string
+          resolved: boolean
+          sender_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          page_id?: string | null
+          payload?: Json | null
+          platform: string
+          resolved?: boolean
+          sender_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          id?: string
+          page_id?: string | null
+          payload?: Json | null
+          platform?: string
+          resolved?: boolean
+          sender_id?: string | null
         }
         Relationships: []
       }

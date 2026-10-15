@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { navigationItems, adminNavigationItem } from "./navigation-items";
 import { 
   LayoutDashboard, MessageSquare, ShoppingCart, Package, Settings, 
   Link2, BarChart3, Bot, Bell, Zap, Globe, Shield, Sparkles, TrendingUp
@@ -12,20 +14,6 @@ import {
   SidebarGroupLabel, SidebarMenu, SidebarMenuButton, SidebarMenuItem,
   SidebarHeader, SidebarFooter, useSidebar,
 } from "@/components/ui/sidebar";
-
-const navKeys = [
-  { key: "dashboard", url: "/dashboard", icon: LayoutDashboard },
-  { key: "inbox", url: "/inbox", icon: MessageSquare },
-  { key: "orders", url: "/orders", icon: ShoppingCart },
-  { key: "products", url: "/products", icon: Package },
-  { key: "catalog_tools", url: "/catalog-tools", icon: Sparkles },
-  { key: "store_settings", url: "/store-settings", icon: Settings },
-  { key: "platforms", url: "/platforms", icon: Link2 },
-  { key: "reports", url: "/reports", icon: BarChart3 },
-  { key: "ai_settings", url: "/ai-settings", icon: Bot },
-  { key: "growth", url: "/growth", icon: TrendingUp },
-  { key: "notifications", url: "/notifications", icon: Bell },
-];
 
 export function AppSidebar() {
   const { state } = useSidebar();
@@ -42,13 +30,13 @@ export function AppSidebar() {
   };
 
   const allNavKeys = [
-    ...navKeys,
-    ...(role === 'admin' ? [{ key: "admin", url: "/admin", icon: Shield }] : []),
+    ...navigationItems,
+    ...(role === 'admin' ? [adminNavigationItem] : []),
   ];
 
   return (
     <Sidebar side={dir === "rtl" ? "right" : "left"} collapsible="icon" className="border-e border-border bg-sidebar">
-      <SidebarHeader className="p-4">
+      <SidebarHeader className="p-5 border-b border-sidebar-border">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
             <Zap className="h-4 w-4 text-primary-foreground" />
@@ -61,7 +49,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
+      <SidebarContent className="px-2 py-3">
         <SidebarGroup>
           <SidebarGroupLabel className="text-muted-foreground/60 text-xs uppercase tracking-wider">
             {!collapsed && t("menu")}
@@ -73,13 +61,13 @@ export function AppSidebar() {
                 const badge = badgeMap[item.key] || 0;
                 return (
                   <SidebarMenuItem key={item.key}>
-                    <SidebarMenuButton asChild>
+                    <SidebarMenuButton asChild isActive={isActive} tooltip={t(item.key)} className="h-11">
                       <NavLink
                         to={item.url}
                         end
-                        className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all ${
+                        className={`relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all ${
                           isActive
-                            ? "bg-primary/10 text-primary font-medium"
+                            ? "bg-primary/15 text-foreground font-medium before:absolute before:start-0 before:top-3 before:bottom-3 before:w-0.5 before:rounded-full before:bg-primary"
                             : "text-muted-foreground hover:bg-muted hover:text-foreground"
                         }`}
                         activeClassName=""
@@ -105,26 +93,26 @@ export function AppSidebar() {
 
       <SidebarFooter className="p-4 space-y-2">
         {!collapsed && (
-          <button
+          <Button variant="ghost"
             onClick={() => setLanguage(language === "en" ? "ar" : "en")}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
           >
             <Globe className="h-4 w-4" />
             <span>{language === "en" ? "العربية" : "English"}</span>
-          </button>
+          </Button>
         )}
         {collapsed && (
-          <button
+          <Button variant="ghost"
             onClick={() => setLanguage(language === "en" ? "ar" : "en")}
             className="flex items-center justify-center p-2 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
             title={language === "en" ? "العربية" : "English"}
           >
             <Globe className="h-4 w-4" />
-          </button>
+          </Button>
         )}
 
         {!collapsed && (
-          <div className="glass rounded-lg p-3">
+          <div className="border-t border-sidebar-border pt-4 px-1">
             <p className="text-xs text-muted-foreground">{t("store")}</p>
             <p className="text-sm font-medium text-foreground truncate">{store?.name || t('no_store')}</p>
             <p className={`text-xs mt-1 ${profile?.status === 'active' ? 'text-success' : 'text-warning'}`}>

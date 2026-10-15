@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
 
 @tailwind base;
 @tailwind components;
@@ -7,6 +7,11 @@
 @layer base {
   :root {
     --background: 222 47% 6%;
+    --surface-raised: 220 30% 12%;
+    --overlay: 222 47% 3%;
+    --glass-border: 215 25% 26%;
+    --shadow-surface: 0 8px 28px hsl(222 47% 3% / 0.18);
+    --shadow-dialog: 0 24px 80px hsl(222 47% 3% / 0.6);
     --foreground: 210 40% 98%;
 
     --card: 222 41% 8%;
@@ -22,7 +27,7 @@
     --secondary-foreground: 210 40% 98%;
 
     --muted: 222 30% 14%;
-    --muted-foreground: 215 20% 60%;
+    --muted-foreground: 215 18% 68%;
 
     --accent: 199 89% 42%;
     --accent-foreground: 210 40% 98%;
@@ -34,7 +39,7 @@
     --input: 222 20% 16%;
     --ring: 217 91% 53%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
     --sidebar-background: 222 47% 5%;
     --sidebar-foreground: 215 20% 70%;
@@ -68,19 +73,23 @@
 
 @layer utilities {
   .glass {
-    @apply bg-card/60 backdrop-blur-xl border border-white/[0.08] shadow-lg;
+    background: hsl(var(--card) / 0.88);
+    border: 1px solid hsl(var(--glass-border) / 0.55);
+    box-shadow: var(--shadow-surface);
+    backdrop-filter: blur(16px);
   }
 
   .glass-hover {
-    @apply glass hover:border-white/[0.15] hover:bg-card/80 transition-all duration-300;
+    @apply glass transition-all duration-200;
+    &:hover { border-color: hsl(var(--primary) / 0.5); background: hsl(var(--surface-raised)); }
   }
 
   .glow-primary {
-    box-shadow: 0 0 20px hsl(217 91% 53% / 0.15), 0 0 60px hsl(217 91% 53% / 0.05);
+    box-shadow: 0 0 20px hsl(var(--primary) / 0.15), 0 0 60px hsl(var(--primary) / 0.05);
   }
 
   .glow-accent {
-    box-shadow: 0 0 20px hsl(199 89% 42% / 0.15), 0 0 60px hsl(199 89% 42% / 0.05);
+    box-shadow: 0 0 20px hsl(var(--accent) / 0.15), 0 0 60px hsl(var(--accent) / 0.05);
   }
 
   .text-gradient {
@@ -126,4 +135,48 @@
   input, textarea, select {
     font-size: 16px !important;
   }
+}
+
+/* Shared experience: restrained surfaces, clear focus, and stable controls. */
+@layer base {
+  html { scroll-behavior: smooth; scroll-padding-top: 5rem; }
+  body { overflow-x: clip; }
+  * { letter-spacing: 0 !important; }
+  ::selection { background: hsl(var(--primary) / 0.35); color: hsl(var(--foreground)); }
+  :focus-visible { outline: 2px solid hsl(var(--ring)); outline-offset: 3px; }
+  button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
+  button { transition: background-color 160ms, border-color 160ms, color 160ms, box-shadow 160ms; }
+  input:not([type="checkbox"]):not([type="radio"]), textarea, select { min-width: 0; transition: border-color 160ms, box-shadow 160ms; }
+  input:focus, textarea:focus, select:focus { box-shadow: 0 0 0 3px hsl(var(--primary) / 0.12); }
+  img { max-width: 100%; }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
+}
+.workspace-main > .page-transition > div:not(.inbox-page) { width: 100%; max-width: 1600px; margin-inline: auto; }
+.workspace-main h1 { font-weight: 600; }
+.workspace-main .glass.rounded-xl, .workspace-main .glass.rounded-2xl { border-radius: 8px; }
+.workspace-main table { font-variant-numeric: tabular-nums; }
+.workspace-main thead { background: hsl(var(--muted) / 0.55); }
+.workspace-main th { text-align: start; }
+.workspace-main td { border-color: hsl(var(--border) / 0.6); }
+.workspace-main .glass:has(> h3) { background: transparent; border: 0; border-top: 1px solid hsl(var(--border)); border-radius: 0; box-shadow: none; backdrop-filter: none; padding-inline: 0; }
+.auth-page { position: relative; isolation: isolate; }
+.auth-page > div { position: relative; }
+.auth-page form, .auth-page > div > .glass, .auth-page .glass.rounded-2xl { border-radius: 8px; box-shadow: var(--shadow-dialog); }
+.auth-page input, .auth-page textarea, .auth-page select { border: 1px solid hsl(var(--border)); min-height: 44px; }
+.auth-page h2 { font-size: 24px; text-align: start; }
+.auth-page .glass .glass { background: transparent; border: 0; border-radius: 0; box-shadow: none; backdrop-filter: none; padding-inline: 0; }
+@media (min-width: 1024px) {
+  .workspace-main > .page-transition > div:not(.inbox-page) { padding: 32px; }
+}
+@media (max-width: 767px) {
+  .workspace-main { padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); }
+  .workspace-main h1 { overflow-wrap: anywhere; }
+  [role="dialog"] { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  .auth-page { padding-block: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }

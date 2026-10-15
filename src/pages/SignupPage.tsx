@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Zap, Upload, Check, Loader2, AlertCircle } from "lucide-react";
@@ -45,21 +46,21 @@ export default function SignupPage() {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
+      <div className="auth-page min-h-dvh bg-background flex items-center justify-center p-4" dir={dir}>
         <div className="w-full max-w-sm text-center">
           <div className="flex items-center gap-2 justify-center mb-8">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
             <span className="font-heading text-2xl font-bold text-foreground">AISales</span>
           </div>
-          <div className="glass rounded-2xl p-6 space-y-4">
+          <div className="glass rounded-lg p-6 sm:p-8 space-y-4">
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-success/20">
               <Check className="h-8 w-8 text-success" />
             </div>
             <h2 className="text-lg font-heading font-bold text-foreground">{t("account_created")}</h2>
             <p className="text-sm text-muted-foreground">{t("check_email")}</p>
-            <button onClick={() => navigate("/login")} className="w-full rounded-lg bg-primary text-primary-foreground py-2.5 font-medium text-sm hover:bg-primary/90 transition-colors">
+            <Button onClick={() => navigate("/login")} className="w-full rounded-lg bg-primary text-primary-foreground py-2.5 font-medium text-sm hover:bg-primary/90 transition-colors">
               {t("go_to_login")}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -67,7 +68,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
+    <div className="auth-page min-h-dvh bg-background flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-2 justify-center mb-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
@@ -86,7 +87,7 @@ export default function SignupPage() {
           ))}
         </div>
 
-        <motion.div key={step} initial={{ opacity: 0, x: dir === 'rtl' ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} className="glass rounded-2xl p-6 space-y-4">
+        <motion.div key={step} initial={{ opacity: 0, x: dir === 'rtl' ? -20 : 20 }} animate={{ opacity: 1, x: 0 }} className="glass rounded-lg p-6 sm:p-8 space-y-4">
           <h2 className="text-lg font-heading font-bold text-foreground">{steps[step]}</h2>
 
           {error && (
@@ -99,8 +100,8 @@ export default function SignupPage() {
           {step === 0 && (
             <div className="space-y-3">
               <input placeholder={t("full_name")} value={fullName} onChange={e => setFullName(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder={t("email")} type="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
-              <input placeholder={t("password")} type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("email")} type="email" aria-label={t("email")} autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
+              <input placeholder={t("password")} type="password" aria-label={t("password")} autoComplete="new-password" value={password} onChange={e => setPassword(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
               <input placeholder={t("phone_number")} value={phone} onChange={e => setPhone(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
               <input placeholder={t("store_name")} value={storeName} onChange={e => setStoreName(e.target.value)} className="w-full rounded-lg bg-muted px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
@@ -132,7 +133,7 @@ export default function SignupPage() {
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("store")}</span><span className="text-foreground">{storeName || '—'}</span></div>
                 <div className="flex justify-between gap-2"><span className="text-muted-foreground">{t("category_field")}</span><span className="text-foreground">{storeCategory || '—'}</span></div>
               </div>
-              <button
+              <Button
                 type="button"
                 onClick={handleSubmit}
                 disabled={loading}
@@ -140,20 +141,20 @@ export default function SignupPage() {
               >
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {t("submit_review")}
-              </button>
+              </Button>
             </div>
           )}
 
           {step < 2 && (
             <div className="flex justify-between pt-2">
-              <button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30">
+              <Button type="button" onClick={() => setStep(Math.max(0, step - 1))} disabled={step === 0}
+                variant="ghost" className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground disabled:opacity-30">
                 {dir === 'rtl' ? '→' : '←'} {t("back")}
-              </button>
-              <button type="button" onClick={() => setStep(Math.min(2, step + 1))}
+              </Button>
+              <Button type="button" onClick={() => setStep(Math.min(2, step + 1))}
                 className="flex items-center gap-1 text-sm bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:bg-primary/90 transition-colors">
                 {t("next")} {dir === 'rtl' ? '←' : '→'}
-              </button>
+              </Button>
             </div>
           )}
         </motion.div>

@@ -265,21 +265,19 @@ export default function PlatformsPage() {
 
 
       {/* Unified Meta connect hero card */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/10 via-background to-accent/10 p-5 md:p-8">
-        <div className="absolute -top-12 -end-12 h-40 w-40 rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-12 -start-12 h-40 w-40 rounded-full bg-accent/20 blur-3xl pointer-events-none" />
+      <div className="relative border-y border-border py-6">
 
         <div className="relative space-y-5">
           {/* Top row: brand + status */}
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="relative h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center shadow-lg">
-                <span className="font-heading font-bold text-white text-2xl">M</span>
-                <Sparkles className="absolute -top-1 -end-1 h-4 w-4 text-yellow-300" />
+              <div className="relative h-14 w-14 rounded-lg bg-primary/15 flex items-center justify-center shadow-lg">
+                <span className="font-heading font-bold text-primary text-2xl">M</span>
+                <Sparkles className="absolute -top-1 -end-1 h-4 w-4 text-warning" />
               </div>
               <div>
-                <h2 className="text-lg md:text-xl font-heading font-bold text-foreground">Connect with Meta</h2>
-                <p className="text-xs md:text-sm text-muted-foreground">One login • Messenger, Instagram & WhatsApp</p>
+                <h2 className="text-lg md:text-xl font-heading font-bold text-foreground">{dir === "rtl" ? "الربط مع Meta" : "Connect with Meta"}</h2>
+                <p className="text-xs md:text-sm text-muted-foreground">{dir === "rtl" ? "Messenger و Instagram و WhatsApp" : "Messenger, Instagram & WhatsApp"}</p>
               </div>
             </div>
             {totalConnected > 0 && (
@@ -291,18 +289,18 @@ export default function PlatformsPage() {
           </div>
 
           {/* Channel pills */}
-          <div className="grid grid-cols-3 gap-2 md:gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {platformStatus.map(({ platform, connections: conns }) => {
               const Icon = platformIcons[platform];
               const color = platformColors[platform];
               const isConnected = conns.length > 0;
               const isConnecting = connectingPlatform === platform;
               return (
-                <button
+                <Button variant="ghost"
                   key={platform}
                   onClick={() => startOAuth(platform)}
                   disabled={isConnecting}
-                  className={`group relative rounded-xl border p-3 md:p-4 text-start transition-all hover:scale-[1.02] hover:shadow-md disabled:opacity-50 ${
+                  className={`group relative block h-auto whitespace-normal rounded-lg border p-4 text-start transition-all hover:shadow-md disabled:opacity-50 ${
                     isConnected
                       ? "border-success/40 bg-success/5"
                       : "border-border bg-card/50 hover:border-primary/40"
@@ -318,7 +316,7 @@ export default function PlatformsPage() {
                     </div>
                     {isConnected && (
                       <div className="h-5 w-5 rounded-full bg-success flex items-center justify-center shrink-0">
-                        <Check className="h-3 w-3 text-white" />
+                        <Check className="h-3 w-3 text-primary-foreground" />
                       </div>
                     )}
                   </div>
@@ -326,17 +324,12 @@ export default function PlatformsPage() {
                   <p className="text-[10px] md:text-xs text-muted-foreground mt-0.5">
                     {isConnected ? `${conns.length} ${conns.length === 1 ? "account" : "accounts"}` : t("connect")}
                   </p>
-                </button>
+                </Button>
               );
             })}
           </div>
 
-          {/* Trust badges */}
-          <div className="flex items-center justify-center md:justify-start gap-4 text-xs text-muted-foreground pt-2 border-t border-border/40 flex-wrap">
-            <span className="inline-flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-primary" /> Secure OAuth</span>
-            <span className="inline-flex items-center gap-1.5"><Zap className="h-3.5 w-3.5 text-primary" /> Instant AI replies</span>
-            <span className="inline-flex items-center gap-1.5"><Sparkles className="h-3.5 w-3.5 text-primary" /> No code needed</span>
-          </div>
+
         </div>
       </div>
 
@@ -397,13 +390,6 @@ export default function PlatformsPage() {
         </div>
       )}
 
-      {/* Empty state helper */}
-      {totalConnected === 0 && (
-        <div className="text-center py-6 text-sm text-muted-foreground">
-          <p>👆 Pick a channel above to start connecting. You'll be guided by Meta's secure login.</p>
-        </div>
-      )}
-
       {/* Multi-Page Selection Dialog */}
       <Dialog open={selectingPage} onOpenChange={(open) => { if (!open) { setSelectingPage(false); setPages([]); setSessionId(null); setSelectedPageIds(new Set()); } }}>
         <DialogContent className="sm:max-w-md">
@@ -419,15 +405,15 @@ export default function PlatformsPage() {
 
           <div className="space-y-2 pt-2 max-h-80 overflow-y-auto">
             {pages.length > 1 && (
-              <button onClick={toggleAll} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors text-start">
+              <Button variant="ghost" onClick={toggleAll} className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors text-start">
                 {selectedPageIds.size === pages.length
                   ? <CheckSquare className="h-4 w-4 text-primary shrink-0" />
                   : <Square className="h-4 w-4 text-muted-foreground shrink-0" />}
                 <span className="text-sm font-medium text-foreground">{t("select_all")} ({pages.length})</span>
-              </button>
+              </Button>
             )}
             {pages.map(page => (
-              <button
+              <Button variant="ghost"
                 key={page.id}
                 onClick={() => togglePage(page.id)}
                 disabled={submitting}
@@ -440,7 +426,7 @@ export default function PlatformsPage() {
                   <p className="text-sm font-medium text-foreground truncate">{page.name}</p>
                   <p className="text-xs text-muted-foreground">ID: {page.id}</p>
                 </div>
-              </button>
+              </Button>
             ))}
             {pages.length === 0 && (
               <div className="text-center py-6 text-muted-foreground text-sm">

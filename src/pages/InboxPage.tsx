@@ -483,7 +483,7 @@ export default function InboxPage() {
   );
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem-4rem)] md:h-[calc(100vh-3.5rem)]" dir={dir}>
+    <div className="inbox-page flex min-w-0 h-[calc(100dvh-9rem-env(safe-area-inset-bottom,0px))] md:h-[calc(100dvh-4rem)] overflow-hidden" dir={dir}>
       {conversationList}
       {chatThread}
       {customerPanel}

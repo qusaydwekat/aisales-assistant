@@ -84,12 +84,12 @@ export default function DashboardPage() {
         <div className="glass rounded-xl p-5">
           <h3 className="text-sm font-heading font-semibold text-foreground mb-4">{t("orders_per_day")}</h3>
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={ordersPerDay}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(222 20% 16%)" />
-              <XAxis dataKey="date" tick={{ fill: '#94A3B8', fontSize: 12 }} axisLine={false} />
-              <YAxis tick={{ fill: '#94A3B8', fontSize: 12 }} axisLine={false} />
-              <Tooltip contentStyle={{ background: 'hsl(222 41% 8%)', border: '1px solid hsl(222 20% 16%)', borderRadius: '8px', color: '#fff' }} />
-              <Bar dataKey="orders" fill="hsl(217 91% 53%)" radius={[6, 6, 0, 0]} />
+            <BarChart data={ordersPerDay} barSize={40} margin={{ top: 8, right: 12, left: -20, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="date" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip cursor={{ fill: 'hsl(var(--muted) / 0.5)' }} contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }} />
+              <Bar dataKey="orders" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

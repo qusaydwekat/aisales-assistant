@@ -19,6 +19,8 @@ export default {
       },
       colors: {
         border: "hsl(var(--border))",
+        overlay: "hsl(var(--overlay))",
+        "surface-raised": "hsl(var(--surface-raised))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",

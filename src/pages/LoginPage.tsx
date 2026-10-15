@@ -1,3 +1,5 @@
+import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 import { useState } from "react";
 import { Zap, AlertCircle, Loader2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,14 +51,14 @@ export default function LoginPage() {
   const isPending = profile?.status === "pending";
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4" dir={dir}>
-      <div className="w-full max-w-sm">
+    <div className="auth-page min-h-dvh bg-background flex items-center justify-center p-4" dir={dir}>
+      <div className="w-full max-w-md">
         <div className="flex items-center gap-2 justify-center mb-8">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
           <span className="font-heading text-2xl font-bold text-foreground">AISales</span>
         </div>
 
-        <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="glass rounded-lg p-6 sm:p-8 space-y-4">
           <h2 className="text-lg font-heading font-bold text-foreground text-center">{t("welcome_back_login")}</h2>
 
           {isPending && (
@@ -76,7 +78,7 @@ export default function LoginPage() {
           <div className="space-y-3">
             <input
               placeholder={t("email")}
-              type="email"
+              type="email" aria-label={t("email")} autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -84,7 +86,7 @@ export default function LoginPage() {
             />
             <input
               placeholder={t("password")}
-              type="password"
+              type="password" aria-label={t("password")} autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -92,21 +94,21 @@ export default function LoginPage() {
             />
           </div>
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-primary text-primary-foreground py-2.5 font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {t("sign_in")}
-          </button>
+          </Button>
 
           <div className="relative my-1">
             <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
             <div className="relative flex justify-center text-xs"><span className="bg-card px-2 text-muted-foreground">{t("or_divider")}</span></div>
           </div>
 
-          <button
+          <Button
             type="button"
             onClick={handleGoogleSignIn}
             disabled={googleLoading}
@@ -121,7 +123,7 @@ export default function LoginPage() {
               </svg>
             )}
             {t("continue_google")}
-          </button>
+          </Button>
 
           <p className="text-center text-xs text-muted-foreground">
             <a href="#" className="text-primary hover:underline">{t("forgot_password")}</a>
@@ -129,7 +131,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-center text-sm text-muted-foreground mt-4">
-          {t("dont_have_account")} <a href="/signup" className="text-primary hover:underline">{t("sign_up")}</a>
+          {t("dont_have_account")} <Link to="/signup" className="text-primary hover:underline">{t("sign_up")}</Link>
         </p>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/BrandLogo";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Zap, Upload, Check, Loader2, AlertCircle } from "lucide-react";
@@ -49,8 +50,7 @@ export default function SignupPage() {
       <div className="auth-page min-h-dvh bg-background flex items-center justify-center p-4" dir={dir}>
         <div className="w-full max-w-sm text-center">
           <div className="flex items-center gap-2 justify-center mb-8">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
-            <span className="font-heading text-2xl font-bold text-foreground">AISales</span>
+            <BrandLogo />
           </div>
           <div className="glass rounded-lg p-6 sm:p-8 space-y-4">
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-success/20">
@@ -71,8 +71,7 @@ export default function SignupPage() {
     <div className="auth-page min-h-dvh bg-background flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-lg">
         <div className="flex items-center gap-2 justify-center mb-8">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
-          <span className="font-heading text-2xl font-bold text-foreground">AISales</span>
+          <BrandLogo />
         </div>
 
         {/* Progress */}

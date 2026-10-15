@@ -240,15 +240,15 @@ export default function StorefrontPage() {
                     <Package className="h-10 w-10 text-muted-foreground/30" />
                   )}
                   {p.stock === 0 && <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive">Sold Out</span>}
-                  {p.compare_price && <span className="absolute top-2 start-2 px-2 py-0.5 rounded text-[10px] font-medium bg-success/20 text-success">Sale</span>}
+                  {!!p.compare_price && <span className="absolute top-2 start-2 px-2 py-0.5 rounded text-[10px] font-medium bg-success/20 text-success">Sale</span>}
                 </div>
                 <div className="p-3">
                   <p className="text-xs text-muted-foreground">{p.category}</p>
-                  <h3 className="text-sm font-medium text-foreground mt-0.5 truncate">{p.name}</h3>
+                  <h3 className="text-sm font-medium text-foreground mt-0.5 line-clamp-2 min-h-10">{p.name}</h3>
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-baseline gap-1.5">
                       <span className="font-heading font-bold text-foreground">${Number(p.price).toFixed(2)}</span>
-                      {p.compare_price && <span className="text-[10px] text-muted-foreground line-through">${Number(p.compare_price).toFixed(2)}</span>}
+                      {!!p.compare_price && <span className="text-[10px] text-muted-foreground line-through">${Number(p.compare_price).toFixed(2)}</span>}
                     </div>
                     {p.stock > 0 && (
                       <Button variant="ghost" onClick={e => { e.stopPropagation(); addToCart(p); }}
@@ -294,7 +294,7 @@ export default function StorefrontPage() {
                 {showProduct.description && <p className="text-sm text-muted-foreground">{showProduct.description}</p>}
                 <div className="flex items-baseline gap-2">
                   <span className="text-2xl font-heading font-bold text-foreground">${Number(showProduct.price).toFixed(2)}</span>
-                  {showProduct.compare_price && <span className="text-sm text-muted-foreground line-through">${Number(showProduct.compare_price).toFixed(2)}</span>}
+                  {!!showProduct.compare_price && <span className="text-sm text-muted-foreground line-through">${Number(showProduct.compare_price).toFixed(2)}</span>}
                 </div>
                 <p className="text-xs text-muted-foreground">{showProduct.stock > 0 ? `${showProduct.stock} in stock` : 'Out of stock'}</p>
                 {showProduct.stock > 0 && (

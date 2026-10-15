@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { metaMessagingFields, lastCustomerMessageAt, type MetaTag } from "../_shared/meta-messaging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,7 +12,11 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { conversation_id, content } = await req.json();
+    const body = await req.json();
+    const conversation_id = body.conversation_id;
+    const content: string = body.content ?? body.message;
+    // Automated sends pass a tag; owner replies default to HUMAN_AGENT.
+    const tag: MetaTag = body.tag || (body.from_system ? "POST_PURCHASE_UPDATE" : "HUMAN_AGENT");
     if (!conversation_id || !content) {
       return new Response(JSON.stringify({ error: "Missing conversation_id or content" }), {
         status: 400,
@@ -131,6 +136,8 @@ Deno.serve(async (req) => {
       });
     }
 
+    const msgFields = metaMessagingFields(platform, await lastCustomerMessageAt(supabase, conversation_id), tag);
+
     // Check if content is an image
     const isImage = content.startsWith("📷 ");
     let sendResult: any;
@@ -150,7 +157,7 @@ Deno.serve(async (req) => {
             message: {
               attachment: { type: "image", payload: { url: imageUrl, is_reusable: true } },
             },
-            messaging_type: "RESPONSE",
+            ...msgFields,
           }),
         });
         sendResult = await res.json();
@@ -186,7 +193,7 @@ Deno.serve(async (req) => {
           body: JSON.stringify({
             recipient: { id: recipientId },
             message: { text: content },
-            messaging_type: "RESPONSE",
+            ...msgFields,
           }),
         });
         sendResult = await res.json();

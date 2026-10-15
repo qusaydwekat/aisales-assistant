@@ -10,3 +10,4 @@
 - Website-wide visual refinements live in semantic global tokens and shared controls; preserve page workflows and use MotionConfig to honor reduced-motion preferences.
 - The public homepage lives at `/` independently of the protected workspace, and its workspace section derives destinations from shared navigation items so advertised sections stay synchronized.
 - Homepage account actions derive from the existing auth context and language context; keep workspace links behind existing route gates without duplicating access logic.
+- Public homepage and legal pages share PublicSiteHeader and PublicSiteFooter; legal documents use LegalPageLayout to keep branding, account actions, and bilingual navigation consistent without changing policy content.

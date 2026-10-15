@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -167,7 +168,7 @@ export default function StorefrontPage() {
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             {store.logo_url ? (
               <img src={store.logo_url} alt="" className="h-9 w-9 rounded-lg object-cover" />
             ) : (
@@ -175,16 +176,16 @@ export default function StorefrontPage() {
                 <Store className="h-5 w-5 text-primary-foreground" />
               </div>
             )}
-            <span className="font-heading font-bold text-foreground text-lg">{store.name}</span>
+            <span className="font-heading font-bold text-foreground text-lg truncate">{store.name}</span>
           </div>
-          <button onClick={() => setShowCart(true)} className="relative p-2 rounded-lg hover:bg-muted transition-colors">
+          <Button variant="ghost" onClick={() => setShowCart(true)} className="relative p-2 rounded-lg hover:bg-muted transition-colors">
             <ShoppingCart className="h-5 w-5 text-foreground" />
             {cartCount > 0 && (
               <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
                 {cartCount}
               </span>
             )}
-          </button>
+          </Button>
         </div>
       </header>
 
@@ -209,10 +210,10 @@ export default function StorefrontPage() {
           </div>
           <div className="flex gap-1 overflow-x-auto pb-1">
             {categories.map(c => (
-              <button key={c} onClick={() => setCategory(c)}
+              <Button variant="ghost" key={c} onClick={() => setCategory(c)}
                 className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${category === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:text-foreground'}`}>
                 {c === "all" ? "All" : c}
-              </button>
+              </Button>
             ))}
           </div>
         </div>
@@ -250,10 +251,10 @@ export default function StorefrontPage() {
                       {p.compare_price && <span className="text-[10px] text-muted-foreground line-through">${Number(p.compare_price).toFixed(2)}</span>}
                     </div>
                     {p.stock > 0 && (
-                      <button onClick={e => { e.stopPropagation(); addToCart(p); }}
+                      <Button variant="ghost" onClick={e => { e.stopPropagation(); addToCart(p); }}
                         className="p-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
                         <Plus className="h-3.5 w-3.5" />
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -266,7 +267,7 @@ export default function StorefrontPage() {
       {/* WhatsApp Float */}
       {store.phone && (
         <a href={`https://wa.me/${store.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener"
-          className="fixed bottom-6 end-6 h-14 w-14 rounded-full bg-[#25D366] text-white shadow-lg flex items-center justify-center hover:scale-110 transition-transform z-30">
+          className="fixed bottom-6 end-6 h-14 w-14 rounded-full bg-success text-primary-foreground shadow-lg flex items-center justify-center hover:scale-110 transition-transform z-30">
           <MessageCircle className="h-6 w-6" />
         </a>
       )}
@@ -278,9 +279,9 @@ export default function StorefrontPage() {
             className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-background/80 backdrop-blur-sm p-4"
             onClick={() => setShowProduct(null)}>
             <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }}
-              onClick={e => e.stopPropagation()} className="glass rounded-2xl w-full max-w-md max-h-[80vh] overflow-y-auto">
+              onClick={e => e.stopPropagation()} className="glass rounded-lg w-full max-w-md max-h-[80vh] overflow-y-auto">
               {showProduct.images && showProduct.images.length > 0 && (
-                <img src={showProduct.images[0]} alt="" className="w-full aspect-square object-cover rounded-t-2xl" />
+                <img src={showProduct.images[0]} alt="" className="w-full aspect-square object-cover rounded-t-lg" />
               )}
               <div className="p-6 space-y-3">
                 <div className="flex items-start justify-between">
@@ -288,7 +289,7 @@ export default function StorefrontPage() {
                     <p className="text-xs text-muted-foreground">{showProduct.category}</p>
                     <h2 className="text-lg font-heading font-bold text-foreground">{showProduct.name}</h2>
                   </div>
-                  <button onClick={() => setShowProduct(null)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></button>
+                  <Button variant="ghost" onClick={() => setShowProduct(null)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></Button>
                 </div>
                 {showProduct.description && <p className="text-sm text-muted-foreground">{showProduct.description}</p>}
                 <div className="flex items-baseline gap-2">
@@ -297,10 +298,10 @@ export default function StorefrontPage() {
                 </div>
                 <p className="text-xs text-muted-foreground">{showProduct.stock > 0 ? `${showProduct.stock} in stock` : 'Out of stock'}</p>
                 {showProduct.stock > 0 && (
-                  <button onClick={() => { addToCart(showProduct); setShowProduct(null); }}
+                  <Button variant="ghost" onClick={() => { addToCart(showProduct); setShowProduct(null); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
                     <ShoppingCart className="h-4 w-4" /> Add to Cart
-                  </button>
+                  </Button>
                 )}
               </div>
             </motion.div>
@@ -318,7 +319,7 @@ export default function StorefrontPage() {
               className="absolute top-0 end-0 h-full w-full max-w-md glass border-s border-border flex flex-col">
               <div className="p-4 border-b border-border flex items-center justify-between">
                 <h2 className="font-heading font-bold text-foreground">Cart ({cartCount})</h2>
-                <button onClick={() => setShowCart(false)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></button>
+                <Button variant="ghost" onClick={() => setShowCart(false)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></Button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {cart.length === 0 && <p className="text-sm text-muted-foreground text-center mt-8">Your cart is empty</p>}
@@ -332,9 +333,9 @@ export default function StorefrontPage() {
                       <p className="text-xs text-muted-foreground">${Number(c.product.price).toFixed(2)}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <button onClick={() => updateQuantity(c.product.id, -1)} className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center hover:bg-background"><Minus className="h-3 w-3" /></button>
+                      <Button variant="ghost" onClick={() => updateQuantity(c.product.id, -1)} className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center hover:bg-background"><Minus className="h-3 w-3" /></Button>
                       <span className="text-sm font-medium w-6 text-center">{c.quantity}</span>
-                      <button onClick={() => updateQuantity(c.product.id, 1)} className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center hover:bg-background"><Plus className="h-3 w-3" /></button>
+                      <Button variant="ghost" onClick={() => updateQuantity(c.product.id, 1)} className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center hover:bg-background"><Plus className="h-3 w-3" /></Button>
                     </div>
                   </div>
                 ))}
@@ -345,10 +346,10 @@ export default function StorefrontPage() {
                     <span className="font-medium text-foreground">Total</span>
                     <span className="text-xl font-heading font-bold text-foreground">${cartTotal.toFixed(2)}</span>
                   </div>
-                  <button onClick={() => { setShowCart(false); setShowCheckout(true); }}
+                  <Button variant="ghost" onClick={() => { setShowCart(false); setShowCheckout(true); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors">
                     Checkout
-                  </button>
+                  </Button>
                 </div>
               )}
             </motion.div>
@@ -363,10 +364,10 @@ export default function StorefrontPage() {
             className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm p-4"
             onClick={() => setShowCheckout(false)}>
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
-              onClick={e => e.stopPropagation()} className="glass rounded-2xl w-full max-w-md p-6 space-y-4">
+              onClick={e => e.stopPropagation()} className="glass rounded-lg w-full max-w-md p-6 space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-heading font-bold text-foreground">Complete Order</h2>
-                <button onClick={() => setShowCheckout(false)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></button>
+                <Button variant="ghost" onClick={() => setShowCheckout(false)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></Button>
               </div>
               <div className="space-y-3">
                 <div><label className="text-xs text-muted-foreground">Full Name *</label><input value={orderForm.name} onChange={e => setOrderForm(f => ({ ...f, name: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
@@ -386,10 +387,10 @@ export default function StorefrontPage() {
                   <span className="text-foreground">${cartTotal.toFixed(2)}</span>
                 </div>
               </div>
-              <button onClick={handleCheckout} disabled={submitting || !orderForm.name || !orderForm.phone}
+              <Button variant="ghost" onClick={handleCheckout} disabled={submitting || !orderForm.name || !orderForm.phone}
                 className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
                 {submitting ? "Placing Order..." : "Place Order"}
-              </button>
+              </Button>
             </motion.div>
           </motion.div>
         )}

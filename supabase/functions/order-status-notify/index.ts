@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { metaMessagingFields } from "../_shared/meta-messaging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,7 +22,7 @@ const STATUS_MESSAGES_AR: Record<string, string> = {
   cancelled: "❌ تم إلغاء طلبك {order_number}. إذا عندك أي سؤال، راسلنا بأي وقت.",
 };
 
-async function sendMetaMessage(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string) {
+async function sendMetaMessage(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string, lastCustomerAt?: string | null) {
   if (platform === "facebook" || platform === "instagram") {
     const url = `https://graph.facebook.com/v21.0/me/messages`;
     const res = await fetch(url, {
@@ -33,7 +34,7 @@ async function sendMetaMessage(platform: string, recipientId: string, text: stri
       body: JSON.stringify({
         recipient: { id: recipientId },
         message: { text },
-        messaging_type: "UPDATE",
+        ...metaMessagingFields(platform, lastCustomerAt, "POST_PURCHASE_UPDATE"),
       }),
     });
     const data = await res.json();
@@ -144,7 +145,7 @@ Deno.serve(async (req) => {
     // Detect customer language from their recent messages
     const { data: recent } = await supabase
       .from("messages")
-      .select("content")
+      .select("content, created_at")
       .eq("conversation_id", conversation.id)
       .eq("sender", "customer")
       .order("created_at", { ascending: false })
@@ -159,7 +160,7 @@ Deno.serve(async (req) => {
 
     // Send via platform
     const recipientId = conversation.platform_conversation_id;
-    await sendMetaMessage(conversation.platform, recipientId, message, pageAccessToken, connection.page_id || undefined);
+    await sendMetaMessage(conversation.platform, recipientId, message, pageAccessToken, connection.page_id || undefined, recent?.[0]?.created_at ?? null);
 
     // Save message in DB
     await supabase.from("messages").insert({

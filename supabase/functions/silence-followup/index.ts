@@ -48,10 +48,8 @@ async function sendPlatformReply(
 ): Promise<boolean> {
   try {
     const url = `https://graph.facebook.com/v21.0/me/messages?access_token=${encodeURIComponent(pageAccessToken)}`;
-    const body =
-      platform === "instagram"
-        ? { recipient: { id: recipientId }, message: { text }, messaging_type: "RESPONSE" }
-        : { recipient: { id: recipientId }, message: { text }, messaging_type: "RESPONSE" };
+    // Silence follow-ups only run inside the 24h window (no tag allowed for marketing nudges).
+    const body = { recipient: { id: recipientId }, message: { text }, messaging_type: "RESPONSE" };
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -47,13 +47,14 @@ Deno.serve(async (req) => {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${ANON_KEY}`,
+              "Authorization": `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
               "apikey": ANON_KEY,
             },
             body: JSON.stringify({
               conversation_id: s.conversation_id,
               message,
               from_system: true,
+              tag: "CONFIRMED_EVENT_UPDATE",
             }),
           }).catch(() => {});
         }

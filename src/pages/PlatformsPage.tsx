@@ -1,4 +1,4 @@
-import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap, Wrench } from "lucide-react";
+import { Facebook, Instagram, MessageCircle, Check, Loader2, Copy, Link2, Unlink, CheckSquare, Square, Sparkles, Shield, Zap, Wrench, AlertTriangle } from "lucide-react";
 import { usePlatformConnections } from "@/hooks/useSupabaseData";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
@@ -237,6 +237,32 @@ export default function PlatformsPage() {
         <h1 className="text-2xl md:text-3xl font-heading font-bold text-foreground">{t("connected_platforms")}</h1>
         <p className="text-sm text-muted-foreground">{t("manage_platforms")}</p>
       </div>
+
+      {/* Token health warnings */}
+      {connections
+        .filter((c: any) => c.status === "connected" && (c.token_status === "expiring" || c.token_status === "invalid"))
+        .map((c: any) => (
+          <div key={c.id} className="flex items-center justify-between gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-destructive shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  {c.page_name || platformLabels[c.platform as Platform]}{" "}
+                  {c.token_status === "expiring"
+                    ? (dir === "rtl" ? "سينتهي ربطها قريباً" : "connection expires soon")
+                    : (dir === "rtl" ? "انقطع ربطها" : "is disconnected")}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {dir === "rtl" ? "أعد الربط حتى يستمر الرد على العملاء." : "Reconnect so customer replies keep working."}
+                </p>
+              </div>
+            </div>
+            <Button size="sm" onClick={() => startOAuth(c.platform as Platform)}>
+              {dir === "rtl" ? "إعادة الربط" : "Reconnect"}
+            </Button>
+          </div>
+        ))}
+
 
       {/* Unified Meta connect hero card */}
       <div className="relative overflow-hidden rounded-2xl border border-border/60 bg-gradient-to-br from-primary/10 via-background to-accent/10 p-5 md:p-8">

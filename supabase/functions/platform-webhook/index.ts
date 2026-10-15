@@ -3609,8 +3609,17 @@ Deno.serve(async (req) => {
 
     console.log(`[${platform}] Parsed ${messages.length} message(s)`);
 
-    // Process each incoming message
-    for (const [msgIndex, msg] of messages.entries()) {
+    // Group by customer conversation so different customers (same or different
+    // stores) are processed IN PARALLEL, while each customer's own messages stay ordered.
+    const groups = new Map<string, typeof messages>();
+    for (const m of messages) {
+      const key = `${m.platform}|${m.pageId || ""}|${m.platformId}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key)!.push(m);
+    }
+
+    const processGroup = async (groupMessages: typeof messages) => {
+    for (const [msgIndex, msg] of groupMessages.entries()) {
       // Find store + connection by page_id
       let storeId: string | null = null;
       let pageAccessToken: string | null = null;
@@ -4033,7 +4042,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      if (hasLaterMessageInSameConversation(messages, msgIndex)) {
+      if (hasLaterMessageInSameConversation(groupMessages, msgIndex)) {
         console.log(
           `[${platform}] Deferring AI reply for ${msg.sender}; a later message in the same burst is still being processed.`
         );
@@ -4817,9 +4826,21 @@ Deno.serve(async (req) => {
         }
       }
     }
+    };
+
+    const allWork = Promise.allSettled(
+      [...groups.values()].map((g) =>
+        processGroup(g).catch((e) => console.error(`[${platform}] Group processing error:`, e))
+      )
+    );
+    // Acknowledge Meta immediately; finish replies in the background so slow
+    // customers never block or delay others (and Meta doesn't retry on timeout).
+    const runtime = (globalThis as any).EdgeRuntime;
+    if (runtime?.waitUntil) runtime.waitUntil(allWork);
+    else await allWork;
 
     return new Response(
-      JSON.stringify({ success: true, processed: messages.length }),
+      JSON.stringify({ success: true, processed: messages.length, conversations: groups.size }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

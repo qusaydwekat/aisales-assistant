@@ -2898,26 +2898,51 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
         messages: requestBody.messages.map(serializeAIMessageForLog),
       });
 
-      const useResponsesApi = modelLower.startsWith("openai/");
-      const response = useResponsesApi
-        ? await callResponsesAsChat(requestBody, AI_API_KEY)
-        : await fetch(
-        AI_ENDPOINT,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${AI_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestBody),
+      // Circuit breaker: on 429/5xx/network failure from the primary model,
+      // re-route this round once to a fallback model (and keep it for the rest
+      // of the reply) instead of dropping the conversation.
+      const sendToModel = async (model: string): Promise<Response> => {
+        const body = { ...requestBody, model };
+        if (!String(model).toLowerCase().startsWith("openai/")) {
+          // Drop Responses-only fields and temperature-incompatible keys when
+          // falling back to a chat-completions model.
+          body.messages = body.messages.map((m: any) => {
+            if (!m || typeof m !== "object" || !("_responsesItems" in m)) return m;
+            const { _responsesItems, ...rest } = m;
+            return rest;
+          });
+        } else {
+          delete body.temperature;
         }
-      );
+        try {
+          return String(model).toLowerCase().startsWith("openai/")
+            ? await callResponsesAsChat(body, AI_API_KEY)
+            : await fetch(AI_ENDPOINT, {
+                method: "POST",
+                headers: { Authorization: `Bearer ${AI_API_KEY}`, "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              });
+        } catch (netErr) {
+          console.error(`AI network error (${model}):`, netErr);
+          return new Response(String(netErr), { status: 503 });
+        }
+      };
 
+      let response = await sendToModel(aiModel);
+      const isTransient = (s: number) => s === 429 || s >= 500;
+      if (isTransient(response.status)) {
+        const errBody = await response.text().catch(() => "");
+        const fallbackModel = pickFallbackModel(aiModel);
+        console.warn(`[circuit-breaker] ${aiModel} failed (${response.status}): ${errBody.slice(0, 300)} → fallback ${fallbackModel}`);
+        await new Promise((r) => setTimeout(r, 400 + Math.random() * 600));
+        response = await sendToModel(fallbackModel);
+        if (response.ok) aiModel = fallbackModel;
+      }
 
-      if (response.status === 429 || response.status === 402) {
+      if (response.status === 429 || response.status === 402 || response.status === 403) {
         const errBody = await response.text().catch(() => "");
         console.warn(
-          `OpenAI rate limited / quota exhausted (status ${response.status}): ${errBody}`
+          `AI gateway blocked (status ${response.status}): ${errBody}`
         );
         return emptyResult(
           aiSettings?.fallback_message ||

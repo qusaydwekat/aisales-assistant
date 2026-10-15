@@ -299,7 +299,7 @@ export default function ProductsPage() {
                   </span>
                 )}
                 {/* Hover quick actions */}
-                <div className="absolute bottom-2 end-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-2 end-2 flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -334,10 +334,10 @@ export default function ProductsPage() {
               </div>
               <div className="p-4 cursor-pointer" onClick={() => openEdit(p)}>
                 <p className="text-xs text-muted-foreground">{p.category}</p>
-                <h3 className="text-sm font-medium text-foreground mt-0.5 truncate">{p.name}</h3>
+                <h3 className="text-sm font-medium text-foreground mt-0.5 line-clamp-2 min-h-10" title={p.name}>{p.name}</h3>
                 <div className="flex items-baseline gap-2 mt-1">
                   <span className="text-foreground font-heading font-bold">${Number(p.price).toFixed(2)}</span>
-                  {p.compare_price && (
+                  {!!p.compare_price && (
                     <span className="text-xs text-muted-foreground line-through">
                       ${Number(p.compare_price).toFixed(2)}
                     </span>
@@ -351,8 +351,8 @@ export default function ProductsPage() {
           ))}
         </motion.div>
       ) : (
-        <div className="glass rounded-xl overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="glass rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[640px] text-sm">
             <thead>
               <tr className="border-b border-border text-start">
                 <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{t("product_col_h")}</th>

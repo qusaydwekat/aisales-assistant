@@ -7,7 +7,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { useUnreadNotificationCount } from "@/hooks/useSupabaseData";
+import { useUnreadNotificationCount, useNotifications } from "@/hooks/useSupabaseData";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
@@ -21,6 +21,7 @@ export default function DashboardLayout() {
   const location = useLocation();
   const reducedMotion = useReducedMotion();
   const { data: unreadCount = 0 } = useUnreadNotificationCount();
+  const { data: notifications = [] } = useNotifications();
   const currentPage = [...navigationItems, adminNavigationItem].find(item => item.url === location.pathname);
   const initials = profile?.full_name
     ? profile.full_name.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2)
@@ -54,6 +55,9 @@ export default function DashboardLayout() {
                 <PopoverContent align="end" className="w-72 p-4" dir={dir}>
                   <p className="font-heading font-semibold mb-3">{t("notifications")}</p>
                   <p className="text-sm text-muted-foreground mb-4">{unreadCount > 0 ? `${unreadCount} ${t("notifications")}` : t("no_notifications")}</p>
+                  <div className="max-h-64 overflow-y-auto mb-3 space-y-1">
+                    {notifications.slice(0, 5).map(n => <div key={n.id} className={`p-2 rounded-md ${n.read ? "text-muted-foreground" : "bg-muted/50 text-foreground"}`}><p className="text-sm font-medium">{n.title}</p><p className="text-xs text-muted-foreground mt-1">{n.description}</p></div>)}
+                  </div>
                   <Button asChild variant="outline" className="w-full"><Link to="/notifications" onClick={() => setShowNotifications(false)}>{t("notifications")}</Link></Button>
                 </PopoverContent>
               </Popover>

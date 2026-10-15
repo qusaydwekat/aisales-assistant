@@ -1202,7 +1202,7 @@ async function handleWebhook(req: Request): Promise<Response> {
         const aiReplyCount = (history || []).filter((m: any) => m.sender === "ai").length;
         if (aiReplyCount === 0 && (existingOrders || []).length === 0) {
           runtimeHints.push(
-            "RUNTIME FIRST-TIME CUSTOMER: First interaction with the store. Be slightly warmer. After answering, mention ONCE in a single sentence the delivery info and accepted payment methods so they feel oriented."
+            "RUNTIME FIRST-TIME CUSTOMER: First interaction with the store. Be slightly warmer and welcoming. Do NOT mention delivery, shipping prices, payment methods, hours, return policy or address unless the customer explicitly asked about that exact topic. For a greeting or a vague opener (\"hi\", \"what can you help me with?\"), reply with a short welcome and invite them to tell you what they're looking for — nothing else."
           );
         }
       } catch {}

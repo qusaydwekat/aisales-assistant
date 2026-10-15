@@ -10,6 +10,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { platformColors } from "@/data/mock-data";
 import type { Tables } from "@/integrations/supabase/types";
 import { supabase } from "@/integrations/supabase/client";
+import { getConversationOrderStatus, conversationOrderLabels } from "@/lib/conversation-order-status";
 
 type Platform = "facebook" | "instagram" | "whatsapp";
 const platformIcons: Record<Platform, typeof Facebook> = { facebook: Facebook, instagram: Instagram, whatsapp: MessageCircle };
@@ -233,6 +234,7 @@ export default function InboxPage() {
           const lastMessageText = stripMessageContext(c.last_message);
           const lastImageUrl = getImageUrlFromContent(c.last_message);
           const isLastImage = !!lastImageUrl;
+          const orderStatus = getConversationOrderStatus(c, orders);
           return (
             <button key={c.id} onClick={() => setSelectedId(c.id)}
               className={`w-full text-start px-3 py-3 border-b border-border/50 transition-colors ${c.id === selectedId ? 'bg-muted/60' : 'hover:bg-muted/30'} ${c.unread ? 'border-s-2 border-s-primary' : ''}`}>
@@ -270,10 +272,10 @@ export default function InboxPage() {
                   <p className="text-xs text-muted-foreground truncate">{lastMessageText}</p>
                 )}
               </div>
-              {c.status !== 'open' && (
+              {orderStatus && (
                 <div className="ps-10 mt-1">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${c.status === 'pending_order' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>
-                    {c.status === 'pending_order' ? t("pending_order") : t("resolved_status")}
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded ${orderStatus === 'pending' || orderStatus === 'processing' ? 'bg-warning/20 text-warning' : orderStatus === 'cancelled' ? 'bg-destructive/20 text-destructive' : 'bg-success/20 text-success'}`}>
+                    {orderStatus === 'resolved' ? t("resolved_status") : conversationOrderLabels[dir === 'rtl' ? 'ar' : 'en'][orderStatus]}
                   </span>
                 </div>
               )}

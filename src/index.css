@@ -175,10 +175,10 @@
   .home-heading { font-size: 30px; }
   .home-hero { height: auto; min-height: 730px; }
   .home-hero .home-container { align-items: flex-start; }
-  .home-hero-copy { padding-top: 44px; padding-bottom: 280px; }
+  .home-hero-copy { padding-top: 36px; padding-bottom: 240px; }
   .home-hero h1 { font-size: 42px; }
   .home-hero-copy > p { font-size: 16px; }
-  .home-hero-art { height: 320px; top: auto; bottom: 0; object-fit: cover; object-position: right center; opacity: 1; }
+  .home-hero-art { height: 220px; top: auto; bottom: 0; object-fit: cover; object-position: right center; opacity: 1; }
   .home-hero .home-hero-copy > span { font-size: 9px; }
 }
 .workspace-main h1 { font-weight: 600; }

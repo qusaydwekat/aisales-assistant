@@ -53,10 +53,10 @@ export default function LoginPage() {
   return (
     <div className="auth-page min-h-dvh bg-background flex items-center justify-center p-4" dir={dir}>
       <div className="w-full max-w-md">
-        <div className="flex items-center gap-2 justify-center mb-8">
+        <Link to="/" className="flex items-center gap-2 justify-center mb-8" aria-label="AISales home">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary"><Zap className="h-5 w-5 text-primary-foreground" /></div>
           <span className="font-heading text-2xl font-bold text-foreground">AISales</span>
-        </div>
+        </Link>
 
         <form onSubmit={handleSubmit} className="glass rounded-lg p-6 sm:p-8 space-y-4">
           <h2 className="text-lg font-heading font-bold text-foreground text-center">{t("welcome_back_login")}</h2>

@@ -27,6 +27,7 @@ import PrivacyPolicyPage from "@/pages/PrivacyPolicyPage";
 import TermsOfUsePage from "@/pages/TermsOfUsePage";
 import DisclaimerPage from "@/pages/DisclaimerPage";
 import NotFound from "@/pages/NotFound";
+import HomePage from "@/pages/HomePage";
 
 const queryClient = new QueryClient();
 
@@ -40,7 +41,7 @@ const App = () => (
         <LanguageProvider>
           <AuthProvider>
             <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/" element={<HomePage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/shop" element={<StorefrontPage />} />

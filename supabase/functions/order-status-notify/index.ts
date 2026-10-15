@@ -13,6 +13,14 @@ const STATUS_MESSAGES: Record<string, string> = {
   cancelled: "❌ Your order {order_number} has been cancelled. If you have questions, feel free to message us.",
 };
 
+const STATUS_MESSAGES_AR: Record<string, string> = {
+  confirmed: "أخبار حلوة! ✅ تم تأكيد طلبك {order_number}، وعم نجهزه إلك هلأ!",
+  processing: "🔄 طلبك {order_number} قيد التجهيز هلأ، رح نخبرك أول ما ينشحن!",
+  shipped: "🚚 طلبك {order_number} انشحن وهو بالطريق إلك!",
+  delivered: "📦 تم توصيل طلبك {order_number}! شكراً لتسوقك معنا، ونتمنى يعجبك!",
+  cancelled: "❌ تم إلغاء طلبك {order_number}. إذا عندك أي سؤال، راسلنا بأي وقت.",
+};
+
 async function sendMetaMessage(platform: string, recipientId: string, text: string, pageAccessToken: string, pageId?: string) {
   if (platform === "facebook" || platform === "instagram") {
     const url = `https://graph.facebook.com/v21.0/me/messages`;
@@ -133,8 +141,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Detect customer language from their recent messages
+    const { data: recent } = await supabase
+      .from("messages")
+      .select("content")
+      .eq("conversation_id", conversation.id)
+      .eq("sender", "customer")
+      .order("created_at", { ascending: false })
+      .limit(10);
+    const arabicRe = /[\u0600-\u06FF]/;
+    const isArabic = (recent || []).some((m: any) => arabicRe.test(m.content || "")) ||
+      arabicRe.test(order.customer_name || "");
+
     // Build message
-    const message = STATUS_MESSAGES[new_status].replace("{order_number}", order.order_number);
+    const template = (isArabic ? STATUS_MESSAGES_AR : STATUS_MESSAGES)[new_status];
+    const message = template.replace("{order_number}", order.order_number);
 
     // Send via platform
     const recipientId = conversation.platform_conversation_id;

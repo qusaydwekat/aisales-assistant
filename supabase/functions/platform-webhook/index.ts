@@ -4877,7 +4877,19 @@ Deno.serve(async (req) => {
 
     const allWork = Promise.allSettled(
       [...groups.values()].map((g) =>
-        processGroup(g).catch((e) => console.error(`[${platform}] Group processing error:`, e))
+        processGroup(g).catch(async (e) => {
+          console.error(`[${platform}] Group processing error:`, e);
+          // Dead-letter log so failed customer chats are visible instead of silently lost.
+          try {
+            await supabase.from("webhook_failures").insert({
+              platform,
+              page_id: g[0]?.pageId || null,
+              sender_id: g[0]?.platformId || null,
+              error: String((e as any)?.stack || e).slice(0, 4000),
+              payload: g.map((m: any) => ({ text: m.text ?? null, imageUrl: m.imageUrl ?? null, platformMessageId: m.platformMessageId ?? null })),
+            });
+          } catch (_) { /* never let logging break the webhook */ }
+        })
       )
     );
     // Acknowledge Meta immediately; finish replies in the background so slow

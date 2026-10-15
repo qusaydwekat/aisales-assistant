@@ -1,6 +1,7 @@
 import { Outlet, useLocation, Link } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
+import { BrandLogo } from "@/components/BrandLogo";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 import { Bell, LogOut, Globe, Zap } from "lucide-react";
 import { useState } from "react";
@@ -37,7 +38,7 @@ export default function DashboardLayout() {
           <header className="h-16 shrink-0 flex items-center justify-between gap-2 border-b border-border px-4 md:px-6 bg-background/95 backdrop-blur-xl sticky top-0 z-30">
             <div className="flex items-center gap-3">
               <SidebarTrigger className="text-muted-foreground hover:text-foreground hidden md:flex" />
-              <Link to="/dashboard" className="flex items-center gap-2 md:hidden"><Zap className="h-5 w-5 text-primary" /><span className="font-heading font-bold text-foreground">AISales</span></Link>
+              <Link to="/dashboard" className="flex items-center md:hidden"><BrandLogo /></Link>
               <span className="hidden lg:block text-sm text-muted-foreground">{store?.name || (currentPage ? t(currentPage.key) : "AISales")}</span>
             </div>
             <div className="flex items-center gap-2 md:gap-3">

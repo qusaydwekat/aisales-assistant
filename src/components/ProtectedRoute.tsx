@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Zap } from "lucide-react";
+import { BrandLogo } from "@/components/BrandLogo";
 
 export default function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { session, loading, profile, role, signOut } = useAuth();
@@ -9,9 +10,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary animate-pulse">
-            <Zap className="h-6 w-6 text-primary-foreground" />
-          </div>
+          <div className="animate-pulse"><BrandLogo compact /></div>
           <p className="text-sm text-muted-foreground">Loading...</p>
         </div>
       </div>
@@ -28,10 +27,7 @@ export default function ProtectedRoute({ children }: { children: React.ReactNode
       <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="w-full max-w-sm text-center space-y-4">
           <div className="flex items-center gap-2 justify-center mb-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
-              <Zap className="h-5 w-5 text-primary-foreground" />
-            </div>
-            <span className="font-heading text-2xl font-bold text-foreground">AISales</span>
+            <BrandLogo />
           </div>
           <div className="glass rounded-2xl p-6 space-y-4">
             <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-warning/20">

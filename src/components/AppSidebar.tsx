@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { BrandLogo } from "@/components/BrandLogo";
 import { navigationItems, adminNavigationItem } from "./navigation-items";
 import { 
   LayoutDashboard, MessageSquare, ShoppingCart, Package, Settings, 
@@ -37,16 +38,7 @@ export function AppSidebar() {
   return (
     <Sidebar side={dir === "rtl" ? "right" : "left"} collapsible="icon" className="border-e border-border bg-sidebar">
       <SidebarHeader className="p-5 border-b border-sidebar-border">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Zap className="h-4 w-4 text-primary-foreground" />
-          </div>
-          {!collapsed && (
-            <span className="font-heading text-lg font-bold text-foreground">
-              AISales
-            </span>
-          )}
-        </div>
+        <BrandLogo compact={collapsed} />
       </SidebarHeader>
 
       <SidebarContent className="px-2 py-3">

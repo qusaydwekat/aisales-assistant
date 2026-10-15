@@ -4845,8 +4845,9 @@ Deno.serve(async (req) => {
     // Acknowledge Meta immediately; finish replies in the background so slow
     // customers never block or delay others (and Meta doesn't retry on timeout).
     const runtime = (globalThis as any).EdgeRuntime;
-    if (runtime?.waitUntil) runtime.waitUntil(allWork);
-    else await allWork;
+    void runtime;
+    // Await so the runtime never kills in-flight replies; groups still run in parallel.
+    await allWork;
 
     return new Response(
       JSON.stringify({ success: true, processed: messages.length, conversations: groups.size }),

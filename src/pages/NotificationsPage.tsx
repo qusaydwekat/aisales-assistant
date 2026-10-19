@@ -1,3 +1,4 @@
+import { tr } from "@/lib/tr";
 import { ShoppingCart, MessageSquare, AlertTriangle, Link2, UserCheck, Loader2, CheckCheck } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/useSupabaseData";
 
@@ -12,15 +13,11 @@ export default function NotificationsPage() {
   const { data: notifications = [], isLoading } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
-  const unreadCount = notifications.filter(n => !n.read).length;
-
-  if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
-
-  return (
+  const unreadCount = notifications.filter(n => {tr("!n.read).length;\n\n  if (isLoading) return")} <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>{tr(";\n\n  return (")}
     <div className="p-6 space-y-6 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-heading font-bold text-foreground">Notifications</h1>
+          <h1 className="text-2xl font-heading font-bold text-foreground">{tr("Notifications")}</h1>
           <p className="text-sm text-muted-foreground mt-1">{unreadCount} unread</p>
         </div>
         {unreadCount > 0 && (
@@ -30,13 +27,13 @@ export default function NotificationsPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50"
           >
             <CheckCheck className="h-3.5 w-3.5" />
-            Mark all as read
+            {tr("Mark all as read")}
           </button>
         )}
       </div>
 
       {notifications.length === 0 ? (
-        <div className="glass rounded-xl p-12 text-center text-muted-foreground">No notifications yet.</div>
+        <div className="glass rounded-xl p-12 text-center text-muted-foreground">{tr("No notifications yet.")}</div>
       ) : (
         <div className="space-y-2">
           {notifications.map(n => {

@@ -1,3 +1,4 @@
+import { tr } from "@/lib/tr";
 import { useState } from "react";
 import { 
   Users, ShoppingCart, MessageSquare, Package, Check, X as XIcon, 
@@ -77,19 +78,11 @@ export default function AdminPage() {
   const { data: payments = [] } = useAdminSubscriptionPayments();
   const updateStatus = useAdminUpdateUserStatus();
   const confirmPayment = useConfirmPayment();
-  const [paymentModal, setPaymentModal] = useState<{ userId: string; name: string } | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState('');
-  const [paymentMonths, setPaymentMonths] = useState('1');
-  const [paymentNotes, setPaymentNotes] = useState('');
-
-  if (loading) return <div className="p-6 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
-  if (role !== 'admin') return <Navigate to="/dashboard" replace />;
+  const [paymentModal, setPaymentModal] = useState<{ userId: string; name: string } | null>{tr("(null);\n  const [paymentAmount, setPaymentAmount] = useState('');\n  const [paymentMonths, setPaymentMonths] = useState('1');\n  const [paymentNotes, setPaymentNotes] = useState('');\n\n  if (loading) return")} <div className="p-6 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>{tr(";\n  if (role !== 'admin') return")} <Navigate to="/dashboard" replace />;
 
   const pendingUsers = users.filter((u: any) => u.status === 'pending');
   const getStoreName = (userId: string) => stores.find((s: any) => s.user_id === userId)?.name || '—';
-  const getStoreForId = (storeId: string) => stores.find((s: any) => s.id === storeId);
-
-  return (
+  const getStoreForId = (storeId: string) => stores.find((s: any) => {tr("s.id === storeId);\n\n  return (")}
     <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -98,8 +91,8 @@ export default function AdminPage() {
             <Shield className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">Admin Dashboard</h1>
-            <p className="text-sm text-muted-foreground">Platform-wide management & monitoring</p>
+            <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{tr("Admin Dashboard")}</h1>
+            <p className="text-sm text-muted-foreground">{tr("Platform-wide management & monitoring")}</p>
           </div>
         </div>
       </div>
@@ -164,15 +157,15 @@ export default function AdminPage() {
               {/* Pending Approvals */}
               <div className="glass rounded-xl p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-heading font-semibold text-foreground">Pending Approvals</h3>
+                  <h3 className="text-sm font-heading font-semibold text-foreground">{tr("Pending Approvals")}</h3>
                   {pendingUsers.length > 0 && (
                     <button onClick={() => setTab('pending')} className="text-xs text-primary hover:underline flex items-center gap-1">
-                      View all <ArrowUpRight className="h-3 w-3" />
+                      {tr("View all")} <ArrowUpRight className="h-3 w-3" />
                     </button>
                   )}
                 </div>
                 {pendingUsers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No pending approvals ✓</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">{tr("No pending approvals ✓")}</p>
                 ) : (
                   <div className="space-y-2">
                     {pendingUsers.slice(0, 4).map((u: any) => (
@@ -196,13 +189,13 @@ export default function AdminPage() {
               {/* Recent Orders */}
               <div className="glass rounded-xl p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-heading font-semibold text-foreground">Recent Orders</h3>
+                  <h3 className="text-sm font-heading font-semibold text-foreground">{tr("Recent Orders")}</h3>
                   <button onClick={() => setTab('orders')} className="text-xs text-primary hover:underline flex items-center gap-1">
-                    View all <ArrowUpRight className="h-3 w-3" />
+                    {tr("View all")} <ArrowUpRight className="h-3 w-3" />
                   </button>
                 </div>
                 {orders.length === 0 ? (
-                  <p className="text-sm text-muted-foreground py-4 text-center">No orders yet</p>
+                  <p className="text-sm text-muted-foreground py-4 text-center">{tr("No orders yet")}</p>
                 ) : (
                   <div className="space-y-2">
                     {orders.slice(0, 4).map((o: any) => (
@@ -231,13 +224,13 @@ export default function AdminPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-border text-left">
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Name</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Email</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden lg:table-cell">Store</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Role</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Joined</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Actions</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Name")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">{tr("Email")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden lg:table-cell">{tr("Store")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">{tr("Role")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Status")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">{tr("Joined")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Actions")}</th>
                     </tr></thead>
                     <tbody>
                       {users.map((u: any) => {
@@ -261,11 +254,11 @@ export default function AdminPage() {
                               <div className="flex gap-1">
                                 {u.status !== 'active' && (
                                   <button onClick={() => updateStatus.mutate({ userId: u.user_id, status: 'active' })}
-                                    className="px-2 py-1 rounded-lg text-xs bg-success/20 text-success hover:bg-success/30 transition-colors">Approve</button>
+                                    className="px-2 py-1 rounded-lg text-xs bg-success/20 text-success hover:bg-success/30 transition-colors">{tr("Approve")}</button>
                                 )}
                                 {u.status !== 'suspended' && (
                                   <button onClick={() => updateStatus.mutate({ userId: u.user_id, status: 'suspended' })}
-                                    className="px-2 py-1 rounded-lg text-xs bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors">Suspend</button>
+                                    className="px-2 py-1 rounded-lg text-xs bg-destructive/20 text-destructive hover:bg-destructive/30 transition-colors">{tr("Suspend")}</button>
                                 )}
                               </div>
                             </td>
@@ -289,7 +282,7 @@ export default function AdminPage() {
             {pendingUsers.length === 0 ? (
               <div className="glass rounded-xl p-12 text-center">
                 <Check className="h-8 w-8 text-success mx-auto mb-3" />
-                <p className="text-muted-foreground">No pending approvals</p>
+                <p className="text-muted-foreground">{tr("No pending approvals")}</p>
               </div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2">
@@ -299,17 +292,17 @@ export default function AdminPage() {
                       <div className="min-w-0">
                         <h3 className="font-heading font-semibold text-foreground">{u.full_name}</h3>
                         <p className="text-sm text-muted-foreground truncate">{u.email}</p>
-                        <p className="text-sm text-muted-foreground mt-1">Store: <span className="text-foreground">{getStoreName(u.user_id)}</span></p>
+                        <p className="text-sm text-muted-foreground mt-1">{tr("Store:")} <span className="text-foreground">{getStoreName(u.user_id)}</span></p>
                         <p className="text-xs text-muted-foreground mt-1">Registered: {format(new Date(u.created_at), 'MMM d, yyyy')}</p>
                       </div>
                       <div className="flex gap-2 shrink-0">
                         <button onClick={() => updateStatus.mutate({ userId: u.user_id, status: 'active' })}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium bg-success/20 text-success hover:bg-success/30 flex items-center gap-1 transition-colors">
-                          <Check className="h-3 w-3" /> Approve
+                          <Check className="h-3 w-3" /> {tr("Approve")}
                         </button>
                         <button onClick={() => updateStatus.mutate({ userId: u.user_id, status: 'suspended' })}
                           className="px-3 py-1.5 rounded-lg text-xs font-medium bg-destructive/20 text-destructive hover:bg-destructive/30 flex items-center gap-1 transition-colors">
-                          <XIcon className="h-3 w-3" /> Reject
+                          <XIcon className="h-3 w-3" /> {tr("Reject")}
                         </button>
                       </div>
                     </div>
@@ -327,33 +320,33 @@ export default function AdminPage() {
             {paymentModal && (
               <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setPaymentModal(null)}>
                 <div className="glass rounded-xl p-6 w-full max-w-md mx-4 space-y-4" onClick={e => e.stopPropagation()}>
-                  <h3 className="font-heading font-semibold text-foreground text-lg">Confirm Payment</h3>
-                  <p className="text-sm text-muted-foreground">For: <span className="text-foreground font-medium">{paymentModal.name}</span></p>
+                  <h3 className="font-heading font-semibold text-foreground text-lg">{tr("Confirm Payment")}</h3>
+                  <p className="text-sm text-muted-foreground">{tr("For:")} <span className="text-foreground font-medium">{paymentModal.name}</span></p>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">Amount ($)</label>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">{tr("Amount ($)")}</label>
                       <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
                         placeholder="0.00" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">Duration (months)</label>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">{tr("Duration (months)")}</label>
                       <select value={paymentMonths} onChange={e => setPaymentMonths(e.target.value)}
                         className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
-                        <option value="1">1 Month</option>
-                        <option value="3">3 Months</option>
-                        <option value="6">6 Months</option>
-                        <option value="12">12 Months</option>
+                        <option value="1">{tr("1 Month")}</option>
+                        <option value="3">{tr("3 Months")}</option>
+                        <option value="6">{tr("6 Months")}</option>
+                        <option value="12">{tr("12 Months")}</option>
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">Notes (optional)</label>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">{tr("Notes (optional)")}</label>
                       <input type="text" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)}
-                        placeholder="e.g. Bank transfer #123" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
+                        placeholder={tr("e.g. Bank transfer #123")} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
                     </div>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <button onClick={() => setPaymentModal(null)}
-                      className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
+                      className="px-4 py-2 rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors">{tr("Cancel")}</button>
                     <button 
                       disabled={!paymentAmount || confirmPayment.isPending}
                       onClick={() => {
@@ -385,12 +378,12 @@ export default function AdminPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b border-border text-left">
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">User</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Store</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Paid Until</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Days Left</th>
-                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Actions</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("User")}</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">{tr("Store")}</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Status")}</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Paid Until")}</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">{tr("Days Left")}</th>
+                    <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Actions")}</th>
                   </tr></thead>
                   <tbody>
                     {users.filter((u: any) => u._role !== 'admin').map((u: any) => {
@@ -414,7 +407,7 @@ export default function AdminPage() {
                                 {format(paidUntil, 'MMM d, yyyy')}
                               </span>
                             ) : (
-                              <span className="text-muted-foreground">Not set</span>
+                              <span className="text-muted-foreground">{tr("Not set")}</span>
                             )}
                           </td>
                           <td className="px-4 py-3 text-xs hidden md:table-cell">
@@ -433,7 +426,7 @@ export default function AdminPage() {
                           <td className="px-4 py-3">
                             <button onClick={() => setPaymentModal({ userId: u.user_id, name: u.full_name })}
                               className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary/20 text-primary hover:bg-primary/30 flex items-center gap-1 transition-colors">
-                              <CalendarCheck className="h-3 w-3" /> Confirm Payment
+                              <CalendarCheck className="h-3 w-3" /> {tr("Confirm Payment")}
                             </button>
                           </td>
                         </tr>
@@ -447,11 +440,10 @@ export default function AdminPage() {
             {/* Recent payments history */}
             {payments.length > 0 && (
               <div className="glass rounded-xl p-5">
-                <h3 className="text-sm font-heading font-semibold text-foreground mb-3">Payment History</h3>
+                <h3 className="text-sm font-heading font-semibold text-foreground mb-3">{tr("Payment History")}</h3>
                 <div className="space-y-2">
                   {payments.slice(0, 10).map((p: any) => {
-                    const pUser = users.find((u: any) => u.user_id === p.user_id);
-                    return (
+                    const pUser = users.find((u: any) => {tr("u.user_id === p.user_id);\n                    return (")}
                       <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground">{pUser?.full_name || 'Unknown'}</p>
@@ -473,15 +465,14 @@ export default function AdminPage() {
         {tab === 'stores' && (
           <motion.div key="stores" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             {stores.length === 0 ? (
-              <div className="glass rounded-xl p-12 text-center text-muted-foreground">No stores registered yet</div>
+              <div className="glass rounded-xl p-12 text-center text-muted-foreground">{tr("No stores registered yet")}</div>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {stores.map((s: any) => {
                   const owner = users.find((u: any) => u.user_id === s.user_id);
                   const storeConnections = connections.filter((c: any) => c.store_id === s.id);
                   const storeProducts = products.filter((p: any) => p.store_id === s.id);
-                  const storeOrders = orders.filter((o: any) => o.store_id === s.id);
-                  return (
+                  const storeOrders = orders.filter((o: any) => {tr("o.store_id === s.id);\n                  return (")}
                     <div key={s.id} className="glass rounded-xl p-5 hover:border-primary/20 transition-colors">
                       <div className="flex items-start gap-3 mb-3">
                         {s.logo_url ? (
@@ -499,15 +490,15 @@ export default function AdminPage() {
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="rounded-lg bg-muted/30 p-2">
                           <p className="text-lg font-bold text-foreground">{storeProducts.length}</p>
-                          <p className="text-[10px] text-muted-foreground">Products</p>
+                          <p className="text-[10px] text-muted-foreground">{tr("Products")}</p>
                         </div>
                         <div className="rounded-lg bg-muted/30 p-2">
                           <p className="text-lg font-bold text-foreground">{storeOrders.length}</p>
-                          <p className="text-[10px] text-muted-foreground">Orders</p>
+                          <p className="text-[10px] text-muted-foreground">{tr("Orders")}</p>
                         </div>
                         <div className="rounded-lg bg-muted/30 p-2">
                           <p className="text-lg font-bold text-foreground">{storeConnections.filter((c: any) => c.status === 'connected').length}</p>
-                          <p className="text-[10px] text-muted-foreground">Connected</p>
+                          <p className="text-[10px] text-muted-foreground">{tr("Connected")}</p>
                         </div>
                       </div>
                       {storeConnections.length > 0 && (
@@ -530,19 +521,19 @@ export default function AdminPage() {
         {tab === 'orders' && (
           <motion.div key="orders" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             {orders.length === 0 ? (
-              <div className="glass rounded-xl p-12 text-center text-muted-foreground">No orders yet</div>
+              <div className="glass rounded-xl p-12 text-center text-muted-foreground">{tr("No orders yet")}</div>
             ) : (
               <div className="glass rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-border text-left">
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Order #</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Customer</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Store</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Platform</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Total</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden lg:table-cell">Date</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Order #")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Customer")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">{tr("Store")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">{tr("Platform")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Total")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Status")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden lg:table-cell">{tr("Date")}</th>
                     </tr></thead>
                     <tbody>
                       {orders.map((o: any) => {
@@ -581,18 +572,18 @@ export default function AdminPage() {
         {tab === 'conversations' && (
           <motion.div key="conversations" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             {conversations.length === 0 ? (
-              <div className="glass rounded-xl p-12 text-center text-muted-foreground">No conversations yet</div>
+              <div className="glass rounded-xl p-12 text-center text-muted-foreground">{tr("No conversations yet")}</div>
             ) : (
               <div className="glass rounded-xl overflow-hidden">
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead><tr className="border-b border-border text-left">
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Customer</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">Store</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Platform</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">Last Message</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">Status</th>
-                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden lg:table-cell">Last Activity</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Customer")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden md:table-cell">{tr("Store")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Platform")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden sm:table-cell">{tr("Last Message")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase">{tr("Status")}</th>
+                      <th className="px-4 py-3 text-xs font-medium text-muted-foreground uppercase hidden lg:table-cell">{tr("Last Activity")}</th>
                     </tr></thead>
                     <tbody>
                       {conversations.map((c: any) => {

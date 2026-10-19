@@ -1,3 +1,4 @@
+import { tr } from "@/lib/tr";
 import { useEffect, useState } from "react";
 import { Loader2, Save, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -33,7 +34,7 @@ export default function AIProviderSettings() {
         .maybeSingle();
       if (error) {
         console.error(error);
-        toast({ title: "Failed to load AI config", description: error.message, variant: "destructive" });
+        toast({ title: tr("Failed to load AI config"), description: error.message, variant: "destructive" });
       } else if (data) {
         setRowId(data.id);
         setModel(data.model);
@@ -58,9 +59,9 @@ export default function AIProviderSettings() {
       : await supabase.from("platform_ai_config").insert(payload as any);
     setSaving(false);
     if (error) {
-      toast({ title: "Save failed", description: error.message, variant: "destructive" });
+      toast({ title: tr("Save failed"), description: error.message, variant: "destructive" });
     } else {
-      toast({ title: "AI models updated", description: "Now using Lovable AI." });
+      toast({ title: tr("AI models updated"), description: tr("Now using Lovable AI.") });
     }
   };
 
@@ -77,17 +78,17 @@ export default function AIProviderSettings() {
       <div className="glass rounded-xl p-5">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="h-4 w-4 text-primary" />
-          <h3 className="text-sm font-heading font-semibold text-foreground">AI Engine</h3>
+          <h3 className="text-sm font-heading font-semibold text-foreground">{tr("AI Engine")}</h3>
         </div>
         <p className="text-xs text-muted-foreground">
-          Powered by <strong className="text-foreground">Lovable AI</strong> — no API key needed, billed via workspace credits.
+          {tr("Powered by")} <strong className="text-foreground">{tr("Lovable AI")}</strong> {tr("— no API key needed, billed via workspace credits.")}
         </p>
       </div>
 
       <div className="glass rounded-xl p-5 space-y-4">
-        <h3 className="text-sm font-heading font-semibold text-foreground">Models</h3>
+        <h3 className="text-sm font-heading font-semibold text-foreground">{tr("Models")}</h3>
         <p className="text-xs text-muted-foreground -mt-2">
-          Pick the model used for each task. Different tasks can use different models.
+          {tr("Pick the model used for each task. Different tasks can use different models.")}
         </p>
 
         <ModelPicker

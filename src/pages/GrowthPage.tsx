@@ -1,3 +1,4 @@
+import { tr } from "@/lib/tr";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,8 +22,8 @@ export default function GrowthPage() {
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 pb-20 md:pb-6 max-w-5xl" dir={dir}>
       <div>
-        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">Growth Tools</h1>
-        <p className="text-xs md:text-sm text-muted-foreground mt-1">Promotions, knowledge gaps, and restock alerts your AI uses to sell smarter.</p>
+        <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{tr("Growth Tools")}</h1>
+        <p className="text-xs md:text-sm text-muted-foreground mt-1">{tr("Promotions, knowledge gaps, and restock alerts your AI uses to sell smarter.")}</p>
       </div>
 
       <div className="flex gap-2 border-b border-border">
@@ -89,7 +90,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Promotion created");
+      toast.success(tr("Promotion created"));
       qc.invalidateQueries({ queryKey: ["promotions", storeId] });
       setCreating(false);
       setForm({ code: "", label: "", type: "percent", value: 10, min_order: 0, ends_at: "" });
@@ -111,7 +112,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Deleted");
+      toast.success(tr("Deleted"));
       qc.invalidateQueries({ queryKey: ["promotions", storeId] });
     },
   });
@@ -119,9 +120,9 @@ function PromotionsTab({ storeId }: { storeId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">Create discount codes the AI can offer customers.</p>
+        <p className="text-sm text-muted-foreground">{tr("Create discount codes the AI can offer customers.")}</p>
         <button onClick={() => setCreating(!creating)} className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm text-primary-foreground hover:bg-primary/90">
-          <Plus className="h-4 w-4" /> New Promotion
+          <Plus className="h-4 w-4" /> {tr("New Promotion")}
         </button>
       </div>
 
@@ -129,42 +130,42 @@ function PromotionsTab({ storeId }: { storeId: string }) {
         <div className="glass rounded-xl p-4 space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="text-xs text-muted-foreground">Code</label>
-              <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder="SUMMER20"
+              <label className="text-xs text-muted-foreground">{tr("Code")}</label>
+              <input value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value }))} placeholder={tr("SUMMER20")}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary uppercase" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Label (shown to customer)</label>
-              <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder="Summer Sale 20% off"
+              <label className="text-xs text-muted-foreground">{tr("Label (shown to customer)")}</label>
+              <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder={tr("Summer Sale 20% off")}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Type</label>
+              <label className="text-xs text-muted-foreground">{tr("Type")}</label>
               <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">
-                <option value="percent">Percent off (%)</option>
-                <option value="fixed">Fixed amount off</option>
-                <option value="free_shipping">Free shipping</option>
+                <option value="percent">{tr("Percent off (%)")}</option>
+                <option value="fixed">{tr("Fixed amount off")}</option>
+                <option value="free_shipping">{tr("Free shipping")}</option>
               </select>
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Value</label>
+              <label className="text-xs text-muted-foreground">{tr("Value")}</label>
               <input type="number" value={form.value} onChange={e => setForm(f => ({ ...f, value: Number(e.target.value) }))}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Min order amount</label>
+              <label className="text-xs text-muted-foreground">{tr("Min order amount")}</label>
               <input type="number" value={form.min_order} onChange={e => setForm(f => ({ ...f, min_order: Number(e.target.value) }))}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">Ends at (optional)</label>
+              <label className="text-xs text-muted-foreground">{tr("Ends at (optional)")}</label>
               <input type="datetime-local" value={form.ends_at} onChange={e => setForm(f => ({ ...f, ends_at: e.target.value }))}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
           </div>
           <div className="flex gap-2 justify-end">
-            <button onClick={() => setCreating(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">Cancel</button>
+            <button onClick={() => setCreating(false)} className="px-3 py-2 rounded-lg text-sm text-muted-foreground hover:bg-muted">{tr("Cancel")}</button>
             <button onClick={() => createPromo.mutate()} disabled={!form.code || createPromo.isPending}
               className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50">
               {createPromo.isPending ? "Creating..." : "Create"}
@@ -175,8 +176,8 @@ function PromotionsTab({ storeId }: { storeId: string }) {
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-      ) : promos.length === 0 ? (
-        <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">No promotions yet. Create one above and the AI can offer it to customers.</div>
+      {tr(") : promos.length === 0 ? (")}
+        <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">{tr("No promotions yet. Create one above and the AI can offer it to customers.")}</div>
       ) : (
         <div className="space-y-2">
           {promos.map((p: any) => (
@@ -186,7 +187,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
                   <span className="font-mono text-sm font-bold text-primary">{p.code}</span>
                   <span className="text-xs text-muted-foreground">·</span>
                   <span className="text-sm text-foreground">{p.label}</span>
-                  {!p.active && <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">inactive</span>}
+                  {!p.active && <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{tr("inactive")}</span>}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {p.type === "percent" && `${p.value}% off`}
@@ -241,7 +242,7 @@ function GapsTab({ storeId }: { storeId: string }) {
       if (error) throw error;
     },
     onSuccess: () => {
-      toast.success("Answer saved — AI will use it next time");
+      toast.success(tr("Answer saved — AI will use it next time"));
       qc.invalidateQueries({ queryKey: ["knowledge_gaps", storeId] });
       setAnswering(null);
       setAnswer("");
@@ -258,11 +259,11 @@ function GapsTab({ storeId }: { storeId: string }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Questions your AI couldn't answer. Provide answers and the AI will learn them.</p>
+      <p className="text-sm text-muted-foreground">{tr("Questions your AI couldn't answer. Provide answers and the AI will learn them.")}</p>
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-      ) : gaps.length === 0 ? (
-        <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">No knowledge gaps detected. Your AI is handling everything well 🎉</div>
+      {tr(") : gaps.length === 0 ? (")}
+        <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">{tr("No knowledge gaps detected. Your AI is handling everything well 🎉")}</div>
       ) : (
         gaps.map((g: any) => (
           <div key={g.id} className="glass rounded-xl p-4 space-y-2">
@@ -283,7 +284,7 @@ function GapsTab({ storeId }: { storeId: string }) {
               answering === g.id ? (
                 <div className="flex gap-2 pt-2">
                   <input autoFocus value={answer} onChange={e => setAnswer(e.target.value)}
-                    placeholder="Answer this question..."
+                    placeholder={tr("Answer this question...")}
                     className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
                   <button onClick={() => resolve.mutate({ id: g.id, ans: answer })} disabled={!answer.trim()}
                     className="px-3 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 disabled:opacity-50">
@@ -292,7 +293,7 @@ function GapsTab({ storeId }: { storeId: string }) {
                 </div>
               ) : (
                 <button onClick={() => { setAnswering(g.id); setAnswer(""); }}
-                  className="text-xs text-primary hover:underline">+ Provide answer</button>
+                  className="text-xs text-primary hover:underline">{tr("+ Provide answer")}</button>
               )
             )}
           </div>
@@ -330,11 +331,11 @@ function RestockTab({ storeId }: { storeId: string }) {
 
   return (
     <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">Customers waiting for items to come back in stock. They get auto-notified within 15 minutes once stock is updated.</p>
+      <p className="text-sm text-muted-foreground">{tr("Customers waiting for items to come back in stock. They get auto-notified within 15 minutes once stock is updated.")}</p>
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-      ) : signups.length === 0 ? (
-        <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">No restock signups yet.</div>
+      {tr(") : signups.length === 0 ? (")}
+        <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">{tr("No restock signups yet.")}</div>
       ) : (
         signups.map((s: any) => (
           <div key={s.id} className="glass rounded-xl p-4 flex items-center justify-between gap-3">

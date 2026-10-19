@@ -1,3 +1,4 @@
+import { tr } from "@/lib/tr";
 import { useEffect, useMemo, useState } from "react";
 import { Loader2, Link2, Trash2, Plus, AlertCircle, CheckCircle2, Image as ImageIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -50,7 +51,7 @@ export default function CatalogToolsPage() {
 
   const addLink = async () => {
     if (!store?.id || !postId.trim() || !productId) {
-      toast.error("Post ID and product are required");
+      toast.error(tr("Post ID and product are required"));
       return;
     }
     const { error } = await supabase.from("post_product_links").insert({
@@ -66,7 +67,7 @@ export default function CatalogToolsPage() {
     }
     setPostId("");
     setProductId("");
-    toast.success("Post linked to product");
+    toast.success(tr("Post linked to product"));
     loadLinks();
   };
 
@@ -117,10 +118,10 @@ export default function CatalogToolsPage() {
     <div className="p-4 md:p-6 space-y-6 pb-20 md:pb-6" dir={dir}>
       <div>
         <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">
-          Catalog Tools
+          {tr("Catalog Tools")}
         </h1>
         <p className="text-xs md:text-sm text-muted-foreground mt-1">
-          Link social posts to products and monitor visual catalog health.
+          {tr("Link social posts to products and monitor visual catalog health.")}
         </p>
       </div>
 
@@ -128,7 +129,7 @@ export default function CatalogToolsPage() {
       <section className="glass rounded-2xl p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="font-heading font-semibold text-foreground">
-            Visual catalog health
+            {tr("Visual catalog health")}
           </h2>
           <div className="flex items-center gap-2">
             {health.completionPct >= 80 ? (
@@ -160,7 +161,7 @@ export default function CatalogToolsPage() {
         {health.incomplete.length > 0 && (
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">
-              Incomplete products (missing visual fields the AI needs)
+              {tr("Incomplete products (missing visual fields the AI needs)")}
             </div>
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {health.incomplete.map((p: any) => (
@@ -198,28 +199,27 @@ export default function CatalogToolsPage() {
       <section className="glass rounded-2xl p-4 md:p-6 space-y-4">
         <div>
           <h2 className="font-heading font-semibold text-foreground">
-            Link social posts to products
+            {tr("Link social posts to products")}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            When a customer comments on a Facebook or Instagram post, the AI uses these
-            mappings to know exactly which product they're asking about.
+            {tr("When a customer comments on a Facebook or Instagram post, the AI uses these\n            mappings to know exactly which product they're asking about.")}
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
           <div>
-            <label className="text-xs text-muted-foreground">Platform</label>
+            <label className="text-xs text-muted-foreground">{tr("Platform")}</label>
             <select
               value={platform}
               onChange={(e) => setPlatform(e.target.value)}
               className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none"
             >
-              <option value="facebook">Facebook</option>
-              <option value="instagram">Instagram</option>
+              <option value="facebook">{tr("Facebook")}</option>
+              <option value="instagram">{tr("Instagram")}</option>
             </select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Page ID (optional)</label>
+            <label className="text-xs text-muted-foreground">{tr("Page ID (optional)")}</label>
             <input
               value={pageId}
               onChange={(e) => setPageId(e.target.value)}
@@ -228,7 +228,7 @@ export default function CatalogToolsPage() {
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Post ID</label>
+            <label className="text-xs text-muted-foreground">{tr("Post ID")}</label>
             <input
               value={postId}
               onChange={(e) => setPostId(e.target.value)}
@@ -237,13 +237,13 @@ export default function CatalogToolsPage() {
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Product</label>
+            <label className="text-xs text-muted-foreground">{tr("Product")}</label>
             <select
               value={productId}
               onChange={(e) => setProductId(e.target.value)}
               className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm outline-none"
             >
-              <option value="">Choose…</option>
+              <option value="">{tr("Choose…")}</option>
               {products.map((p: any) => (
                 <option key={p.id} value={p.id}>
                   {p.name} {p.price ? `— ${p.price}` : ""}
@@ -255,7 +255,7 @@ export default function CatalogToolsPage() {
             onClick={addLink}
             className="rounded-lg px-3 py-2 bg-primary text-primary-foreground text-sm font-medium flex items-center justify-center gap-1.5 hover:bg-primary/90"
           >
-            <Plus className="h-4 w-4" /> Link
+            <Plus className="h-4 w-4" /> {tr("Link")}
           </button>
         </div>
 
@@ -264,9 +264,9 @@ export default function CatalogToolsPage() {
             <div className="flex justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
-          ) : links.length === 0 ? (
+          {tr(") : links.length === 0 ? (")}
             <div className="text-sm text-muted-foreground text-center py-6">
-              No post links yet. Add one above.
+              {tr("No post links yet. Add one above.")}
             </div>
           ) : (
             links.map((l) => {

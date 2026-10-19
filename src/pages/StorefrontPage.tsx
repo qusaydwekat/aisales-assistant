@@ -1,3 +1,4 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { tr } from "@/lib/tr";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
@@ -34,6 +35,7 @@ interface StoreInfo {
 }
 
 export default function StorefrontPage() {
+  useLanguage();
   const [searchParams] = useSearchParams();
   const storeId = searchParams.get("store");
   const [store, setStore] = useState<StoreInfo | null>(null);

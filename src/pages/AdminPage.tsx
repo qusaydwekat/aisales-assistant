@@ -1,3 +1,4 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { tr } from "@/lib/tr";
 import { useState } from "react";
 import { 
@@ -52,7 +53,7 @@ const platformColors: Record<string, string> = {
 function StatusBadge({ status }: { status: string }) {
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[status] || 'bg-muted text-muted-foreground'}`}>
-      {status.replace('_', ' ')}
+      {tr(status.replace('_', ' '))}
     </span>
   );
 }
@@ -60,12 +61,13 @@ function StatusBadge({ status }: { status: string }) {
 function PlatformBadge({ platform }: { platform: string }) {
   return (
     <span className={`px-2 py-0.5 rounded-full text-xs font-medium capitalize ${platformColors[platform] || 'bg-muted text-muted-foreground'}`}>
-      {platform}
+      {tr(platform)}
     </span>
   );
 }
 
 export default function AdminPage() {
+  useLanguage();
   const { role, loading } = useAuth();
   const [tab, setTab] = useState<Tab>('overview');
   const { data: users = [], isLoading: loadingUsers } = useAdminUsers();

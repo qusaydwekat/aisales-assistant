@@ -16,6 +16,7 @@ type PostLink = {
 };
 
 export default function CatalogToolsPage() {
+  useLanguage();
   const { dir } = useLanguage();
   const { data: store } = useStore();
   const { data: products = [] } = useProducts();

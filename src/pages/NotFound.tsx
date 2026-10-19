@@ -1,8 +1,10 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { tr } from "@/lib/tr";
 import { useLocation } from "react-router-dom";
 import { useEffect } from "react";
 
 const NotFound = () => {
+  useLanguage();
   const location = useLocation();
 
   useEffect(() => {

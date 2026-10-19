@@ -11,6 +11,7 @@ import { format } from "date-fns";
 type Tab = "promotions" | "gaps" | "restock";
 
 export default function GrowthPage() {
+  useLanguage();
   const { dir } = useLanguage();
   const { data: store } = useStore();
   const [tab, setTab] = useState<Tab>("promotions");

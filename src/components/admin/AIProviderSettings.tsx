@@ -1,3 +1,4 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { tr } from "@/lib/tr";
 import { useEffect, useState } from "react";
 import { Loader2, Save, Sparkles } from "lucide-react";
@@ -18,6 +19,7 @@ const MODELS: { value: string; label: string; hint?: string }[] = [
 ];
 
 export default function AIProviderSettings() {
+  useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [model, setModel] = useState("google/gemini-3-flash-preview");

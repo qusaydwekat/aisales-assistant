@@ -1,3 +1,4 @@
+import { useLanguage } from "@/contexts/LanguageContext";
 import { tr } from "@/lib/tr";
 import { ShoppingCart, MessageSquare, AlertTriangle, Link2, UserCheck, Loader2, CheckCheck } from "lucide-react";
 import { useNotifications, useMarkNotificationRead, useMarkAllNotificationsRead } from "@/hooks/useSupabaseData";
@@ -10,6 +11,7 @@ const colorMap: Record<string, string> = {
 };
 
 export default function NotificationsPage() {
+  useLanguage();
   const { data: notifications = [], isLoading } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -22,7 +24,7 @@ export default function NotificationsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-heading font-bold text-foreground">{tr("Notifications")}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{unreadCount} unread</p>
+          <p className="text-sm text-muted-foreground mt-1">{unreadCount} {tr("unread")}</p>
         </div>
         {unreadCount > 0 && (
           <button
@@ -52,7 +54,7 @@ export default function NotificationsPage() {
                   <p className="text-xs text-muted-foreground mt-0.5">{n.description}</p>
                 </div>
                 <span className="text-[10px] text-muted-foreground shrink-0">
-                  {new Date(n.created_at).toLocaleDateString()}
+                  {new Date(n.created_at).toLocaleDateString(document.documentElement.lang === "ar" ? "ar" : undefined)}
                 </span>
               </div>
             );

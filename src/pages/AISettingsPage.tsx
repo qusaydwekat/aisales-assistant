@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function AISettingsPage() {
+  useLanguage();
   const { dir } = useLanguage();
   const { data: settings, isLoading } = useAISettings();
   const upsert = useUpsertAISettings();

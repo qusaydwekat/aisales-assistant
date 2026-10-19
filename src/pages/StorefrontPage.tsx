@@ -1,3 +1,5 @@
+import { useLanguage } from "@/contexts/LanguageContext";
+import { tr } from "@/lib/tr";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -33,6 +35,7 @@ interface StoreInfo {
 }
 
 export default function StorefrontPage() {
+  useLanguage();
   const [searchParams] = useSearchParams();
   const storeId = searchParams.get("store");
   const [store, setStore] = useState<StoreInfo | null>(null);
@@ -85,7 +88,7 @@ export default function StorefrontPage() {
       if (existing) return prev.map(c => c.product.id === product.id ? { ...c, quantity: c.quantity + 1 } : c);
       return [...prev, { product, quantity: 1 }];
     });
-    toast.success("Added to cart!");
+    toast.success(tr("Added to cart!"));
   };
 
   const updateQuantity = (productId: string, delta: number) => {
@@ -140,7 +143,7 @@ export default function StorefrontPage() {
         });
       }
 
-      toast.success("Order placed successfully! We'll contact you shortly.");
+      toast.success(tr("Order placed successfully! We'll contact you shortly."));
       setCart([]);
       setShowCheckout(false);
       setShowCart(false);
@@ -159,7 +162,7 @@ export default function StorefrontPage() {
 
   if (!store) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
-      <p className="text-muted-foreground">Store not found</p>
+      <p className="text-muted-foreground">{tr("Store not found")}</p>
     </div>
   );
 
@@ -206,7 +209,7 @@ export default function StorefrontPage() {
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex items-center gap-2 rounded-lg bg-muted px-3 py-2 flex-1 max-w-md">
             <Search className="h-4 w-4 text-muted-foreground" />
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search products..." className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none flex-1" />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder={tr("Search products...")} className="bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none flex-1" />
           </div>
           <div className="flex gap-1 overflow-x-auto pb-1">
             {categories.map(c => (
@@ -224,7 +227,7 @@ export default function StorefrontPage() {
         {filtered.length === 0 ? (
           <div className="text-center py-20">
             <Package className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-            <p className="text-muted-foreground">No products found</p>
+            <p className="text-muted-foreground">{tr("No products found")}</p>
           </div>
         ) : (
           <motion.div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" initial="hidden" animate="show"
@@ -239,8 +242,8 @@ export default function StorefrontPage() {
                   ) : (
                     <Package className="h-10 w-10 text-muted-foreground/30" />
                   )}
-                  {p.stock === 0 && <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive">Sold Out</span>}
-                  {!!p.compare_price && <span className="absolute top-2 start-2 px-2 py-0.5 rounded text-[10px] font-medium bg-success/20 text-success">Sale</span>}
+                  {p.stock === 0 && <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive">{tr("Sold Out")}</span>}
+                  {!!p.compare_price && <span className="absolute top-2 start-2 px-2 py-0.5 rounded text-[10px] font-medium bg-success/20 text-success">{tr("Sale")}</span>}
                 </div>
                 <div className="p-3">
                   <p className="text-xs text-muted-foreground">{p.category}</p>
@@ -300,7 +303,7 @@ export default function StorefrontPage() {
                 {showProduct.stock > 0 && (
                   <Button variant="ghost" onClick={() => { addToCart(showProduct); setShowProduct(null); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
-                    <ShoppingCart className="h-4 w-4" /> Add to Cart
+                    <ShoppingCart className="h-4 w-4" /> {tr("Add to Cart")}
                   </Button>
                 )}
               </div>
@@ -322,7 +325,7 @@ export default function StorefrontPage() {
                 <Button variant="ghost" onClick={() => setShowCart(false)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></Button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                {cart.length === 0 && <p className="text-sm text-muted-foreground text-center mt-8">Your cart is empty</p>}
+                {cart.length === 0 && <p className="text-sm text-muted-foreground text-center mt-8">{tr("Your cart is empty")}</p>}
                 {cart.map(c => (
                   <div key={c.product.id} className="flex items-center gap-3 bg-muted/50 rounded-xl p-3">
                     <div className="h-14 w-14 rounded-lg bg-muted overflow-hidden shrink-0">
@@ -343,12 +346,12 @@ export default function StorefrontPage() {
               {cart.length > 0 && (
                 <div className="p-4 border-t border-border space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-foreground">Total</span>
+                    <span className="font-medium text-foreground">{tr("Total")}</span>
                     <span className="text-xl font-heading font-bold text-foreground">${cartTotal.toFixed(2)}</span>
                   </div>
                   <Button variant="ghost" onClick={() => { setShowCart(false); setShowCheckout(true); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors">
-                    Checkout
+                    {tr("Checkout")}
                   </Button>
                 </div>
               )}
@@ -366,14 +369,14 @@ export default function StorefrontPage() {
             <motion.div initial={{ scale: 0.95 }} animate={{ scale: 1 }} exit={{ scale: 0.95 }}
               onClick={e => e.stopPropagation()} className="glass rounded-lg w-full max-w-md p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg font-heading font-bold text-foreground">Complete Order</h2>
+                <h2 className="text-lg font-heading font-bold text-foreground">{tr("Complete Order")}</h2>
                 <Button variant="ghost" onClick={() => setShowCheckout(false)} className="p-1 rounded-lg hover:bg-muted"><X className="h-5 w-5 text-muted-foreground" /></Button>
               </div>
               <div className="space-y-3">
-                <div><label className="text-xs text-muted-foreground">Full Name *</label><input value={orderForm.name} onChange={e => setOrderForm(f => ({ ...f, name: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-                <div><label className="text-xs text-muted-foreground">Phone *</label><input value={orderForm.phone} onChange={e => setOrderForm(f => ({ ...f, phone: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-                <div><label className="text-xs text-muted-foreground">Delivery Address</label><input value={orderForm.address} onChange={e => setOrderForm(f => ({ ...f, address: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-                <div><label className="text-xs text-muted-foreground">Notes</label><textarea value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" /></div>
+                <div><label className="text-xs text-muted-foreground">{tr("Full Name *")}</label><input value={orderForm.name} onChange={e => setOrderForm(f => ({ ...f, name: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+                <div><label className="text-xs text-muted-foreground">{tr("Phone *")}</label><input value={orderForm.phone} onChange={e => setOrderForm(f => ({ ...f, phone: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+                <div><label className="text-xs text-muted-foreground">{tr("Delivery Address")}</label><input value={orderForm.address} onChange={e => setOrderForm(f => ({ ...f, address: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+                <div><label className="text-xs text-muted-foreground">{tr("Notes")}</label><textarea value={orderForm.notes} onChange={e => setOrderForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" /></div>
               </div>
               <div className="glass rounded-lg p-3 space-y-1.5">
                 {cart.map(c => (
@@ -383,7 +386,7 @@ export default function StorefrontPage() {
                   </div>
                 ))}
                 <div className="border-t border-border pt-1.5 flex justify-between font-medium">
-                  <span className="text-foreground">Total</span>
+                  <span className="text-foreground">{tr("Total")}</span>
                   <span className="text-foreground">${cartTotal.toFixed(2)}</span>
                 </div>
               </div>

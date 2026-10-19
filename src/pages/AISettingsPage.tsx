@@ -1,3 +1,4 @@
+import { tr } from "@/lib/tr";
 import { useState, useEffect } from "react";
 import { Bot, Globe, Volume2, Clock, MessageSquare, AlertTriangle, Send, Loader2, Shield, RefreshCw, Copy, Languages, Heart, Image as ImageIcon, Sparkles, BarChart3, AlertOctagon } from "lucide-react";
 import { motion } from "framer-motion";
@@ -7,6 +8,7 @@ import { toast } from "sonner";
 import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function AISettingsPage() {
+  useLanguage();
   const { dir } = useLanguage();
   const { data: settings, isLoading } = useAISettings();
   const upsert = useUpsertAISettings();
@@ -116,7 +118,7 @@ export default function AISettingsPage() {
       if (error) throw error;
       setTestChat(prev => [...prev, { role: 'ai', text: data?.reply || fallbackMessage }]);
     } catch (e: any) {
-      toast.error("AI test failed");
+      toast.error(tr("AI test failed"));
       setTestChat(prev => [...prev, { role: 'ai', text: fallbackMessage }]);
     } finally {
       setIsTestLoading(false);
@@ -134,31 +136,31 @@ export default function AISettingsPage() {
   return (
     <div className="p-6 space-y-6 pb-20 md:pb-6" dir={dir}>
       <div>
-        <h1 className="text-2xl font-heading font-bold text-foreground">AI Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Configure your AI sales assistant</p>
+        <h1 className="text-2xl font-heading font-bold text-foreground">{tr("AI Settings")}</h1>
+        <p className="text-sm text-muted-foreground mt-1">{tr("Configure your AI sales assistant")}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-4">
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> Persona</h2>
-            <div><label className="text-xs text-muted-foreground">AI Name</label><input value={personaName} onChange={e => setPersonaName(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
-            <div><label className="text-xs text-muted-foreground">Default Language</label>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> {tr("Persona")}</h2>
+            <div><label className="text-xs text-muted-foreground">{tr("AI Name")}</label><input value={personaName} onChange={e => setPersonaName(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+            <div><label className="text-xs text-muted-foreground">{tr("Default Language")}</label>
               <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
-                <option value="en">English</option><option value="ar">Arabic</option><option value="both">Auto-detect (Both)</option>
+                <option value="en">{tr("English")}</option><option value="ar">{tr("Arabic")}</option><option value="both">Auto-detect (Both)</option>
               </select>
             </div>
-            <div><label className="text-xs text-muted-foreground">Tone</label>
+            <div><label className="text-xs text-muted-foreground">{tr("Tone")}</label>
               <select value={tone} onChange={e => setTone(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
-                <option value="professional">Professional</option><option value="friendly">Friendly</option><option value="casual">Casual</option>
+                <option value="professional">{tr("Professional")}</option><option value="friendly">{tr("Friendly")}</option><option value="casual">{tr("Casual")}</option>
               </select>
             </div>
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Volume2 className="h-4 w-4 text-primary" /> Behavior</h2>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Volume2 className="h-4 w-4 text-primary" /> {tr("Behavior")}</h2>
             <div className="flex items-center justify-between">
-              <div><p className="text-sm text-foreground">Auto-reply</p><p className="text-xs text-muted-foreground">AI responds automatically</p></div>
+              <div><p className="text-sm text-foreground">{tr("Auto-reply")}</p><p className="text-xs text-muted-foreground">{tr("AI responds automatically")}</p></div>
               <Toggle value={autoReply} onChange={() => setAutoReply(!autoReply)} />
             </div>
             <div><label className="text-xs text-muted-foreground">Response delay: {delay}s</label><input type="range" min={0} max={10} value={delay} onChange={e => setDelay(Number(e.target.value))} className="w-full mt-1 accent-primary" /></div>
@@ -169,7 +171,7 @@ export default function AISettingsPage() {
               <p className="text-[11px] text-muted-foreground mt-1">AI waits this long after the customer's last message (timer resets on each new message) before replying.</p>
             </div>
             <div className="flex items-center justify-between pt-2">
-              <div><p className="text-sm text-foreground">Silence follow-up</p><p className="text-xs text-muted-foreground">Send a soft check-in if the customer goes quiet for 10+ minutes</p></div>
+              <div><p className="text-sm text-foreground">{tr("Silence follow-up")}</p><p className="text-xs text-muted-foreground">{tr("Send a soft check-in if the customer goes quiet for 10+ minutes")}</p></div>
               <Toggle value={silenceFollowup} onChange={() => setSilenceFollowup(!silenceFollowup)} />
             </div>
           </div>
@@ -181,8 +183,8 @@ export default function AISettingsPage() {
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm text-foreground">Burst spam guard</p>
-                  <p className="text-xs text-muted-foreground">Stop resetting the batching window if a customer sends too many messages too fast.</p>
+                  <p className="text-sm text-foreground">{tr("Burst spam guard")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Stop resetting the batching window if a customer sends too many messages too fast.")}</p>
                 </div>
                 <Toggle value={burstGuardEnabled} onChange={() => setBurstGuardEnabled(!burstGuardEnabled)} />
               </div>
@@ -198,7 +200,7 @@ export default function AISettingsPage() {
               <div className="min-w-0 flex items-start gap-2">
                 <RefreshCw className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-foreground">Retry failed replies</p>
+                  <p className="text-sm text-foreground">{tr("Retry failed replies")}</p>
                   <p className="text-xs text-muted-foreground">Retry Meta send up to 3 times (2s, 6s, 18s). Owner gets a real-time alert if all retries fail.</p>
                 </div>
               </div>
@@ -210,8 +212,8 @@ export default function AISettingsPage() {
                 <div className="min-w-0 flex items-start gap-2">
                   <Copy className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm text-foreground">Duplicate order prevention</p>
-                    <p className="text-xs text-muted-foreground">Skip creating an identical order if the customer accidentally confirms twice.</p>
+                    <p className="text-sm text-foreground">{tr("Duplicate order prevention")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("Skip creating an identical order if the customer accidentally confirms twice.")}</p>
                   </div>
                 </div>
                 <Toggle value={dupGuardEnabled} onChange={() => setDupGuardEnabled(!dupGuardEnabled)} />
@@ -228,8 +230,8 @@ export default function AISettingsPage() {
               <div className="min-w-0 flex items-start gap-2">
                 <Languages className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-foreground">Auto-detect customer language</p>
-                  <p className="text-xs text-muted-foreground">Reply in Arabic when the customer writes Arabic, English when they switch — overrides your default.</p>
+                  <p className="text-sm text-foreground">{tr("Auto-detect customer language")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Reply in Arabic when the customer writes Arabic, English when they switch — overrides your default.")}</p>
                 </div>
               </div>
               <Toggle value={autoLangEnabled} onChange={() => setAutoLangEnabled(!autoLangEnabled)} />
@@ -240,8 +242,8 @@ export default function AISettingsPage() {
                 <div className="min-w-0 flex items-start gap-2">
                   <Clock className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm text-foreground">Out-of-hours awareness</p>
-                    <p className="text-xs text-muted-foreground">When closed, AI tells the customer up front and flags the order for your review.</p>
+                    <p className="text-sm text-foreground">{tr("Out-of-hours awareness")}</p>
+                    <p className="text-xs text-muted-foreground">{tr("When closed, AI tells the customer up front and flags the order for your review.")}</p>
                   </div>
                 </div>
                 <Toggle value={outOfHoursEnabled} onChange={() => setOutOfHoursEnabled(!outOfHoursEnabled)} />
@@ -263,14 +265,14 @@ export default function AISettingsPage() {
 
           {/* AI Intelligence (Phase 2) */}
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Sparkles className="h-4 w-4 text-accent" /> AI Intelligence</h2>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Sparkles className="h-4 w-4 text-accent" /> {tr("AI Intelligence")}</h2>
 
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0 flex items-start gap-2">
                 <Heart className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-foreground">Emotion & urgency detection</p>
-                  <p className="text-xs text-muted-foreground">Detect frustrated, urgent, happy, or abusive tone and adjust the reply style.</p>
+                  <p className="text-sm text-foreground">{tr("Emotion & urgency detection")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Detect frustrated, urgent, happy, or abusive tone and adjust the reply style.")}</p>
                 </div>
               </div>
               <Toggle value={emotionEnabled} onChange={() => setEmotionEnabled(!emotionEnabled)} />
@@ -280,8 +282,8 @@ export default function AISettingsPage() {
               <div className="min-w-0 flex items-start gap-2">
                 <AlertOctagon className="h-4 w-4 text-warning mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-foreground">Auto-escalate abusive customers</p>
-                  <p className="text-xs text-muted-foreground">When abusive language is detected, AI sends ONE polite reply, pauses, and notifies you with a handoff summary.</p>
+                  <p className="text-sm text-foreground">{tr("Auto-escalate abusive customers")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("When abusive language is detected, AI sends ONE polite reply, pauses, and notifies you with a handoff summary.")}</p>
                 </div>
               </div>
               <Toggle value={abuseEscalateEnabled} onChange={() => setAbuseEscalateEnabled(!abuseEscalateEnabled)} />
@@ -292,7 +294,7 @@ export default function AISettingsPage() {
                 <ImageIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div className="flex-1">
                   <p className="text-sm text-foreground">Image confidence threshold: {imgConfidence}%</p>
-                  <p className="text-xs text-muted-foreground">Below this, AI asks for a clearer photo instead of guessing the product.</p>
+                  <p className="text-xs text-muted-foreground">{tr("Below this, AI asks for a clearer photo instead of guessing the product.")}</p>
                 </div>
               </div>
               <input type="range" min={50} max={80} value={imgConfidence} onChange={e => setImgConfidence(Number(e.target.value))} className="w-full mt-1 accent-primary" />
@@ -300,16 +302,16 @@ export default function AISettingsPage() {
 
             <div className="flex items-center justify-between gap-3 pt-1">
               <div className="min-w-0">
-                <p className="text-sm text-foreground">Proactive follow-up</p>
-                <p className="text-xs text-muted-foreground">Allow the AI to softly re-engage when a hot lead goes quiet.</p>
+                <p className="text-sm text-foreground">{tr("Proactive follow-up")}</p>
+                <p className="text-xs text-muted-foreground">{tr("Allow the AI to softly re-engage when a hot lead goes quiet.")}</p>
               </div>
               <Toggle value={proactiveEnabled} onChange={() => setProactiveEnabled(!proactiveEnabled)} />
             </div>
 
             <div className="flex items-center justify-between gap-3 pt-1">
               <div className="min-w-0">
-                <p className="text-sm text-foreground">Upsell suggestions</p>
-                <p className="text-xs text-muted-foreground">Suggest one complementary or higher-value item per conversation, never pushy.</p>
+                <p className="text-sm text-foreground">{tr("Upsell suggestions")}</p>
+                <p className="text-xs text-muted-foreground">{tr("Suggest one complementary or higher-value item per conversation, never pushy.")}</p>
               </div>
               <Toggle value={upsellEnabled} onChange={() => setUpsellEnabled(!upsellEnabled)} />
             </div>
@@ -318,8 +320,8 @@ export default function AISettingsPage() {
               <div className="min-w-0 flex items-start gap-2">
                 <BarChart3 className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div>
-                  <p className="text-sm text-foreground">Conversation quality score</p>
-                  <p className="text-xs text-muted-foreground">Score each conversation 0–100 based on resolution, speed, sentiment shift, and conversion.</p>
+                  <p className="text-sm text-foreground">{tr("Conversation quality score")}</p>
+                  <p className="text-xs text-muted-foreground">{tr("Score each conversation 0–100 based on resolution, speed, sentiment shift, and conversion.")}</p>
                 </div>
               </div>
               <Toggle value={qualityScoreEnabled} onChange={() => setQualityScoreEnabled(!qualityScoreEnabled)} />
@@ -327,13 +329,13 @@ export default function AISettingsPage() {
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> AI Instructions</h2>
-            <p className="text-xs text-muted-foreground">Custom instructions that guide how the AI behaves with your customers</p>
-            <textarea value={aiInstructions} onChange={e => setAiInstructions(e.target.value)} rows={5} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" placeholder="Enter custom AI instructions..." />
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Bot className="h-4 w-4 text-primary" /> {tr("AI Instructions")}</h2>
+            <p className="text-xs text-muted-foreground">{tr("Custom instructions that guide how the AI behaves with your customers")}</p>
+            <textarea value={aiInstructions} onChange={e => setAiInstructions(e.target.value)} rows={5} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" placeholder={tr("Enter custom AI instructions...")} />
           </div>
 
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-warning" /> Fallback</h2>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-warning" /> {tr("Fallback")}</h2>
             <textarea value={fallbackMessage} onChange={e => setFallbackMessage(e.target.value)} rows={3} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
           </div>
 
@@ -346,11 +348,11 @@ export default function AISettingsPage() {
         {/* AI Chat Simulator */}
         <div className="glass rounded-xl flex flex-col h-[600px]">
           <div className="p-4 border-b border-border">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><MessageSquare className="h-4 w-4 text-accent" /> AI Chat Simulator</h2>
-            <p className="text-xs text-muted-foreground">Test how your AI responds to messages</p>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><MessageSquare className="h-4 w-4 text-accent" /> {tr("AI Chat Simulator")}</h2>
+            <p className="text-xs text-muted-foreground">{tr("Test how your AI responds to messages")}</p>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {testChat.length === 0 && <p className="text-sm text-muted-foreground text-center mt-12">Send a test message to see how your AI responds</p>}
+            {testChat.length === 0 && <p className="text-sm text-muted-foreground text-center mt-12">{tr("Send a test message to see how your AI responds")}</p>}
             {testChat.map((msg, i) => (
               <motion.div key={i} initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                 <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${msg.role === 'user' ? 'bg-primary/20 text-foreground rounded-br-md' : 'bg-accent/10 text-foreground rounded-bl-md border border-accent/20 glow-accent'}`}>
@@ -369,7 +371,7 @@ export default function AISettingsPage() {
           </div>
           <div className="p-3 border-t border-border">
             <div className="flex gap-2">
-              <input value={testMessage} onChange={e => setTestMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleTestSend()} placeholder="Type a test message..." className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
+              <input value={testMessage} onChange={e => setTestMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleTestSend()} placeholder={tr("Type a test message...")} className="flex-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none" />
               <button onClick={handleTestSend} disabled={isTestLoading} className="p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"><Send className="h-4 w-4" /></button>
             </div>
           </div>

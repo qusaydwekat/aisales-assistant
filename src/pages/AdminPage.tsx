@@ -115,7 +115,7 @@ export default function AdminPage() {
                 : 'border-transparent text-muted-foreground hover:text-foreground'
             }`}>
             <Icon className="h-4 w-4" />
-            {label}
+            {tr(label)}
             {key === 'pending' && pendingUsers.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-warning/20 text-warning">{pendingUsers.length}</span>
             )}
@@ -140,18 +140,18 @@ export default function AdminPage() {
             {/* Stats Grid */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
               {[
-                { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary", sub: `${pendingUsers.length} pending` },
-                { label: "Total Stores", value: stats?.totalStores || 0, icon: Store, color: "text-accent", sub: `${stats?.activeConnections || 0} connected` },
-                { label: "Total Orders", value: stats?.totalOrders || 0, icon: ShoppingCart, color: "text-success", sub: `${stats?.todayOrders || 0} today` },
-                { label: "Revenue", value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: TrendingUp, color: "text-warning", sub: `${stats?.pendingOrders || 0} pending` },
-                { label: "Conversations", value: stats?.totalConversations || 0, icon: MessageSquare, color: "text-info", sub: "all platforms" },
-                { label: "Products", value: stats?.totalProducts || 0, icon: Package, color: "text-primary", sub: "across stores" },
-                { label: "Connections", value: stats?.activeConnections || 0, icon: Link2, color: "text-success", sub: `of ${stats?.totalConnections || 0} total` },
-                { label: "Pending Orders", value: stats?.pendingOrders || 0, icon: Clock, color: "text-warning", sub: "need attention" },
+                { label: "Total Users", value: stats?.totalUsers || 0, icon: Users, color: "text-primary", sub: `${pendingUsers.length} ${tr("pending")}` },
+                { label: "Total Stores", value: stats?.totalStores || 0, icon: Store, color: "text-accent", sub: `${stats?.activeConnections || 0} ${tr("connected")}` },
+                { label: "Total Orders", value: stats?.totalOrders || 0, icon: ShoppingCart, color: "text-success", sub: `${stats?.todayOrders || 0} ${tr("today")}` },
+                { label: "Revenue", value: `$${(stats?.totalRevenue || 0).toLocaleString()}`, icon: TrendingUp, color: "text-warning", sub: `${stats?.pendingOrders || 0} ${tr("pending")}` },
+                { label: "Conversations", value: stats?.totalConversations || 0, icon: MessageSquare, color: "text-info", sub: tr("all platforms") },
+                { label: "Products", value: stats?.totalProducts || 0, icon: Package, color: "text-primary", sub: tr("across stores") },
+                { label: "Connections", value: stats?.activeConnections || 0, icon: Link2, color: "text-success", sub: `${tr("of")} ${stats?.totalConnections || 0} ${tr("total")}` },
+                { label: "Pending Orders", value: stats?.pendingOrders || 0, icon: Clock, color: "text-warning", sub: tr("need attention") },
               ].map(s => (
                 <div key={s.label} className="glass rounded-xl p-4 md:p-5 group hover:border-primary/20 transition-colors">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs text-muted-foreground">{s.label}</p>
+                    <p className="text-xs text-muted-foreground">{tr(s.label)}</p>
                     <s.icon className={`h-4 w-4 ${s.color} opacity-60`} />
                   </div>
                   <p className="text-2xl md:text-3xl font-heading font-bold text-foreground">{s.value}</p>

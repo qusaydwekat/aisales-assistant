@@ -153,7 +153,7 @@ export default function CatalogToolsPage() {
               <div className={`text-xl font-bold ${s.warn && s.value > 0 ? "text-amber-500" : "text-foreground"}`}>
                 {s.value}
               </div>
-              <div className="text-xs text-muted-foreground mt-0.5">{s.label}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">{tr(s.label)}</div>
             </div>
           ))}
         </div>

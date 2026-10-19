@@ -136,7 +136,7 @@ function ModelPicker({
 }) {
   return (
     <div>
-      <label className="text-xs font-medium text-foreground">{label}</label>
+      <label className="text-xs font-medium text-foreground">{tr(label)}</label>
       {hint && <p className="text-[11px] text-muted-foreground mb-1.5">{hint}</p>}
       <select
         value={value}
@@ -145,7 +145,7 @@ function ModelPicker({
       >
         {MODELS.map((o) => (
           <option key={o.value} value={o.value}>
-            {o.label}{o.hint ? ` — ${o.hint}` : ""}
+            {o.label}{o.hint ? ` — ${tr(o.hint)}` : ""}
           </option>
         ))}
       </select>

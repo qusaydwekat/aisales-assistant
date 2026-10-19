@@ -42,7 +42,7 @@ export default function GrowthPage() {
             }`}
           >
             <t.icon className="h-4 w-4" />
-            {t.label}
+            {tr(t.label)}
           </button>
         ))}
       </div>

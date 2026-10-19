@@ -78,11 +78,19 @@ export default function AdminPage() {
   const { data: payments = [] } = useAdminSubscriptionPayments();
   const updateStatus = useAdminUpdateUserStatus();
   const confirmPayment = useConfirmPayment();
-  const [paymentModal, setPaymentModal] = useState<{ userId: string; name: string } | null>{tr("(null);\n  const [paymentAmount, setPaymentAmount] = useState('');\n  const [paymentMonths, setPaymentMonths] = useState('1');\n  const [paymentNotes, setPaymentNotes] = useState('');\n\n  if (loading) return")} <div className="p-6 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>{tr(";\n  if (role !== 'admin') return")} <Navigate to="/dashboard" replace />;
+  const [paymentModal, setPaymentModal] = useState<{ userId: string; name: string } | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentMonths, setPaymentMonths] = useState('1');
+  const [paymentNotes, setPaymentNotes] = useState('');
+
+  if (loading) return <div className="p-6 flex items-center justify-center min-h-[50vh]"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+  if (role !== 'admin') return <Navigate to="/dashboard" replace />;
 
   const pendingUsers = users.filter((u: any) => u.status === 'pending');
   const getStoreName = (userId: string) => stores.find((s: any) => s.user_id === userId)?.name || '—';
-  const getStoreForId = (storeId: string) => stores.find((s: any) => {tr("s.id === storeId);\n\n  return (")}
+  const getStoreForId = (storeId: string) => stores.find((s: any) => s.id === storeId);
+
+  return (
     <div className="p-4 md:p-6 space-y-6 max-w-[1400px] mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -324,12 +332,12 @@ export default function AdminPage() {
                   <p className="text-sm text-muted-foreground">{tr("For:")} <span className="text-foreground font-medium">{paymentModal.name}</span></p>
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">{tr("Amount ($)")}</label>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Amount ($)</label>
                       <input type="number" value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
                         placeholder="0.00" className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">{tr("Duration (months)")}</label>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Duration (months)</label>
                       <select value={paymentMonths} onChange={e => setPaymentMonths(e.target.value)}
                         className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
                         <option value="1">{tr("1 Month")}</option>
@@ -339,7 +347,7 @@ export default function AdminPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="text-xs font-medium text-muted-foreground block mb-1">{tr("Notes (optional)")}</label>
+                      <label className="text-xs font-medium text-muted-foreground block mb-1">Notes (optional)</label>
                       <input type="text" value={paymentNotes} onChange={e => setPaymentNotes(e.target.value)}
                         placeholder={tr("e.g. Bank transfer #123")} className="w-full rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none" />
                     </div>
@@ -443,7 +451,8 @@ export default function AdminPage() {
                 <h3 className="text-sm font-heading font-semibold text-foreground mb-3">{tr("Payment History")}</h3>
                 <div className="space-y-2">
                   {payments.slice(0, 10).map((p: any) => {
-                    const pUser = users.find((u: any) => {tr("u.user_id === p.user_id);\n                    return (")}
+                    const pUser = users.find((u: any) => u.user_id === p.user_id);
+                    return (
                       <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground">{pUser?.full_name || 'Unknown'}</p>
@@ -472,7 +481,8 @@ export default function AdminPage() {
                   const owner = users.find((u: any) => u.user_id === s.user_id);
                   const storeConnections = connections.filter((c: any) => c.store_id === s.id);
                   const storeProducts = products.filter((p: any) => p.store_id === s.id);
-                  const storeOrders = orders.filter((o: any) => {tr("o.store_id === s.id);\n                  return (")}
+                  const storeOrders = orders.filter((o: any) => o.store_id === s.id);
+                  return (
                     <div key={s.id} className="glass rounded-xl p-5 hover:border-primary/20 transition-colors">
                       <div className="flex items-start gap-3 mb-3">
                         {s.logo_url ? (

@@ -128,7 +128,11 @@ export default function AISettingsPage() {
     <button onClick={onChange} className={`w-11 h-6 rounded-full transition-colors flex-shrink-0 ${value ? 'bg-primary' : 'bg-muted'}`}>
       <div className={`h-5 w-5 rounded-full bg-foreground transition-transform ${value ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </button>
-  {tr(");\n\n  if (isLoading) return")} <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>{tr(";\n\n  return (")}
+  );
+
+  if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+
+  return (
     <div className="p-6 space-y-6 pb-20 md:pb-6" dir={dir}>
       <div>
         <h1 className="text-2xl font-heading font-bold text-foreground">{tr("AI Settings")}</h1>
@@ -142,7 +146,7 @@ export default function AISettingsPage() {
             <div><label className="text-xs text-muted-foreground">{tr("AI Name")}</label><input value={personaName} onChange={e => setPersonaName(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
             <div><label className="text-xs text-muted-foreground">{tr("Default Language")}</label>
               <select value={language} onChange={e => setLanguage(e.target.value)} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none">
-                <option value="en">{tr("English")}</option><option value="ar">{tr("Arabic")}</option><option value="both">{tr("Auto-detect (Both)")}</option>
+                <option value="en">{tr("English")}</option><option value="ar">{tr("Arabic")}</option><option value="both">Auto-detect (Both)</option>
               </select>
             </div>
             <div><label className="text-xs text-muted-foreground">{tr("Tone")}</label>
@@ -163,7 +167,7 @@ export default function AISettingsPage() {
             <div>
               <label className="text-xs text-muted-foreground">Message batching window: {collectionWindow}s</label>
               <input type="range" min={3} max={10} value={collectionWindow} onChange={e => setCollectionWindow(Number(e.target.value))} className="w-full mt-1 accent-primary" />
-              <p className="text-[11px] text-muted-foreground mt-1">{tr("AI waits this long after the customer's last message (timer resets on each new message) before replying.")}</p>
+              <p className="text-[11px] text-muted-foreground mt-1">AI waits this long after the customer's last message (timer resets on each new message) before replying.</p>
             </div>
             <div className="flex items-center justify-between pt-2">
               <div><p className="text-sm text-foreground">{tr("Silence follow-up")}</p><p className="text-xs text-muted-foreground">{tr("Send a soft check-in if the customer goes quiet for 10+ minutes")}</p></div>
@@ -173,7 +177,7 @@ export default function AISettingsPage() {
 
           {/* Reliability & Safety */}
           <div className="glass rounded-xl p-6 space-y-4">
-            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Shield className="h-4 w-4 text-primary" /> {tr("Reliability &amp; Safety")}</h2>
+            <h2 className="font-heading font-semibold text-foreground flex items-center gap-2"><Shield className="h-4 w-4 text-primary" /> Reliability &amp; Safety</h2>
 
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-3">
@@ -196,7 +200,7 @@ export default function AISettingsPage() {
                 <RefreshCw className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
                 <div>
                   <p className="text-sm text-foreground">{tr("Retry failed replies")}</p>
-                  <p className="text-xs text-muted-foreground">{tr("Retry Meta send up to 3 times (2s, 6s, 18s). Owner gets a real-time alert if all retries fail.")}</p>
+                  <p className="text-xs text-muted-foreground">Retry Meta send up to 3 times (2s, 6s, 18s). Owner gets a real-time alert if all retries fail.</p>
                 </div>
               </div>
               <Toggle value={metaRetryEnabled} onChange={() => setMetaRetryEnabled(!metaRetryEnabled)} />
@@ -246,11 +250,11 @@ export default function AISettingsPage() {
               {outOfHoursEnabled && (
                 <div className="space-y-2">
                   <div>
-                    <label className="text-xs text-muted-foreground">{tr("After-hours message (English)")}</label>
+                    <label className="text-xs text-muted-foreground">After-hours message (English)</label>
                     <textarea value={outOfHoursEn} onChange={e => setOutOfHoursEn(e.target.value)} rows={2} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">{tr("After-hours message (Arabic)")}</label>
+                    <label className="text-xs text-muted-foreground">After-hours message (Arabic)</label>
                     <textarea value={outOfHoursAr} onChange={e => setOutOfHoursAr(e.target.value)} rows={2} dir="rtl" className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none resize-none focus:ring-1 focus:ring-primary" />
                   </div>
                 </div>

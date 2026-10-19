@@ -135,7 +135,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary uppercase" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">{tr("Label (shown to customer)")}</label>
+              <label className="text-xs text-muted-foreground">Label (shown to customer)</label>
               <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))} placeholder={tr("Summer Sale 20% off")}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
@@ -143,7 +143,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
               <label className="text-xs text-muted-foreground">{tr("Type")}</label>
               <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">
-                <option value="percent">{tr("Percent off (%)")}</option>
+                <option value="percent">Percent off (%)</option>
                 <option value="fixed">{tr("Fixed amount off")}</option>
                 <option value="free_shipping">{tr("Free shipping")}</option>
               </select>
@@ -159,7 +159,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground">{tr("Ends at (optional)")}</label>
+              <label className="text-xs text-muted-foreground">Ends at (optional)</label>
               <input type="datetime-local" value={form.ends_at} onChange={e => setForm(f => ({ ...f, ends_at: e.target.value }))}
                 className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" />
             </div>
@@ -176,7 +176,7 @@ function PromotionsTab({ storeId }: { storeId: string }) {
 
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-      {tr(") : promos.length === 0 ? (")}
+      ) : promos.length === 0 ? (
         <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">{tr("No promotions yet. Create one above and the AI can offer it to customers.")}</div>
       ) : (
         <div className="space-y-2">
@@ -262,7 +262,7 @@ function GapsTab({ storeId }: { storeId: string }) {
       <p className="text-sm text-muted-foreground">{tr("Questions your AI couldn't answer. Provide answers and the AI will learn them.")}</p>
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-      {tr(") : gaps.length === 0 ? (")}
+      ) : gaps.length === 0 ? (
         <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">{tr("No knowledge gaps detected. Your AI is handling everything well 🎉")}</div>
       ) : (
         gaps.map((g: any) => (
@@ -334,7 +334,7 @@ function RestockTab({ storeId }: { storeId: string }) {
       <p className="text-sm text-muted-foreground">{tr("Customers waiting for items to come back in stock. They get auto-notified within 15 minutes once stock is updated.")}</p>
       {isLoading ? (
         <div className="flex justify-center py-8"><Loader2 className="h-5 w-5 animate-spin text-primary" /></div>
-      {tr(") : signups.length === 0 ? (")}
+      ) : signups.length === 0 ? (
         <div className="glass rounded-xl p-8 text-center text-sm text-muted-foreground">{tr("No restock signups yet.")}</div>
       ) : (
         signups.map((s: any) => (

@@ -36,7 +36,14 @@ interface StoreInfo {
 export default function StorefrontPage() {
   const [searchParams] = useSearchParams();
   const storeId = searchParams.get("store");
-  const [store, setStore] = useState<StoreInfo | null>{tr("(null);\n  const [products, setProducts] = useState")}<Product[]>{tr("([]);\n  const [loading, setLoading] = useState(true);\n  const [search, setSearch] = useState(\"\");\n  const [category, setCategory] = useState(\"all\");\n  const [cart, setCart] = useState")}<CartItem[]>{tr("([]);\n  const [showCart, setShowCart] = useState(false);\n  const [showProduct, setShowProduct] = useState")}<Product | null>(null);
+  const [store, setStore] = useState<StoreInfo | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("all");
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [showCart, setShowCart] = useState(false);
+  const [showProduct, setShowProduct] = useState<Product | null>(null);
   const [orderForm, setOrderForm] = useState({ name: "", phone: "", address: "", notes: "" });
   const [showCheckout, setShowCheckout] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -149,11 +156,15 @@ export default function StorefrontPage() {
     <div className="min-h-screen bg-background flex items-center justify-center">
       <Loader2 className="h-8 w-8 animate-spin text-primary" />
     </div>
-  {tr(");\n\n  if (!store) return (")}
+  );
+
+  if (!store) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <p className="text-muted-foreground">{tr("Store not found")}</p>
     </div>
-  {tr(");\n\n  return (")}
+  );
+
+  return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md border-b border-border">

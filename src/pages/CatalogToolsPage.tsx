@@ -161,7 +161,7 @@ export default function CatalogToolsPage() {
         {health.incomplete.length > 0 && (
           <div className="space-y-2">
             <div className="text-xs text-muted-foreground">
-              {tr("Incomplete products (missing visual fields the AI needs)")}
+              Incomplete products (missing visual fields the AI needs)
             </div>
             <div className="space-y-1.5 max-h-64 overflow-y-auto">
               {health.incomplete.map((p: any) => (
@@ -202,7 +202,8 @@ export default function CatalogToolsPage() {
             {tr("Link social posts to products")}
           </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            {tr("When a customer comments on a Facebook or Instagram post, the AI uses these\n            mappings to know exactly which product they're asking about.")}
+            When a customer comments on a Facebook or Instagram post, the AI uses these
+            mappings to know exactly which product they're asking about.
           </p>
         </div>
 
@@ -219,7 +220,7 @@ export default function CatalogToolsPage() {
             </select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">{tr("Page ID (optional)")}</label>
+            <label className="text-xs text-muted-foreground">Page ID (optional)</label>
             <input
               value={pageId}
               onChange={(e) => setPageId(e.target.value)}
@@ -264,7 +265,7 @@ export default function CatalogToolsPage() {
             <div className="flex justify-center py-6">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
-          {tr(") : links.length === 0 ? (")}
+          ) : links.length === 0 ? (
             <div className="text-sm text-muted-foreground text-center py-6">
               {tr("No post links yet. Add one above.")}
             </div>

@@ -13,7 +13,11 @@ export default function NotificationsPage() {
   const { data: notifications = [], isLoading } = useNotifications();
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
-  const unreadCount = notifications.filter(n => {tr("!n.read).length;\n\n  if (isLoading) return")} <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>{tr(";\n\n  return (")}
+  const unreadCount = notifications.filter(n => !n.read).length;
+
+  if (isLoading) return <div className="p-6 flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin text-primary" /></div>;
+
+  return (
     <div className="p-6 space-y-6 max-w-3xl">
       <div className="flex items-center justify-between">
         <div>

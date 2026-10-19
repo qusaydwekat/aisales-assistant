@@ -192,6 +192,9 @@ const ar: Record<string, string> = {
   "Latest — lightest & cheapest GPT-6": "الأحدث — أخف وأرخص GPT-6",
   "Previous gen flagship": "الرائد من الجيل السابق",
   "Cheap & fast": "رخيص وسريع",
+  "Customer agent (inbox replies)": "مساعد العملاء (ردود صندوق الرسائل)",
+  "Product autofill (vision)": "التعبئة التلقائية للمنتجات (تحليل الصور)",
+  "Chat tester (dashboard)": "مختبر المحادثة (لوحة التحكم)",
 };
 
 export function tr(text: string): string {

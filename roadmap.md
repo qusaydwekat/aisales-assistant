@@ -22,7 +22,7 @@
 
 # Meta product importing
 
-- [ ] Remove app-rejected import scopes from channel login, deploy, and verify the generated OAuth redirect.
+- [x] Remove app-rejected import scopes from channel login, deploy, and verify the generated OAuth redirect; 17 focused tests passed.
 
 - [x] Approve the import and automatic-sync plan.
 - [x] Build complete Shop catalog and product-post imports without duplicates or guessed facts.

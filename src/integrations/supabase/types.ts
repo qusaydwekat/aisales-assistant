@@ -754,6 +754,7 @@ export type Database = {
           photos: string[]
           product_id: string | null
           raw_payload: Json
+          run_id: string | null
           source_id: string
           status: string
           store_id: string
@@ -770,6 +771,7 @@ export type Database = {
           photos?: string[]
           product_id?: string | null
           raw_payload?: Json
+          run_id?: string | null
           source_id: string
           status?: string
           store_id: string
@@ -786,6 +788,7 @@ export type Database = {
           photos?: string[]
           product_id?: string | null
           raw_payload?: Json
+          run_id?: string | null
           source_id?: string
           status?: string
           store_id?: string
@@ -797,6 +800,13 @@ export type Database = {
             columns: ["product_id"]
             isOneToOne: false
             referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_import_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "product_sync_runs"
             referencedColumns: ["id"]
           },
           {
@@ -960,6 +970,7 @@ export type Database = {
           compare_price: number | null
           compatibility: string | null
           created_at: string
+          currency: string | null
           custom_attributes: Json
           description: string | null
           dimensions: string | null
@@ -1002,6 +1013,7 @@ export type Database = {
           compare_price?: number | null
           compatibility?: string | null
           created_at?: string
+          currency?: string | null
           custom_attributes?: Json
           description?: string | null
           dimensions?: string | null
@@ -1044,6 +1056,7 @@ export type Database = {
           compare_price?: number | null
           compatibility?: string | null
           created_at?: string
+          currency?: string | null
           custom_attributes?: Json
           description?: string | null
           dimensions?: string | null

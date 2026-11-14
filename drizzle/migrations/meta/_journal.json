@@ -43,6 +43,13 @@
       "when": 1794647622272,
       "tag": "0005_add_meta_product_imports",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794647670945,
+      "tag": "0006_finish_meta_product_sync_fields",
+      "breakpoints": true
     }
   ]
 }

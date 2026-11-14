@@ -11,6 +11,10 @@ export default defineConfig({
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
   },
   resolve: {
-    alias: { "@": path.resolve(__dirname, "./src") },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+      "npm:ogg-opus-decoder@1.7.5": "ogg-opus-decoder",
+      "npm:eventsource-parser@4.1.3": "eventsource-parser",
+    },
   },
 });

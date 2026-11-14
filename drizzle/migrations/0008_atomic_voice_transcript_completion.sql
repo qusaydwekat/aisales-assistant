@@ -1,0 +1,3 @@
+CREATE FUNCTION public.complete_voice_transcription(_id uuid, _transcript text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$ DECLARE _message_id uuid; BEGIN UPDATE public.voice_transcription_jobs SET status = 'completed', transcript = _transcript, locked_until = NULL WHERE id = _id AND status = 'processing' RETURNING message_id INTO _message_id; IF _message_id IS NOT NULL THEN UPDATE public.messages SET content = _transcript WHERE id = _message_id; END IF; END; $$;
+REVOKE ALL ON FUNCTION public.complete_voice_transcription(uuid, text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.complete_voice_transcription(uuid, text) TO service_role;

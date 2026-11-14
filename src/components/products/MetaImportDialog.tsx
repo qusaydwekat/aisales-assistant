@@ -28,6 +28,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
   const { data: store } = useStore();
   const { data: savedSources = [], refetch: refetchSources } = useMetaProductSources();
   const [tab, setTab] = useState<"import" | "review" | "sources">("import");
+  const [actionError, setActionError] = useState("");
   const [sourceType, setSourceType] = useState<"shop" | "posts">("shop");
   const eligibleConnections = useMemo(() => connections.filter((connection) =>
     connection.status === "connected" && ["facebook", "instagram"].includes(connection.platform)
@@ -76,8 +77,12 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
 
   const perform = async (key: string, work: () => Promise<void>) => {
     setBusy(key);
-    try { await work(); } catch (error: any) { toast.error(error.message || text("Import failed", "فشل الاستيراد")); }
-    finally { setBusy(""); }
+    setActionError("");
+    try { await work(); } catch (error: any) {
+      const message = error.message || text("Import failed", "فشل الاستيراد");
+      setActionError(message);
+      toast.error(message);
+    } finally { setBusy(""); }
   };
 
   const discover = () => perform("discover", async () => {
@@ -212,7 +217,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
 
         <div className="flex border-b border-border px-4 gap-1 overflow-x-auto">
           {(["import", "review", "sources"] as const).map((item) => (
-            <button key={item} onClick={() => setTab(item)} className={`px-3 py-2.5 text-sm whitespace-nowrap border-b-2 ${tab === item ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>
+            <button key={item} onClick={() => setTab(item)} className={`shrink-0 px-3 py-2.5 text-sm whitespace-nowrap border-b-2 ${tab === item ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>
               {item === "import" ? text("Import", "استيراد") : item === "review" ? `${text("Needs review", "بحاجة لمراجعة")} (${reviewRows.length})` : `${text("Automatic sync", "المزامنة التلقائية")} (${savedSources.length})`}
             </button>
           ))}
@@ -250,6 +255,15 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                     {busy === "discover" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     {text("Find products", "البحث عن المنتجات")}
                   </Button>
+                </div>
+              )}
+
+              {actionError && (
+                <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive space-y-2">
+                  <p className="break-words">{actionError}</p>
+                  <a href="/platforms" className="inline-flex items-center gap-1 font-medium text-primary">
+                    {text("Open connected accounts", "فتح الحسابات المرتبطة")}<ExternalLink className="h-3.5 w-3.5" />
+                  </a>
                 </div>
               )}
 

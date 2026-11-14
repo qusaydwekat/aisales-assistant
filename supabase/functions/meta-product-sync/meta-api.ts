@@ -97,12 +97,16 @@ export async function discoverCatalogs(connection: any): Promise<Array<{ id: str
 
   const businesses = await fetchAllPages(graph("me/businesses", { fields: "id,name", limit: 100 }), userToken);
   for (const business of businesses) {
-    for (const edge of ["owned_product_catalogs", "client_product_catalogs"]) {
-      try {
-        add(await fetchAllPages(graph(`${business.id}/${edge}`, { fields: "id,name,product_count", limit: 100 }), userToken));
-      } catch (error) {
-        console.warn(`Business catalog discovery failed for ${business.id}/${edge}:`, error);
-      }
+    try {
+      const [owned, client] = await Promise.all([
+        fetchAllPages(graph(`${business.id}/owned_product_catalogs`, { fields: "id,name,product_count", limit: 100 }), userToken),
+        fetchAllPages(graph(`${business.id}/client_product_catalogs`, { fields: "id,name,product_count", limit: 100 }), userToken),
+      ]);
+      add([...owned, ...client]);
+    } catch (error) {
+      console.warn(`Business catalog discovery failed for ${business.id}:`, error);
+      // This permission belongs to the user token; checking every other business repeats the same failure.
+      if (error instanceof Error && error.message.includes("business_management permission")) break;
     }
   }
   return Array.from(catalogs.values());

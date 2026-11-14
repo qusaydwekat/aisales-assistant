@@ -41,7 +41,10 @@ describe("Jev customer message decisions", () => {
 
   it("keeps a possible cancellation in front of the main agent", () => {
     expect(shouldEmphasizeCancellation(decision({ cancellationProbability: 0.55 }))).toBe(true);
-    expect(shouldEmphasizeCancellation(decision({ cancellationProbability: 0.54 }))).toBe(false);
+    expect(shouldEmphasizeCancellation(decision({
+      intent: "order_update",
+      cancellationProbability: 0.54,
+    }))).toBe(false);
   });
 
   it("does not turn a request not to cancel into a cancellation", () => {

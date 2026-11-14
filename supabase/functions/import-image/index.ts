@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { rehostExternalImages } from "../_shared/external-images.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",

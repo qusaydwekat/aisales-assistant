@@ -72,7 +72,7 @@ async function subscribePageToWebhooks(
     // Per Meta docs, /{page-id}/subscribed_apps does NOT support Instagram webhook fields.
     // Instagram DM webhooks are subscribed at the app level via /{app-id}/subscriptions.
     // For both Facebook and Instagram, the page subscription uses the same messaging fields.
-    const fields = "messages,messaging_postbacks";
+    const fields = platform === "facebook" ? "messages,messaging_postbacks,feed" : "messages,messaging_postbacks";
 
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
@@ -410,9 +410,9 @@ Deno.serve(async (req) => {
 
     // Build scopes based on platform
     // pages_manage_metadata is required for /{page-id}/subscribed_apps to succeed (all platforms)
-    let scopes = "pages_show_list,pages_messaging,pages_manage_metadata";
+    let scopes = "pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,catalog_management,business_management";
     if (platform === "instagram") {
-      scopes += ",instagram_manage_messages";
+      scopes += ",instagram_manage_messages,instagram_basic";
     }
     if (platform === "whatsapp") {
       scopes =

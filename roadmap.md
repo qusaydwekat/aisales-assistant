@@ -22,7 +22,7 @@
 
 # Meta product importing
 
-- [ ] Include Facebook post access in page connection and simplify review with selection, inline prices, and selected-product import.
+- [x] Include Facebook post access in page connection and simplify review with selection, inline prices, and selected-product import; deployed redirect verified, 22 tests passed, sample selection checked on desktop/mobile.
 
 - [x] Add and verify separate Facebook post-import authorization now that the administrator enabled pages_read_engagement; signed-in button and deployed redirect verified, 20 focused tests passed.
 
@@ -31,4 +31,4 @@
 - [x] Approve the import and automatic-sync plan.
 - [x] Build complete Shop catalog and product-post imports without duplicates or guessed facts.
 - [x] Add review, safe automatic updates, Arabic/English controls, permission pauses, and six-hour reconciliation.
-- [ ] Verify a live Meta product import after the user authorizes Facebook post access and selects the same Page; Shop imports still await catalog permission support and any required App Review.
+- [ ] Verify a live selected-product import when review candidates are available (current account has none); existing Facebook connections need one reconnect to grant post access, and Shop imports still await catalog permission support and any required App Review.

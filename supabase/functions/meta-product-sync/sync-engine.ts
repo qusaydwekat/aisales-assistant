@@ -255,7 +255,7 @@ export async function runProductSync(admin: any, runId: string): Promise<void> {
   if (!currency) throw new Error("Confirm the store currency before importing");
 
   const preview = run.checkpoint?.mode === "preview";
-  const { data: existingLinks } = await admin.from("product_source_links").select("id, external_key, content_hash").eq("source_id", source.id);
+  const { data: existingLinks } = await admin.from("product_source_links").select("id, product_id, external_key, content_hash").eq("source_id", source.id);
   const linkByKey = new Map((existingLinks || []).map((link: any) => [link.external_key, link]));
   const { data: oldCandidates } = await admin.from("product_import_candidates").select("id, external_key, status, extracted").eq("source_id", source.id);
   const candidateByKey = new Map((oldCandidates || []).map((candidate: any) => [candidate.external_key, candidate]));
@@ -307,7 +307,7 @@ export async function runProductSync(admin: any, runId: string): Promise<void> {
       store_id: source.store_id,
       source_id: source.id,
       run_id: run.id,
-      product_id: link?.id ? (await admin.from("product_source_links").select("product_id").eq("id", link.id).maybeSingle()).data?.product_id || null : null,
+      product_id: link?.product_id || null,
       external_id: item.externalId,
       external_key: item.externalKey,
       raw_payload: item.raw as any,

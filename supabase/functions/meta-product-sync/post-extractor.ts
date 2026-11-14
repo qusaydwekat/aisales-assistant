@@ -192,7 +192,9 @@ export async function extractProductPosts(posts: any[], connection: any): Promis
       const base = emptyPostProduct(post, connection);
       const caption = postText(post, connection.platform);
       const hasStrongPriceSignal = /(?:\d[\d,.]*\s*(?:ils|jod|usd|eur|aed|sar|jd|₪|\$|€)|(?:price|السعر|بسعر|الثمن)\s*[::]?)/i.test(caption);
-      const isProduct = decisions?.[String(post.id)] ?? (hasStrongPriceSignal || (!caption && base.images.length > 0));
+      const isProduct = !caption && base.images.length > 0
+        ? true
+        : decisions?.[String(post.id)] ?? hasStrongPriceSignal;
       if (!isProduct) continue;
       const extracted = await extractWithAI(post, connection);
       if (extracted) output.push(extracted);

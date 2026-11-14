@@ -19,3 +19,9 @@
 
 - [x] Add Jev message-intent sorting and explicit cancellation detection to the customer reply worker, with safe fallback to the existing agent.
 - [x] Test representative English and Arabic messages, gateway failure handling, and the deployed reply flow.
+
+# Meta product importing
+
+- [ ] Approve the import and automatic-sync plan.
+- [ ] Import complete Shop catalogs and product posts without duplicates or guessed facts.
+- [ ] Add review, safe automatic updates, Arabic/English controls, and end-to-end verification.

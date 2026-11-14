@@ -34,7 +34,7 @@ describe("Meta product import policy", () => {
     ], "CAT");
     expect(product.stock).toBe(0);
     expect(product.stockTracked).toBe(false);
-    expect(canSellProduct({ active: true, ...product })).toBe(true);
+    expect(canSellProduct({ active: true, stock_tracked: product.stockTracked, availability: product.availability })).toBe(true);
   });
 
   it("keeps unknown post availability out of sale", () => {

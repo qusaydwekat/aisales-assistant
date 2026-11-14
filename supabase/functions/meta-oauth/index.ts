@@ -59,6 +59,31 @@ async function subscribeAppToInstagramWebhook(
   }
 }
 
+async function subscribeAppToCatalogWebhook(
+  appId: string,
+  appSecret: string,
+  webhookCallbackUrl: string,
+  verifyToken: string
+): Promise<void> {
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${appId}/subscriptions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        object: "catalog",
+        callback_url: webhookCallbackUrl,
+        fields: "items_batch,product_feed",
+        verify_token: verifyToken,
+        access_token: `${appId}|${appSecret}`,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) console.error("[meta-oauth] Catalog webhook subscription failed:", JSON.stringify(data));
+  } catch (error) {
+    console.error("[meta-oauth] Catalog webhook subscription error:", error);
+  }
+}
+
 async function subscribePageToWebhooks(
   pageId: string,
   pageAccessToken: string,

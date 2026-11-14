@@ -7,6 +7,7 @@ export interface NormalizedProduct {
   name: string;
   description: string;
   category: string;
+  brand: string;
   price: number | null;
   comparePrice: number | null;
   currency: string | null;

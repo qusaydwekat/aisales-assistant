@@ -1,6 +1,7 @@
 import { rehostExternalImages } from "../_shared/external-images.ts";
 import { fetchCatalogProducts, fetchPublishedPosts } from "./meta-api.ts";
 import { emptyPostProduct, extractProductPosts } from "./post-extractor.ts";
+import { canReconcileMissingProducts, normalizePostLimit } from "./post-limit.ts";
 import {
   detectLocalConflicts,
   groupCatalogItems,
@@ -233,7 +234,7 @@ export async function commitSyncRun(admin: any, runId: string): Promise<any> {
   const { count: reviewCount } = await admin.from("product_import_candidates").select("id", { count: "exact", head: true })
     .eq("run_id", run.id).in("status", ["pending", "conflict"]);
   counts.review = reviewCount || 0;
-  counts.deactivated = await markMissingProducts(admin, source, run);
+  counts.deactivated = canReconcileMissingProducts(source.source_type) ? await markMissingProducts(admin, source, run) : 0;
   await admin.from("meta_product_sources").update({
     status: "active", last_synced_at: new Date().toISOString(), last_successful_sync_at: new Date().toISOString(), last_error: null,
   }).eq("id", source.id);
@@ -265,7 +266,7 @@ export async function runProductSync(admin: any, runId: string): Promise<void> {
   if (source.source_type === "shop") {
     items = groupCatalogItems(await fetchCatalogProducts(source.external_id, connection), source.external_id);
   } else {
-    const posts = await fetchPublishedPosts(connection);
+    const posts = await fetchPublishedPosts(connection, normalizePostLimit(run.checkpoint?.post_limit ?? source.settings?.post_limit));
     const toExtract: any[] = [];
     for (const post of posts) {
       const base = emptyPostProduct(post, connection);

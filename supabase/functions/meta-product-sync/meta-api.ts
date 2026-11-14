@@ -1,3 +1,5 @@
+import { normalizePostLimit } from "./post-limit.ts";
+
 const GRAPH_ORIGIN = "https://graph.facebook.com";
 const GRAPH_VERSION = "v21.0";
 
@@ -47,7 +49,7 @@ function graph(path: string, params: Record<string, string | number> = {}): stri
   return url.toString();
 }
 
-export async function fetchAllPages(initialUrl: string, token: string, maxPages = 1000): Promise<any[]> {
+export async function fetchAllPages(initialUrl: string, token: string, maxPages = 1000, maxRows = Infinity): Promise<any[]> {
   const rows: any[] = [];
   let next: string | null = initialUrl;
   let pages = 0;
@@ -58,8 +60,11 @@ export async function fetchAllPages(initialUrl: string, token: string, maxPages 
     const fingerprint = withoutToken.toString();
     if (visited.has(fingerprint)) throw new MetaApiError("Meta pagination loop detected", 502);
     visited.add(fingerprint);
-    const body = await requestMeta(next, token);
-    if (Array.isArray(body.data)) rows.push(...body.data);
+    const target = new URL(next);
+    if (Number.isFinite(maxRows)) target.searchParams.set("limit", String(Math.min(100, maxRows - rows.length)));
+    const body = await requestMeta(target.toString(), token);
+    if (Array.isArray(body.data)) rows.push(...body.data.slice(0, maxRows - rows.length));
+    if (rows.length >= maxRows) return rows;
     next = body.paging?.next || null;
     pages++;
   }
@@ -133,7 +138,8 @@ export async function fetchCatalogProducts(catalogId: string, connection: any): 
   }), token);
 }
 
-export async function fetchPublishedPosts(connection: any): Promise<any[]> {
+export async function fetchPublishedPosts(connection: any, postLimit?: number): Promise<any[]> {
+  const limit = normalizePostLimit(postLimit);
   const token = connection.credentials?.page_access_token || connection.credentials?.user_token;
   if (!token) throw new MetaApiError("Reconnect this account to grant post access", 401);
   if (connection.platform === "instagram") {
@@ -141,12 +147,12 @@ export async function fetchPublishedPosts(connection: any): Promise<any[]> {
     if (!igId) throw new MetaApiError("No Instagram professional account is linked", 400);
     return fetchAllPages(graph(`${igId}/media`, {
       fields: "id,caption,media_type,media_product_type,media_url,thumbnail_url,permalink,timestamp,children{media_type,media_url,thumbnail_url}",
-      limit: 100,
-    }), token);
+      limit,
+    }), token, 1000, limit);
   }
   const pageId = pageIdFor(connection);
   return fetchAllPages(graph(`${pageId}/published_posts`, {
     fields: "id,message,created_time,permalink_url,full_picture,attachments{media,type,subattachments}",
-    limit: 100,
-  }), token);
+    limit,
+  }), token, 1000, limit);
 }

@@ -16,3 +16,4 @@
 - meta-product-sync owns Meta Shop/post imports, source links, field-level conflict handling and scheduled reconciliation; platform-webhook only forwards verified change events so product writes stay store-scoped and idempotent.
 - Meta OAuth requests enabled Facebook post-read access during Page connection; platform-specific messaging and unapproved Shop permissions stay unchanged so users approve supported access in one flow.
 - Meta review selection enables inline prices only for selected candidates and submits them through the existing approval validation, so bulk review cannot bypass factual availability checks.
+- Post imports persist a bounded recent-post window in source settings and each run checkpoint; stop pagination at that count and never reconcile missing products from partial post windows, so older products remain safe.

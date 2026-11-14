@@ -22,6 +22,6 @@
 
 # Meta product importing
 
-- [ ] Approve the import and automatic-sync plan.
+- [x] Approve the import and automatic-sync plan.
 - [ ] Import complete Shop catalogs and product posts without duplicates or guessed facts.
 - [ ] Add review, safe automatic updates, Arabic/English controls, and end-to-end verification.

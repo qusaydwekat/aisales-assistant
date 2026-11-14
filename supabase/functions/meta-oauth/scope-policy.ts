@@ -8,7 +8,7 @@ export function getMetaConnectionScopes(platform: string, purpose = "messaging")
   if (platform === "instagram") {
     scopes.push("instagram_manage_messages", "instagram_basic");
   }
-  if (platform === "facebook" && purpose === "post-import") {
+  if (platform === "facebook") {
     scopes.push("pages_read_engagement");
   }
   return scopes;

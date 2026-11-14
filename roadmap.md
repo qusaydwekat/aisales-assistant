@@ -22,6 +22,8 @@
 
 # Meta product importing
 
+- [ ] Include Facebook post access in page connection and simplify review with selection, inline prices, and selected-product import.
+
 - [x] Add and verify separate Facebook post-import authorization now that the administrator enabled pages_read_engagement; signed-in button and deployed redirect verified, 20 focused tests passed.
 
 - [x] Remove app-rejected import scopes from channel login, deploy, and verify the generated OAuth redirect; 17 focused tests passed.

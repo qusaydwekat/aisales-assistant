@@ -1308,7 +1308,9 @@ async function handleWebhook(req: Request): Promise<Response> {
         ? { ...storeInfo, _runtime_hint: `\nRUNTIME CONTEXT (must obey for THIS reply only):\n- ${runtimeHints.join("\n- ")}\n` }
         : storeInfo;
 
-      const isCancelRequest = looksLikeCancelOrderRequest(combinedCustomerMessage);
+      const isCancelRequest = messageDecision
+        ? shouldCancelDirectly(messageDecision)
+        : looksLikeCancelOrderRequest(combinedCustomerMessage);
       const cancellableOrders = (existingOrders || []).filter((order: any) =>
         ["pending", "confirmed", "processing"].includes(order?.status)
       );

@@ -22,6 +22,8 @@
 
 # Meta product importing
 
+- [ ] Add and verify separate Facebook post-import authorization now that the administrator enabled pages_read_engagement.
+
 - [x] Remove app-rejected import scopes from channel login, deploy, and verify the generated OAuth redirect; 17 focused tests passed.
 
 - [x] Approve the import and automatic-sync plan.

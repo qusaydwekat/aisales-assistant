@@ -8,6 +8,7 @@ import { findRecentDuplicateOrder, executeCreateOrder, executeCancelOrder, execu
 import { ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, ADD_ORDER_NOTE_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL, SEARCH_PRODUCTS_TOOL, LIST_CATEGORIES_TOOL, GET_ACTIVE_PROMOTIONS_TOOL, APPLY_DISCOUNT_CODE_TOOL, FLAG_KNOWLEDGE_GAP_TOOL, REGISTER_RESTOCK_INTEREST_TOOL, GET_STORE_CONTEXT_TOOL, ATTR_WEIGHTS, scoreProductAttributes, executeSearchProducts, executeListCategories, fetchActivePromotions, executeGetActivePromotions, executeApplyDiscountCode, executeFlagKnowledgeGap, executeRegisterRestockInterest, executeGetStoreContext } from "./ai-tools.ts";
 import { sanitizeAIResponse, parseImageUrlFromMessageContent, parseMessageContext, stripMessageContext, collectPendingCustomerBurst, collectUnansweredCustomerMessages, normalizeForQuestionDetection, hasConcreteCustomerQuestion, isGenericGreetingOnlyResponse, buildStoreInfoQuestionReply, hasLaterMessageInSameConversation, compareIncomingMessages, extractBurstInput, looksLikeCancelOrderRequest, buildCancelOrderReply, isFallbackLikeResponse, logPromptInChunks, serializeAIMessageForLog, looksLikeReferentialFollowUp, collectRecentReferenceImages } from "./burst-collector.ts";
 import type { AIReplyResult } from "./burst-collector.ts";
+import { shouldRedirectUpdateToCancel, type MessageDecision } from "./jev-policy.ts";
 
 export async function generateAIReply(
   customerMessage: string,
@@ -590,8 +591,8 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
           } else if (tc.function?.name === "update_order") {
             // Server-side intent guard: prevent the model from misclassifying
             // intent or hallucinating fields the user didn't actually mention.
-            const cancelRe = /(الغي|إلغاء|الغاء|كنسل|بطل|بطلت|ما بدي الطلب|ما عاد بدي|ما بقا بدي|تراجعت|cancel|abort|nevermind|changed my mind|don'?t want it|no longer want)/i;
-            if (cancelRe.test(customerMessage || "")) {
+            const messageDecision = (aiSettings?._message_decision || null) as MessageDecision | null;
+            if (shouldRedirectUpdateToCancel(customerMessage || "", messageDecision)) {
               console.log(
                 "Intent guard: cancel intent detected in latest message; redirecting update_order -> cancel_order"
               );

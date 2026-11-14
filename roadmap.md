@@ -14,3 +14,8 @@
 - [x] Improve desktop and mobile navigation, including Arabic layouts.
 - [x] Refine dashboard, sign-in, and page-wide presentation without changing workflows.
 - [x] Check authenticated store-owner pages, navigation, product forms, and storefront cart at desktop and mobile sizes; Arabic layouts verified. Admin-only interaction checks were not available in the requesting account.
+
+# Jev customer-message decisions
+
+- [x] Add Jev message-intent sorting and explicit cancellation detection to the customer reply worker, with safe fallback to the existing agent.
+- [x] Test representative English and Arabic messages, gateway failure handling, and the deployed reply flow.

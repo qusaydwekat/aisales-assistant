@@ -9,6 +9,8 @@ import { findRecentDuplicateOrder, executeCreateOrder, executeCancelOrder, execu
 import { ORDER_TOOL, CANCEL_ORDER_TOOL, UPDATE_ORDER_TOOL, ADD_ORDER_NOTE_TOOL, CHECK_ORDER_STATUS_TOOL, SEND_PRODUCT_IMAGES_TOOL, SEARCH_PRODUCTS_TOOL, LIST_CATEGORIES_TOOL, GET_ACTIVE_PROMOTIONS_TOOL, APPLY_DISCOUNT_CODE_TOOL, FLAG_KNOWLEDGE_GAP_TOOL, REGISTER_RESTOCK_INTEREST_TOOL, GET_STORE_CONTEXT_TOOL, ATTR_WEIGHTS, scoreProductAttributes, executeSearchProducts, executeListCategories, fetchActivePromotions, executeGetActivePromotions, executeApplyDiscountCode, executeFlagKnowledgeGap, executeRegisterRestockInterest, executeGetStoreContext } from "./ai-tools.ts";
 import { sanitizeAIResponse, parseImageUrlFromMessageContent, parseMessageContext, stripMessageContext, collectPendingCustomerBurst, collectUnansweredCustomerMessages, normalizeForQuestionDetection, hasConcreteCustomerQuestion, isGenericGreetingOnlyResponse, buildStoreInfoQuestionReply, hasLaterMessageInSameConversation, compareIncomingMessages, extractBurstInput, looksLikeCancelOrderRequest, buildCancelOrderReply, isFallbackLikeResponse, logPromptInChunks, serializeAIMessageForLog, looksLikeReferentialFollowUp, collectRecentReferenceImages } from "./burst-collector.ts";
 import { generateAIReply, callResponsesAsChat, pruneEmptyOptionalArgs, pickFallbackModel } from "./ai-agent.ts";
+import { decideCustomerMessage } from "./jev-decisions.ts";
+import { shouldCancelDirectly, shouldEmphasizeCancellation } from "./jev-policy.ts";
 
 async function handleWebhook(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
@@ -1267,6 +1269,33 @@ async function handleWebhook(req: Request): Promise<Response> {
         );
       }
 
+      // Jev supplies typed routing evidence; the main agent still writes the reply.
+      // If Jev is unavailable, the existing semantic agent and keyword safeguards remain active.
+      const messageDecision = await decideCustomerMessage({
+        currentMessage: combinedCustomerMessage,
+        recentConversation: allHistory.slice(-8).map((entry: any) => ({
+          sender: entry.sender,
+          content: stripMessageContext(entry.content || ""),
+        })),
+        activeOrders: (existingOrders || [])
+          .filter((order: any) => ["pending", "confirmed", "processing"].includes(order?.status))
+          .map((order: any) => ({ order_number: order.order_number, status: order.status })),
+      });
+      if (messageDecision) {
+        runtimeHints.push(
+          `RUNTIME MESSAGE INTENT: Jev classified the customer's primary intent as "${messageDecision.intent}" (confidence ${messageDecision.intentConfidence.toFixed(2)}). Use this as routing evidence alongside the actual messages. If it is "greeting" or "other", do not invent a question or volunteer store policies. If it is "order_update", use update_order rather than creating or cancelling an order.`
+        );
+        if (shouldEmphasizeCancellation(messageDecision)) {
+          runtimeHints.push(
+            `RUNTIME CANCELLATION SIGNAL: Jev estimates ${messageDecision.cancellationProbability.toFixed(2)} probability that the customer wants to cancel the entire order. Never ignore this signal. Call cancel_order now; do not update the order or create a new one. Report only the tool's actual result.`
+          );
+        } else if (messageDecision.cancellationProbability <= 0.3 && messageDecision.intent === "order_update") {
+          runtimeHints.push(
+            "RUNTIME ORDER CHANGE: The customer wants to update an existing order, not cancel it. Use update_order and preserve the requested changes."
+          );
+        }
+      }
+
       // ─── Phase 2 Fix 7: Proactive upsell ───
       const upsellEnabled = aiSettings?.upsell_enabled !== false;
       if (upsellEnabled && detectedEmotion !== "abusive" && detectedEmotion !== "frustrated") {
@@ -1279,7 +1308,9 @@ async function handleWebhook(req: Request): Promise<Response> {
         ? { ...storeInfo, _runtime_hint: `\nRUNTIME CONTEXT (must obey for THIS reply only):\n- ${runtimeHints.join("\n- ")}\n` }
         : storeInfo;
 
-      const isCancelRequest = looksLikeCancelOrderRequest(combinedCustomerMessage);
+      const isCancelRequest = messageDecision
+        ? shouldCancelDirectly(messageDecision)
+        : looksLikeCancelOrderRequest(combinedCustomerMessage);
       const cancellableOrders = (existingOrders || []).filter((order: any) =>
         ["pending", "confirmed", "processing"].includes(order?.status)
       );
@@ -1295,7 +1326,7 @@ async function handleWebhook(req: Request): Promise<Response> {
             combinedCustomerMessage,
             enrichedStoreInfo,
             catalogSummary,
-            { ...aiSettings, _is_outside_hours: isOutsideHours },
+            { ...aiSettings, _is_outside_hours: isOutsideHours, _message_decision: messageDecision },
             allHistory,
             supabase,
             storeId,

@@ -9,7 +9,9 @@ export function useFileUpload() {
     setUploading(true);
     try {
       const ext = file.name.split(".").pop();
-      const fileName = `${path}/${Date.now()}.${ext}`;
+      const { data: auth } = await supabase.auth.getUser();
+      if (!auth.user) throw new Error("Not signed in");
+      const fileName = `${auth.user.id}/${path}/${Date.now()}.${ext}`;
 
       const { error } = await supabase.storage
         .from("store-assets")

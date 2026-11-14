@@ -1,5 +1,9 @@
 # Website experience refresh
 
+# Confirmed order registration
+
+- [ ] Fix tool-round exhaustion after customer approval, test search-to-order and failed-action recovery, and deploy the reply worker.
+
 - [x] Refine the supplied logo to match the platform and apply shared branding and favicon; check public, auth and workspace views.
 
 - [x] Match legal pages to the homepage with shared navigation and footer; verify English/Arabic and signed-in links.

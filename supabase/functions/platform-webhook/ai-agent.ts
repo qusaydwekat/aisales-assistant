@@ -208,7 +208,7 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
 ═══════════════════════════════════════════
 - Existing Orders shown above are REFERENCE ONLY. Don't act on them unless the customer explicitly references that order.
 - Order modifiability: pending/confirmed/processing → modifiable (use update_order or cancel_order). shipped/delivered → NOT modifiable; if they want more/changed items, call create_order for a NEW order and tell them their previous one is on the way. cancelled → call create_order if they want to buy again.
-- Before create_order: collect name + phone + address in ONE message (not one-by-one). Parse all three from a single reply if they sent them together. Confirm variant (size+color) for products that have variations. Always include item.product_id from search results. Briefly summarize order + ask for final confirmation, then immediately call the tool.
+- Before create_order: collect name + phone + address in ONE message (not one-by-one). Parse all three from a single reply if they sent them together. Confirm variant (size+color) for products that have variations. Always include item.product_id from search results. Briefly summarize the full order and ask for final confirmation; WAIT for the customer's approval. Once they approve that summary (including a short reply like "صحيح"), resolve any missing catalog data and call create_order in THIS turn. Do not ask for approval again or stop at an acknowledgment when all details are complete.
 - After create_order: send ONE short confirmation with the order_number and KEEP THE CONVERSATION OPEN — answer follow-ups, send more photos, accept new requests, upsell.
 - Always reference orders by order_number (e.g. ORD-00001) — only use numbers returned by tools.`;
 
@@ -378,17 +378,16 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
     GET_STORE_CONTEXT_TOOL,
   ];
 
-  // Support multiple rounds of tool calls (e.g. search_products -> send_product_images)
-  // Reduced from 5 -> 3 rounds for latency. Most flows finish in 1-2 rounds; the
-  // short-circuit below also removes the extra "compose text" round when the AI
-  // only calls send_product_images.
+  // Leave room for search refinement, order execution/recovery, and a final reply.
+  // Simple replies still return immediately; the budget is a ceiling, not a target.
   let currentMessages = [...chatMessages];
-  const maxRounds = 3;
+  const maxRounds = 7;
+  let orderActionCompleted = false;
   const allImageesToSend: { url: string; caption: string }[] = [];
 
   try {
     for (let round = 0; round < maxRounds; round++) {
-      const isFinalRound = round === maxRounds - 1;
+      const isFinalRound = orderActionCompleted || round === maxRounds - 1;
       // On the final round, force a text-only response (no more tool calls)
       // Some newer OpenAI models (gpt-5.x, o1/o3, etc.) only support the
       // default temperature (1). Only send a custom temperature for models
@@ -410,7 +409,7 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
               {
                 role: "system",
                 content:
-                  "You have gathered enough information. Now respond to the customer in natural language. Do NOT call any more tools.",
+                  "Now respond to the customer in natural language using the actual tool results. Only confirm an order action if its tool returned success: true. If no order was saved, explain the actual blocker without inventing a number or claiming success. Do NOT call any more tools.",
               },
             ]
           : currentMessages,
@@ -768,15 +767,30 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
       const calledOrderTool = toolCalls.some((tc: any) =>
         orderToolNames.has(tc.function?.name)
       );
+      const successfulOrderAction = toolCalls.some((tc: any, index: number) => {
+        if (!orderToolNames.has(tc.function?.name)) return false;
+        try {
+          return JSON.parse(toolResults[index]?.content || "{}").success === true;
+        } catch {
+          return false;
+        }
+      });
+      orderActionCompleted = successfulOrderAction;
 
       // Add assistant message + tool results for the next round
       currentMessages = [...currentMessages, choice.message, ...toolResults];
 
-      if (calledOrderTool) {
+      if (successfulOrderAction) {
         currentMessages.push({
           role: "system",
           content:
             "You just performed an order action. Reply NOW in ONE short message in the customer's language: confirm what happened (use the order_number from the tool result), thank them, and invite them to ask anything else or add more items. Do NOT call any more tools. Do NOT go silent. If the tool result included `spawned_new_order: true`, explain that the previous order is already on its way and a NEW order was created for the additional items, mentioning both order numbers.",
+        });
+      } else if (calledOrderTool) {
+        currentMessages.push({
+          role: "system",
+          content:
+            "The order action FAILED and has not been completed. Read the tool error, correct recoverable arguments or resolve missing catalog data, then retry the matching tool. Never claim success without success: true; if the blocker requires customer input, ask one focused question.",
         });
       }
 

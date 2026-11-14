@@ -1232,8 +1232,8 @@ async function handleWebhook(req: Request): Promise<Response> {
         const arabic = /[\u0600-\u06FF]/.test(combinedCustomerMessage) || aiSettings?.language === "ar";
         const reply = arabic ? "ما قدرت أسمع الرسالة الصوتية بوضوح. ممكن تبعتها مرة ثانية أو تكتبلي شو بتحتاج؟" : "I couldn't understand the voice message clearly. Could you send it again or type what you need?";
         if (pageAccessToken) {
-          const sent = await sendMetaReplyWithRetry(msg.platform, msg.sender, reply, pageAccessToken, connectionPageId || msg.pageId || "");
-          if (sent) await supabase.from("messages").insert({ conversation_id: conversation.id, sender: "ai", content: reply });
+          const sent = await sendMetaReplyWithRetry(supabase, storeId, conversation.id, msg.platform, msg.sender, reply, pageAccessToken, connectionPageId || msg.pageId || "", aiSettings?.meta_retry_enabled !== false);
+          if (sent.ok) await supabase.from("messages").insert({ conversation_id: conversation.id, sender: "ai", content: reply });
         }
         continue;
       }

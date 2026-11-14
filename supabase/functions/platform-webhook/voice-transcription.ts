@@ -30,6 +30,7 @@ export async function prepareVoiceFiles(bytes: Uint8Array, mime: string): Promis
       if (decoded.errors.length || !decoded.samplesDecoded) throw new VoiceError("The voice recording is damaged. Please send it again.");
       // Complete WAV segments with no dropped tail; bounded compressed input and decoded voice memory.
       const segmentSamples = 16000 * 120;
+      if (decoded.samplesDecoded > 16000 * 600) throw new VoiceError("This voice recording is too long. Please send recordings under ten minutes.");
       const files: File[] = [];
       for (let start = 0; start < decoded.samplesDecoded; start += segmentSamples) {
         const wav = pcmToWav(decoded.channelData.map(ch => ch.subarray(start, start + segmentSamples)), decoded.sampleRate);
@@ -110,7 +111,8 @@ export async function processConversationVoices(db: any, conversationId: string,
       const files = await prepareVoiceFiles(await boundedBytes(download), mime);
       const transcripts: string[] = [];
       for (const file of files) {
-        const { data: latestControl } = await db.from("voice_transcription_control").select("paused,pause_reason").eq("id", true).maybeSingle();
+        const { data: latestControl, error: latestControlError } = await db.from("voice_transcription_control").select("paused,pause_reason").eq("id", true).maybeSingle();
+        if (latestControlError) throw new VoiceError("Voice transcription settings are unavailable.");
         if (latestControl?.paused) throw new VoiceError(latestControl.pause_reason || "Voice transcription is paused.", 403, "paused");
         transcripts.push(await transcribeVoiceFile(file, key));
       }

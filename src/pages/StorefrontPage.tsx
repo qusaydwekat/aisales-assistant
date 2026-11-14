@@ -1,5 +1,6 @@
 import { useLanguage } from "@/contexts/LanguageContext";
 import { tr } from "@/lib/tr";
+import { canSellProduct, formatProductPrice } from "@/lib/product-availability";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -17,6 +18,9 @@ interface Product {
   compare_price: number | null;
   images: string[] | null;
   stock: number;
+  stock_tracked: boolean;
+  availability: string;
+  currency: string | null;
 }
 
 interface CartItem {
@@ -35,7 +39,7 @@ interface StoreInfo {
 }
 
 export default function StorefrontPage() {
-  useLanguage();
+  const { dir } = useLanguage();
   const [searchParams] = useSearchParams();
   const storeId = searchParams.get("store");
   const [store, setStore] = useState<StoreInfo | null>(null);
@@ -64,7 +68,7 @@ export default function StorefrontPage() {
 
       const { data: prods } = await supabase
         .from("products")
-        .select("id, name, description, category, price, compare_price, images, stock")
+        .select("id, name, description, category, price, compare_price, images, stock, stock_tracked, availability, currency")
         .eq("store_id", stores.id)
         .eq("active", true)
         .order("created_at", { ascending: false });
@@ -241,7 +245,7 @@ export default function StorefrontPage() {
                   ) : (
                     <Package className="h-10 w-10 text-muted-foreground/30" />
                   )}
-                  {p.stock === 0 && <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive">{tr("Sold Out")}</span>}
+                  {!canSellProduct(p) && <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive">{tr("Sold Out")}</span>}
                   {!!p.compare_price && <span className="absolute top-2 start-2 px-2 py-0.5 rounded text-[10px] font-medium bg-success/20 text-success">{tr("Sale")}</span>}
                 </div>
                 <div className="p-3">
@@ -252,7 +256,7 @@ export default function StorefrontPage() {
                       <span className="font-heading font-bold text-foreground">${Number(p.price).toFixed(2)}</span>
                       {!!p.compare_price && <span className="text-[10px] text-muted-foreground line-through">${Number(p.compare_price).toFixed(2)}</span>}
                     </div>
-                    {p.stock > 0 && (
+                    {canSellProduct(p) && (
                       <Button variant="ghost" onClick={e => { e.stopPropagation(); addToCart(p); }}
                         className="p-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
                         <Plus className="h-3.5 w-3.5" />
@@ -299,7 +303,7 @@ export default function StorefrontPage() {
                   {!!showProduct.compare_price && <span className="text-sm text-muted-foreground line-through">${Number(showProduct.compare_price).toFixed(2)}</span>}
                 </div>
                 <p className="text-xs text-muted-foreground">{showProduct.stock > 0 ? `${showProduct.stock} in stock` : 'Out of stock'}</p>
-                {showProduct.stock > 0 && (
+                {canSellProduct(showProduct) && (
                   <Button variant="ghost" onClick={() => { addToCart(showProduct); setShowProduct(null); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
                     <ShoppingCart className="h-4 w-4" /> {tr("Add to Cart")}

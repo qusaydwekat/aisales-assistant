@@ -1,7 +1,23 @@
+import { createOpenAI } from "npm:@ai-sdk/openai";
+import { NoObjectGeneratedError, Output, streamText } from "npm:ai";
+import { z } from "npm:zod@3";
 import { normalizeAvailability, parseMetaPrice, type NormalizedProduct } from "./sync-policy.ts";
+import { createLovableAiGatewayRunIdFetch } from "./run-id.ts";
 
-const AI_ENDPOINT = "https://ai.gateway.lovable.dev/v1/chat/completions";
 const JEV_ENDPOINT = "https://ai.gateway.lovable.dev/v1/systemone";
+
+const extractedProductSchema = z.object({
+  name: z.string().nullable(),
+  description: z.string().nullable(),
+  category: z.string().nullable(),
+  price: z.number().nullable(),
+  currency: z.string().nullable(),
+  availability: z.enum(["in_stock", "out_of_stock", "unknown"]),
+  stock: z.number().int().nullable(),
+  sizes: z.array(z.string()),
+  colors: z.array(z.string()),
+  multi_product: z.boolean(),
+});
 
 function postText(post: any, platform: string): string {
   return String(platform === "instagram" ? post.caption || "" : post.message || "").trim();
@@ -106,78 +122,64 @@ async function extractWithAI(post: any, connection: any): Promise<NormalizedProd
   const base = emptyPostProduct(post, connection);
   const caption = postText(post, connection.platform);
   const photos = base.images.slice(0, 4);
+  const runIdFetch = createLovableAiGatewayRunIdFetch();
+  const provider = createOpenAI({
+    baseURL: "https://ai.gateway.lovable.dev/v1",
+    apiKey,
+    headers: { "Lovable-API-Key": apiKey, "X-Lovable-AIG-SDK": "vercel-ai-sdk" },
+    fetch: runIdFetch.fetch,
+  });
   const content: any[] = [{
     type: "text",
     text: `Extract one product from this ${connection.platform} business post. Caption:\n${caption || "(no caption)"}\n\nReturn only facts supported by the caption or visible photos. Never infer a price, currency, stock quantity, size, color or availability. A visual generic name such as 'red dress' is allowed only when clearly visible. Set multi_product true when the post offers several distinct products. Currency must be an ISO code such as ILS, JOD, USD or EUR when explicitly identifiable; otherwise null. Availability is in_stock or out_of_stock only when the caption explicitly says so; otherwise unknown.`,
   }];
-  for (const url of photos) content.push({ type: "image_url", image_url: { url } });
+  for (const url of photos) content.push({ type: "image", image: url });
 
-  const schema = {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      name: { type: ["string", "null"] },
-      description: { type: ["string", "null"] },
-      category: { type: ["string", "null"] },
-      price: { type: ["number", "null"] },
-      currency: { type: ["string", "null"] },
-      availability: { type: "string", enum: ["in_stock", "out_of_stock", "unknown"] },
-      stock: { type: ["integer", "null"] },
-      sizes: { type: "array", items: { type: "string" } },
-      colors: { type: "array", items: { type: "string" } },
-      multi_product: { type: "boolean" },
-    },
-    required: ["name", "description", "category", "price", "currency", "availability", "stock", "sizes", "colors", "multi_product"],
-  };
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      const response = await fetch(AI_ENDPOINT, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
-          messages: [
-            { role: "system", content: "You convert social posts into accurate product records. You never guess missing commercial facts." },
-            { role: "user", content },
-          ],
-          response_format: { type: "json_schema", json_schema: { name: "social_product", strict: true, schema } },
-          temperature: 0,
-        }),
-        signal: AbortSignal.timeout(45_000),
-      });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if ((response.status === 429 || response.status >= 500) && attempt === 0) continue;
-        console.warn(`Post extraction failed (${response.status}):`, JSON.stringify(payload).slice(0, 300));
-        return null;
-      }
-      const text = payload?.choices?.[0]?.message?.content;
-      const extracted = JSON.parse(text);
-      const parsedPrice = parseMetaPrice(extracted.price);
-      const currency = String(extracted.currency || "").toUpperCase().match(/^[A-Z]{3}$/)?.[0] || null;
-      const stockTracked = extracted.stock != null;
-      return {
-        ...base,
-        name: String(extracted.name || "").trim(),
-        description: String(extracted.description || caption || "").trim(),
-        category: String(extracted.category || "").trim(),
-        price: parsedPrice.amount,
-        currency,
-        stock: stockTracked ? Math.max(0, extracted.stock) : 0,
-        stockTracked,
-        availability: normalizeAvailability(extracted.availability),
-        active: normalizeAvailability(extracted.availability) !== "unknown",
-        sizesAvailable: Array.isArray(extracted.sizes) ? extracted.sizes.map(String).filter(Boolean).slice(0, 50) : [],
-        colors: Array.isArray(extracted.colors) ? extracted.colors.map(String).filter(Boolean).slice(0, 50) : [],
-        multiProduct: extracted.multi_product === true,
-      };
-    } catch (error) {
-      console.warn("Post extraction error:", error);
-      if (attempt === 0) await new Promise((resolve) => setTimeout(resolve, 500));
+  try {
+    const result = streamText({
+      model: provider.responses("openai/gpt-6-astra"),
+      instructions: "You convert social posts into accurate product records. You never guess missing commercial facts.",
+      messages: [{ role: "user", content }],
+      output: Output.object({ schema: extractedProductSchema }),
+      providerOptions: {
+        openai: {
+          forceReasoning: true,
+          reasoningEffort: "low",
+          reasoningSummary: "auto",
+          store: false,
+          include: ["reasoning.encrypted_content"],
+        },
+      },
+    });
+    const extracted = await result.output;
+    if (!extracted) return null;
+    const parsedPrice = parseMetaPrice(extracted.price);
+    const currency = String(extracted.currency || "").toUpperCase().match(/^[A-Z]{3}$/)?.[0] || null;
+    const stockTracked = extracted.stock != null && extracted.stock >= 0;
+    const availability = normalizeAvailability(extracted.availability);
+    return {
+      ...base,
+      name: String(extracted.name || "").trim(),
+      description: String(extracted.description || caption || "").trim(),
+      category: String(extracted.category || "").trim(),
+      price: parsedPrice.amount,
+      currency,
+      stock: stockTracked ? Math.max(0, extracted.stock!) : 0,
+      stockTracked,
+      availability,
+      active: availability !== "unknown",
+      sizesAvailable: extracted.sizes.map(String).filter(Boolean).slice(0, 50),
+      colors: extracted.colors.map(String).filter(Boolean).slice(0, 50),
+      multiProduct: extracted.multi_product,
+    };
+  } catch (error) {
+    if (NoObjectGeneratedError.isInstance(error)) {
+      console.warn("Post extraction returned no valid product object:", error.text?.slice(0, 300));
+    } else {
+      console.warn("Post extraction failed:", error);
     }
+    return null;
   }
-  return null;
 }
 
 export async function extractProductPosts(posts: any[], connection: any): Promise<NormalizedProduct[]> {

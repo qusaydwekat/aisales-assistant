@@ -17,5 +17,5 @@
 
 # Jev customer-message decisions
 
-- [ ] Add Jev message-intent sorting and explicit cancellation detection to the customer reply worker, with safe fallback to the existing agent.
-- [ ] Test representative English and Arabic messages, gateway failure handling, and the deployed reply flow.
+- [x] Add Jev message-intent sorting and explicit cancellation detection to the customer reply worker, with safe fallback to the existing agent.
+- [x] Test representative English and Arabic messages, gateway failure handling, and the deployed reply flow.

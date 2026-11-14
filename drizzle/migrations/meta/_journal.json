@@ -50,6 +50,13 @@
       "when": 1794647670945,
       "tag": "0006_finish_meta_product_sync_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794653207298,
+      "tag": "0007_voice_message_transcription_jobs",
+      "breakpoints": true
     }
   ]
 }

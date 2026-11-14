@@ -1353,6 +1353,94 @@ export type Database = {
         }
         Relationships: []
       }
+      voice_transcription_control: {
+        Row: {
+          id: boolean
+          pause_kind: string | null
+          pause_reason: string | null
+          paused: boolean
+          updated_at: string
+        }
+        Insert: {
+          id?: boolean
+          pause_kind?: string | null
+          pause_reason?: string | null
+          paused?: boolean
+          updated_at?: string
+        }
+        Update: {
+          id?: boolean
+          pause_kind?: string | null
+          pause_reason?: string | null
+          paused?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      voice_transcription_jobs: {
+        Row: {
+          audio_url: string | null
+          conversation_id: string
+          created_at: string
+          error: string | null
+          id: string
+          locked_until: string | null
+          media_id: string | null
+          message_id: string
+          status: string
+          store_id: string
+          transcript: string | null
+        }
+        Insert: {
+          audio_url?: string | null
+          conversation_id: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          locked_until?: string | null
+          media_id?: string | null
+          message_id: string
+          status?: string
+          store_id: string
+          transcript?: string | null
+        }
+        Update: {
+          audio_url?: string | null
+          conversation_id?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          locked_until?: string | null
+          media_id?: string | null
+          message_id?: string
+          status?: string
+          store_id?: string
+          transcript?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_transcription_jobs_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_transcription_jobs_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "voice_transcription_jobs_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       webhook_failures: {
         Row: {
           created_at: string
@@ -1433,6 +1521,28 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_voice_transcription: {
+        Args: { _id: string }
+        Returns: {
+          audio_url: string | null
+          conversation_id: string
+          created_at: string
+          error: string | null
+          id: string
+          locked_until: string | null
+          media_id: string | null
+          message_id: string
+          status: string
+          store_id: string
+          transcript: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "voice_transcription_jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_webhook_item: {
         Args: { _id?: string }
         Returns: {

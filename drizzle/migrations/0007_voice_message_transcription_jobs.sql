@@ -1,0 +1,12 @@
+CREATE TABLE public.voice_transcription_control (id boolean PRIMARY KEY DEFAULT true CHECK (id), paused boolean NOT NULL DEFAULT false, pause_reason text, pause_kind text, updated_at timestamptz NOT NULL DEFAULT now());
+GRANT SELECT, UPDATE ON public.voice_transcription_control TO authenticated;
+GRANT ALL ON public.voice_transcription_control TO service_role;
+ALTER TABLE public.voice_transcription_control ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Admins manage voice transcription" ON public.voice_transcription_control FOR ALL TO authenticated USING (public.has_role(auth.uid(), 'admin')) WITH CHECK (public.has_role(auth.uid(), 'admin'));
+CREATE TABLE public.voice_transcription_jobs (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), message_id uuid NOT NULL UNIQUE REFERENCES public.messages(id) ON DELETE CASCADE, store_id uuid NOT NULL REFERENCES public.stores(id) ON DELETE CASCADE, conversation_id uuid NOT NULL REFERENCES public.conversations(id) ON DELETE CASCADE, audio_url text, media_id text, status text NOT NULL DEFAULT 'pending', transcript text, error text, locked_until timestamptz, created_at timestamptz NOT NULL DEFAULT now());
+GRANT ALL ON public.voice_transcription_jobs TO service_role;
+ALTER TABLE public.voice_transcription_jobs ENABLE ROW LEVEL SECURITY;
+CREATE INDEX voice_transcription_pending ON public.voice_transcription_jobs(conversation_id, status);
+CREATE FUNCTION public.claim_voice_transcription(_id uuid) RETURNS SETOF public.voice_transcription_jobs LANGUAGE sql SECURITY DEFINER SET search_path = public AS $$ UPDATE public.voice_transcription_jobs SET status = 'processing', locked_until = now() + interval '4 minutes' WHERE id = _id AND (status = 'pending' OR (status = 'processing' AND locked_until < now())) RETURNING *; $$;
+REVOKE ALL ON FUNCTION public.claim_voice_transcription(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_voice_transcription(uuid) TO service_role;

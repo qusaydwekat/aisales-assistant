@@ -120,7 +120,7 @@ export default function StorefrontPage() {
         customer_name: orderForm.name,
         customer_phone: orderForm.phone,
         customer_address: orderForm.address,
-        last_message: `New order: ${cart.length} items, $${cartTotal.toFixed(2)}`,
+        last_message: `New order: ${cart.length} items, ${formatProductPrice(cartTotal, cart[0]?.product.currency)}`,
         status: "pending_order" as const,
       }).select().single();
 
@@ -142,7 +142,7 @@ export default function StorefrontPage() {
         await supabase.from("messages").insert({
           conversation_id: convo.id,
           sender: "customer",
-          content: `Hi! I'd like to order:\n${cart.map(c => `• ${c.product.name} × ${c.quantity}`).join("\n")}\n\nTotal: $${cartTotal.toFixed(2)}\nAddress: ${orderForm.address}`,
+          content: `Hi! I'd like to order:\n${cart.map(c => `• ${c.product.name} × ${c.quantity}`).join("\n")}\n\nTotal: ${formatProductPrice(cartTotal, cart[0]?.product.currency)}\nAddress: ${orderForm.address}`,
         });
       }
 

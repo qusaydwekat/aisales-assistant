@@ -69,7 +69,11 @@ async function handleWebhook(req: Request): Promise<Response> {
     if (productEvent) {
       const syncResponse = await fetch(`${supabaseUrl}/functions/v1/meta-product-sync`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${supabaseKey}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("LOVABLE_CRON_SECRET") || supabaseKey}`,
+          ...(Deno.env.get("LOVABLE_CRON_SECRET") ? { "x-cron-secret": Deno.env.get("LOVABLE_CRON_SECRET")! } : {}),
+        },
         body: JSON.stringify({ action: "webhook", payload: body }),
       });
       if (!syncResponse.ok) console.error("Product change routing failed:", syncResponse.status, await syncResponse.text());

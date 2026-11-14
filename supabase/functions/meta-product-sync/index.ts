@@ -143,8 +143,10 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
     const body: Body = parsed.data;
     const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "").trim();
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const internal = token && token === serviceKey;
+    const serviceKey = (Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "").trim();
+    const cronSecret = (Deno.env.get("LOVABLE_CRON_SECRET") || "").trim();
+    const cronHeader = (req.headers.get("x-cron-secret") || req.headers.get("x-lovable-cron-secret") || "").trim();
+    const internal = !!((serviceKey && token === serviceKey) || (cronSecret && (token === cronSecret || cronHeader === cronSecret)));
     if (internal && body.action === "run-background" && body.run_id) {
       background(executeRun(body.run_id));
       return json({ ok: true });

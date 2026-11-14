@@ -55,6 +55,7 @@ export function productIssues(item: NormalizedProduct, storeCurrency: string, so
   if (!item.currency) issues.push("missing_currency");
   else if (item.currency.toUpperCase() !== storeCurrency.toUpperCase()) issues.push("currency_mismatch");
   if (item.multiProduct) issues.push("multiple_products");
+  if (item.variantPricesDiffer) issues.push("variant_prices_differ");
   if (item.availability === "unknown") issues.push("availability_review_required");
   if (sourceType === "posts" && item.stockTracked && (!Number.isInteger(item.stock) || item.stock < 0)) issues.push("invalid_stock");
   return Array.from(new Set(issues));
@@ -159,6 +160,7 @@ export function groupCatalogItems(rows: any[], catalogId: string): NormalizedPro
       name: String(first.name || "").trim(),
       description: String(first.description || "").trim(),
       category: String(first.product_type || first.category || "").trim(),
+      brand: String(first.brand || "").trim(),
       price: parsedSale.amount ?? parsedPrice.amount,
       comparePrice: parsedSale.amount != null ? parsedPrice.amount : null,
       currency: (parsedSale.currency || parsedPrice.currency || "").toUpperCase() || null,
@@ -172,7 +174,7 @@ export function groupCatalogItems(rows: any[], catalogId: string): NormalizedPro
       sizesAvailable: sizes,
       colors,
       permalink: first.url || null,
-      multiProduct: pricesDiffer,
+      variantPricesDiffer: pricesDiffer,
       raw: items,
     };
   });

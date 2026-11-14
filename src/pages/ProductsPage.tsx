@@ -14,6 +14,7 @@ import {
   Download,
   Upload,
   ChevronDown,
+  Facebook,
 } from "lucide-react";
 import { motion } from "framer-motion";
 import {
@@ -23,10 +24,13 @@ import {
   useDeleteProduct,
   useBulkCreateProducts,
   useAISettings,
+  usePlatformConnections,
 } from "@/hooks/useSupabaseData";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { ProductWizard, ProductForm } from "@/components/products/ProductWizard";
 import { CsvImportDialog } from "@/components/products/CsvImportDialog";
+import { MetaImportDialog } from "@/components/products/MetaImportDialog";
+import { canSellProduct, formatProductPrice } from "@/lib/product-availability";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +46,7 @@ export default function ProductsPage() {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [wizardOpen, setWizardOpen] = useState(false);
   const [csvOpen, setCsvOpen] = useState(false);
+  const [metaOpen, setMetaOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [initialForm, setInitialForm] = useState<Partial<ProductForm> | null>(null);
   const [initialStep, setInitialStep] = useState<1 | 2 | 3>(1);
@@ -49,6 +54,7 @@ export default function ProductsPage() {
   const { t, dir } = useLanguage();
   const { data: products = [], isLoading } = useProducts();
   const { data: aiSettings } = useAISettings();
+  const { data: platformConnections = [] } = usePlatformConnections();
   const createProduct = useCreateProduct();
   const updateProduct = useUpdateProduct();
   const deleteProduct = useDeleteProduct();
@@ -188,6 +194,9 @@ export default function ProductsPage() {
               </button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setMetaOpen(true)}>
+                <Facebook className="h-4 w-4 me-2" /> {dir === "rtl" ? "استيراد من Meta" : "Import from Meta"}
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setCsvOpen(true)}>
                 <Upload className="h-4 w-4 me-2" /> {t("import_csv")}
               </DropdownMenuItem>
@@ -439,6 +448,7 @@ export default function ProductsPage() {
       />
 
       <CsvImportDialog open={csvOpen} onClose={() => setCsvOpen(false)} onImport={handleBulkImport} />
+      <MetaImportDialog open={metaOpen} onClose={() => setMetaOpen(false)} connections={platformConnections} />
     </div>
   );
 }

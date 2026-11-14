@@ -11,6 +11,11 @@ export class MetaApiError extends Error {
   }
 }
 
+export function isMetaAuthFailure(error: unknown): boolean {
+  if (!(error instanceof MetaApiError)) return false;
+  return [401, 403].includes(error.status) || error.code === 283 || /permission|not been approved|requires .*access/i.test(error.message);
+}
+
 async function requestMeta(url: string, token: string): Promise<any> {
   const target = new URL(url);
   if (target.origin !== GRAPH_ORIGIN) throw new MetaApiError("Unexpected Meta API URL", 400);

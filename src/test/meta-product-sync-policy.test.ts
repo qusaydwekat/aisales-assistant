@@ -10,6 +10,7 @@ import {
   shouldDeactivateAfterMissing,
 } from "../../supabase/functions/meta-product-sync/sync-policy";
 import { formatProductPrice } from "@/lib/product-availability";
+import { isMetaAuthFailure, MetaApiError } from "../../supabase/functions/meta-product-sync/meta-api";
 
 describe("Meta product import policy", () => {
   it("parses the exact amount and currency", () => {
@@ -82,5 +83,10 @@ describe("Meta product import policy", () => {
   it("formats imported currency without silently converting it", () => {
     expect(formatProductPrice(25, "ILS", "en")).toContain("25");
     expect(formatProductPrice(25, "ILS", "en")).not.toContain("$");
+  });
+
+  it("pauses permission-denied sources even when Meta returns HTTP 400", () => {
+    expect(isMetaAuthFailure(new MetaApiError("(#283) Requires pages_read_engagement permission", 400, 283))).toBe(true);
+    expect(isMetaAuthFailure(new MetaApiError("Temporary malformed post response", 400, 100))).toBe(false);
   });
 });

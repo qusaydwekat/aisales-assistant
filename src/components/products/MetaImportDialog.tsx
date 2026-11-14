@@ -208,6 +208,12 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     );
   };
 
+  const syncError = (message: string) => {
+    if (/pages_read_engagement|permission|not been approved/i.test(message)) {
+      return text("Reconnect this Meta account and allow post and Shop access, then try again.", "أعد ربط حساب Meta واسمح بالوصول إلى المنشورات والمتجر، ثم حاول مرة أخرى.");
+    }
+    return message;
+  };
   const previewReady = run?.status === "completed" && (run.checkpoint as any)?.mode === "preview";
   const runRunning = run?.status === "running";
 
@@ -298,7 +304,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                     <p className="text-sm font-medium text-foreground">{runRunning ? text("Reading source and preparing products…", "جاري قراءة المصدر وتجهيز المنتجات…") : run.status === "failed" ? text("Sync needs attention", "المزامنة تحتاج للانتباه") : previewReady ? text("Preview ready", "المعاينة جاهزة") : text("Sync finished", "انتهت المزامنة")}</p>
                     {runRunning ? <Loader2 className="h-4 w-4 animate-spin text-primary" /> : run.status === "failed" ? <AlertCircle className="h-4 w-4 text-destructive" /> : <CheckCircle2 className="h-4 w-4 text-success" />}
                   </div>
-                  {run.error && <p className="text-xs text-destructive break-words">{run.error}</p>}
+                  {run.error && <p className="text-xs text-destructive break-words">{syncError(run.error)}</p>}
                   {run.counts && <div className="flex flex-wrap gap-2 text-xs">
                     {Object.entries(run.counts as Record<string, number>).map(([key, value]) => <span key={key} className="rounded bg-muted px-2 py-1 text-muted-foreground">{key}: {value}</span>)}
                   </div>}
@@ -321,7 +327,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                   <div><p className="text-sm font-medium text-foreground">{source.name}</p><p className="text-xs text-muted-foreground">{source.source_type === "shop" ? text("Shop", "متجر") : text("Posts", "منشورات")} · {source.last_successful_sync_at ? new Date(source.last_successful_sync_at).toLocaleString() : text("Not synced yet", "لم تتم المزامنة بعد")}</p></div>
                   <Switch checked={source.auto_sync} onCheckedChange={(checked) => toggleAuto(source.id, checked)} disabled={busy === source.id} />
                 </div>
-                {source.last_error && <p className="text-xs text-destructive">{source.last_error}</p>}
+                {source.last_error && <p className="text-xs text-destructive break-words">{syncError(source.last_error)}</p>}
                 <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => syncNow(source.id)} disabled={!!busy}><RefreshCw className={`h-3.5 w-3.5 me-1.5 ${busy === source.id ? "animate-spin" : ""}`} />{text("Sync now", "مزامنة الآن")}</Button>{source.status === "paused" && <a href="/platforms" className="text-xs text-primary self-center">{text("Reconnect account", "إعادة ربط الحساب")}</a>}</div>
               </div>
             ))}</div> : <p className="py-12 text-center text-sm text-muted-foreground">{text("Your saved import sources will appear here.", "ستظهر مصادر الاستيراد المحفوظة هنا.")}</p>

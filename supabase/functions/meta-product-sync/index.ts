@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
-import { discoverCatalogs, MetaApiError, postSourceFor } from "./meta-api.ts";
+import { discoverCatalogs, isMetaAuthFailure, MetaApiError, postSourceFor } from "./meta-api.ts";
 import { approveImportCandidate, commitSyncRun, runProductSync } from "./sync-engine.ts";
 
 const BodySchema = z.object({
@@ -59,7 +59,7 @@ async function executeRun(runId: string): Promise<void> {
     const { data: run } = await admin.from("product_sync_runs").select("source_id, store_id").eq("id", runId).maybeSingle();
     await admin.from("product_sync_runs").update({ status: "failed", error: message, completed_at: new Date().toISOString() }).eq("id", runId);
     if (run) {
-      const paused = error instanceof MetaApiError && [401, 403].includes(error.status);
+      const paused = isMetaAuthFailure(error);
       await admin.from("meta_product_sources").update({ status: paused ? "paused" : "error", last_error: message }).eq("id", run.source_id);
       const { data: store } = await admin.from("stores").select("user_id").eq("id", run.store_id).maybeSingle();
       if (store?.user_id) {

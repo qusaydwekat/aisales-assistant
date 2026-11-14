@@ -1326,7 +1326,7 @@ async function handleWebhook(req: Request): Promise<Response> {
             combinedCustomerMessage,
             enrichedStoreInfo,
             catalogSummary,
-            { ...aiSettings, _is_outside_hours: isOutsideHours },
+            { ...aiSettings, _is_outside_hours: isOutsideHours, _message_decision: messageDecision },
             allHistory,
             supabase,
             storeId,

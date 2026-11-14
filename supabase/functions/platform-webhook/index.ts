@@ -859,7 +859,7 @@ async function handleWebhook(req: Request): Promise<Response> {
           getCachedStore(supabase, storeId),
           supabase
             .from("products")
-            .select("name, auto_description, category, price, sizes_available, color, stock_per_size, variants, stock")
+            .select("name, auto_description, category, price, currency, sizes_available, color, stock_per_size, variants, stock, stock_tracked, availability")
             .eq("store_id", storeId)
             .eq("active", true),
           getCachedAISettings(supabase, storeId),

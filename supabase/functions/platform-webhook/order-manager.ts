@@ -121,6 +121,32 @@ export async function executeCreateOrder(
     }
   }
 
+  // Never confirm unavailable products. Availability-only imports do not invent a quantity.
+  {
+    const items = Array.isArray(args.items) ? args.items : [];
+    const productIds = items.map((item: any) => item.product_id).filter(Boolean);
+    if (productIds.length) {
+      const { data: stockProducts } = await supabase.from("products")
+        .select("id, name, stock, stock_tracked, availability, active")
+        .in("id", productIds).eq("store_id", storeId);
+      const byId = new Map((stockProducts || []).map((product: any) => [product.id, product]));
+      for (const item of items) {
+        if (!item.product_id) continue;
+        const product: any = byId.get(item.product_id);
+        const quantity = Math.max(1, Math.floor(Number(item.quantity) || 1));
+        const available = product?.active !== false && (product?.stock_tracked === false
+          ? product?.availability === "in_stock"
+          : Number(product?.stock || 0) >= quantity);
+        if (!available) {
+          return JSON.stringify({
+            success: false,
+            error: `OUT_OF_STOCK: ${product?.name || item.product_name || "The requested product"} cannot be ordered in quantity ${quantity}. Do not confirm this item; offer to check another item or register restock interest.`,
+          });
+        }
+      }
+    }
+  }
+
   // ─── Nameless mode: build product_snapshot to preserve visual identity at order time ───
   let productSnapshot: any = null;
   try {

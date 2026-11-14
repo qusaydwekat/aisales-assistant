@@ -359,6 +359,72 @@ export type Database = {
           },
         ]
       }
+      meta_product_sources: {
+        Row: {
+          auto_sync: boolean
+          connection_id: string
+          created_at: string
+          external_id: string
+          id: string
+          last_error: string | null
+          last_successful_sync_at: string | null
+          last_synced_at: string | null
+          name: string | null
+          settings: Json
+          source_type: string
+          status: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_sync?: boolean
+          connection_id: string
+          created_at?: string
+          external_id: string
+          id?: string
+          last_error?: string | null
+          last_successful_sync_at?: string | null
+          last_synced_at?: string | null
+          name?: string | null
+          settings?: Json
+          source_type: string
+          status?: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_sync?: boolean
+          connection_id?: string
+          created_at?: string
+          external_id?: string
+          id?: string
+          last_error?: string | null
+          last_successful_sync_at?: string | null
+          last_synced_at?: string | null
+          name?: string | null
+          settings?: Json
+          source_type?: string
+          status?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meta_product_sources_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "platform_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "meta_product_sources_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meta_send_failures: {
         Row: {
           attempt_count: number
@@ -676,17 +742,235 @@ export type Database = {
         }
         Relationships: []
       }
+      product_import_candidates: {
+        Row: {
+          created_at: string
+          external_id: string
+          external_key: string
+          extracted: Json
+          id: string
+          issues: string[]
+          permalink: string | null
+          photos: string[]
+          product_id: string | null
+          raw_payload: Json
+          run_id: string | null
+          source_id: string
+          status: string
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          external_id: string
+          external_key: string
+          extracted?: Json
+          id?: string
+          issues?: string[]
+          permalink?: string | null
+          photos?: string[]
+          product_id?: string | null
+          raw_payload?: Json
+          run_id?: string | null
+          source_id: string
+          status?: string
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          external_id?: string
+          external_key?: string
+          extracted?: Json
+          id?: string
+          issues?: string[]
+          permalink?: string | null
+          photos?: string[]
+          product_id?: string | null
+          raw_payload?: Json
+          run_id?: string | null
+          source_id?: string
+          status?: string
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_import_candidates_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_import_candidates_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "product_sync_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_import_candidates_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "meta_product_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_import_candidates_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_source_links: {
+        Row: {
+          conflict_fields: string[]
+          content_hash: string | null
+          created_at: string
+          external_group_id: string | null
+          external_id: string
+          external_key: string
+          id: string
+          last_error: string | null
+          last_seen_at: string
+          missing_sync_count: number
+          product_id: string
+          source_id: string
+          source_snapshot: Json
+          store_id: string
+          updated_at: string
+        }
+        Insert: {
+          conflict_fields?: string[]
+          content_hash?: string | null
+          created_at?: string
+          external_group_id?: string | null
+          external_id: string
+          external_key: string
+          id?: string
+          last_error?: string | null
+          last_seen_at?: string
+          missing_sync_count?: number
+          product_id: string
+          source_id: string
+          source_snapshot?: Json
+          store_id: string
+          updated_at?: string
+        }
+        Update: {
+          conflict_fields?: string[]
+          content_hash?: string | null
+          created_at?: string
+          external_group_id?: string | null
+          external_id?: string
+          external_key?: string
+          id?: string
+          last_error?: string | null
+          last_seen_at?: string
+          missing_sync_count?: number
+          product_id?: string
+          source_id?: string
+          source_snapshot?: Json
+          store_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_source_links_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_source_links_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "meta_product_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_source_links_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      product_sync_runs: {
+        Row: {
+          checkpoint: Json
+          completed_at: string | null
+          counts: Json
+          created_at: string
+          error: string | null
+          id: string
+          source_id: string
+          started_at: string
+          status: string
+          store_id: string
+          trigger_type: string
+        }
+        Insert: {
+          checkpoint?: Json
+          completed_at?: string | null
+          counts?: Json
+          created_at?: string
+          error?: string | null
+          id?: string
+          source_id: string
+          started_at?: string
+          status?: string
+          store_id: string
+          trigger_type?: string
+        }
+        Update: {
+          checkpoint?: Json
+          completed_at?: string | null
+          counts?: Json
+          created_at?: string
+          error?: string | null
+          id?: string
+          source_id?: string
+          started_at?: string
+          status?: string
+          store_id?: string
+          trigger_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "product_sync_runs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "meta_product_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "product_sync_runs_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       products: {
         Row: {
           active: boolean
           allergens: string[] | null
           auto_description: string | null
+          availability: string
           brand: string | null
           category: string | null
           color: string[] | null
           compare_price: number | null
           compatibility: string | null
           created_at: string
+          currency: string | null
           custom_attributes: Json
           description: string | null
           dimensions: string | null
@@ -708,6 +992,7 @@ export type Database = {
           sleeve: string | null
           stock: number
           stock_per_size: Json | null
+          stock_tracked: boolean
           store_id: string
           style: string | null
           type: string | null
@@ -721,12 +1006,14 @@ export type Database = {
           active?: boolean
           allergens?: string[] | null
           auto_description?: string | null
+          availability?: string
           brand?: string | null
           category?: string | null
           color?: string[] | null
           compare_price?: number | null
           compatibility?: string | null
           created_at?: string
+          currency?: string | null
           custom_attributes?: Json
           description?: string | null
           dimensions?: string | null
@@ -748,6 +1035,7 @@ export type Database = {
           sleeve?: string | null
           stock?: number
           stock_per_size?: Json | null
+          stock_tracked?: boolean
           store_id: string
           style?: string | null
           type?: string | null
@@ -761,12 +1049,14 @@ export type Database = {
           active?: boolean
           allergens?: string[] | null
           auto_description?: string | null
+          availability?: string
           brand?: string | null
           category?: string | null
           color?: string[] | null
           compare_price?: number | null
           compatibility?: string | null
           created_at?: string
+          currency?: string | null
           custom_attributes?: Json
           description?: string | null
           dimensions?: string | null
@@ -788,6 +1078,7 @@ export type Database = {
           sleeve?: string | null
           stock?: number
           stock_per_size?: Json | null
+          stock_tracked?: boolean
           store_id?: string
           style?: string | null
           type?: string | null
@@ -954,6 +1245,7 @@ export type Database = {
           category: string | null
           cover_image_url: string | null
           created_at: string
+          currency: string | null
           custom_ai_instructions: string | null
           delivery_info: string | null
           description: string | null
@@ -973,6 +1265,7 @@ export type Database = {
           category?: string | null
           cover_image_url?: string | null
           created_at?: string
+          currency?: string | null
           custom_ai_instructions?: string | null
           delivery_info?: string | null
           description?: string | null
@@ -992,6 +1285,7 @@ export type Database = {
           category?: string | null
           cover_image_url?: string | null
           created_at?: string
+          currency?: string | null
           custom_ai_instructions?: string | null
           delivery_info?: string | null
           description?: string | null

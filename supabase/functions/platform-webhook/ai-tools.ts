@@ -282,7 +282,7 @@ export const REGISTER_RESTOCK_INTEREST_TOOL = {
     name: "register_restock_interest",
     description:
       "Register a customer to be notified when an out-of-stock product is back. " +
-      "WHEN TO USE: ONLY after search_products confirms the item exists but stock is 0, AND the customer agreed to be notified (e.g. 'yes please ping me', 'أكيد خبرني').",
+      "WHEN TO USE: ONLY after search_products confirms the item exists but available is false, AND the customer agreed to be notified (e.g. 'yes please ping me', 'أكيد خبرني').",
     parameters: {
       type: "object",
       properties: {
@@ -361,7 +361,7 @@ export async function executeSearchProducts(
   const { data: products, error } = await supabase
     .from("products")
     .select(
-      "id, name, description, price, compare_price, stock, category, images, variants, sku, " +
+      "id, name, description, price, compare_price, stock, stock_tracked, availability, currency, category, images, variants, sku, " +
         "type, color, pattern, style, material, fit, occasion, sleeve, neckline, length, " +
         "sizes_available, stock_per_size, auto_description"
     )
@@ -495,7 +495,11 @@ export async function executeSearchProducts(
       description: p.description || "",
       price: p.price,
       compare_price: p.compare_price,
-      stock: p.stock,
+      stock: p.stock_tracked === false ? null : p.stock,
+      stock_tracked: p.stock_tracked !== false,
+      availability: p.stock_tracked === false ? p.availability : (Number(p.stock) > 0 ? "in_stock" : "out_of_stock"),
+      available: p.stock_tracked === false ? p.availability === "in_stock" : Number(p.stock) > 0,
+      currency: p.currency || null,
       category: p.category || "General",
       images: p.images || [],
       variants: p.variants || [],

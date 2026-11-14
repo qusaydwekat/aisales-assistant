@@ -738,3 +738,47 @@ export function useConfirmPayment() {
     onError: (e: any) => toast.error(e.message),
   });
 }
+
+// ============ META PRODUCT IMPORTS ============
+export function useMetaProductSources() {
+  const { store } = useAuth();
+  return useQuery({
+    queryKey: ["meta_product_sources", store?.id],
+    enabled: !!store?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("meta_product_sources").select("*")
+        .eq("store_id", store!.id).order("created_at", { ascending: false });
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useProductSyncRun(runId: string | null) {
+  return useQuery({
+    queryKey: ["product_sync_run", runId],
+    enabled: !!runId,
+    refetchInterval: (query) => query.state.data?.status === "running" ? 2000 : false,
+    queryFn: async () => {
+      const { data, error } = await supabase.from("product_sync_runs").select("*").eq("id", runId!).maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+}
+
+export function useProductImportCandidates(runId?: string | null) {
+  const { store } = useAuth();
+  return useQuery({
+    queryKey: ["product_import_candidates", store?.id, runId || "review"],
+    enabled: !!store?.id,
+    refetchInterval: runId ? 3000 : false,
+    queryFn: async () => {
+      let query = supabase.from("product_import_candidates").select("*").eq("store_id", store!.id);
+      query = runId ? query.eq("run_id", runId) : query.in("status", ["pending", "conflict"]);
+      const { data, error } = await query.order("created_at", { ascending: false }).limit(500);
+      if (error) throw error;
+      return data;
+    },
+  });
+}

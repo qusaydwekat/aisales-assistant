@@ -63,6 +63,22 @@ async function handleWebhook(req: Request): Promise<Response> {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    const productEvent = body?.object === "catalog" || (body?.entry || []).some((entry: any) =>
+      (entry?.changes || []).some((change: any) => ["feed", "items_batch", "product_feed"].includes(change?.field))
+    );
+    if (productEvent) {
+      const syncResponse = await fetch(`${supabaseUrl}/functions/v1/meta-product-sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${Deno.env.get("LOVABLE_CRON_SECRET") || supabaseKey}`,
+          ...(Deno.env.get("LOVABLE_CRON_SECRET") ? { "x-cron-secret": Deno.env.get("LOVABLE_CRON_SECRET")! } : {}),
+        },
+        body: JSON.stringify({ action: "webhook", payload: body }),
+      });
+      if (!syncResponse.ok) console.error("Product change routing failed:", syncResponse.status, await syncResponse.text());
+    }
+
     const messages: {
       platform: string;
       sender: string;
@@ -384,6 +400,12 @@ async function handleWebhook(req: Request): Promise<Response> {
     messages.sort(compareIncomingMessages);
 
     console.log(`[${platform}] Parsed ${messages.length} message(s)`);
+    if (messages.length === 0) {
+      return new Response(JSON.stringify({ success: true, processed: 0, product_event: productEvent }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Group by customer conversation so different customers (same or different
     // stores) are processed IN PARALLEL, while each customer's own messages stay ordered.
@@ -841,7 +863,7 @@ async function handleWebhook(req: Request): Promise<Response> {
           getCachedStore(supabase, storeId),
           supabase
             .from("products")
-            .select("name, auto_description, category, price, sizes_available, color, stock_per_size, variants, stock")
+            .select("name, auto_description, category, price, currency, sizes_available, color, stock_per_size, variants, stock, stock_tracked, availability")
             .eq("store_id", storeId)
             .eq("active", true),
           getCachedAISettings(supabase, storeId),

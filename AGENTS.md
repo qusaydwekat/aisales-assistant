@@ -12,3 +12,4 @@
 - Homepage account actions derive from the existing auth context and language context; keep workspace links behind existing route gates without duplicating access logic.
 - Public homepage and legal pages share PublicSiteHeader and PublicSiteFooter; legal documents use LegalPageLayout to keep branding, account actions, and bilingual navigation consistent without changing policy content.
 - Shared BrandLogo renders the approved logo asset and typeset name across public, auth and workspace layouts; derive the favicon from the same asset for consistent identity.
+- meta-product-sync owns Meta Shop/post imports, source links, field-level conflict handling and scheduled reconciliation; platform-webhook only forwards verified change events so product writes stay store-scoped and idempotent.

@@ -59,6 +59,31 @@ async function subscribeAppToInstagramWebhook(
   }
 }
 
+async function subscribeAppToCatalogWebhook(
+  appId: string,
+  appSecret: string,
+  webhookCallbackUrl: string,
+  verifyToken: string
+): Promise<void> {
+  try {
+    const res = await fetch(`https://graph.facebook.com/v21.0/${appId}/subscriptions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        object: "catalog",
+        callback_url: webhookCallbackUrl,
+        fields: "items_batch,product_feed",
+        verify_token: verifyToken,
+        access_token: `${appId}|${appSecret}`,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) console.error("[meta-oauth] Catalog webhook subscription failed:", JSON.stringify(data));
+  } catch (error) {
+    console.error("[meta-oauth] Catalog webhook subscription error:", error);
+  }
+}
+
 async function subscribePageToWebhooks(
   pageId: string,
   pageAccessToken: string,
@@ -72,7 +97,7 @@ async function subscribePageToWebhooks(
     // Per Meta docs, /{page-id}/subscribed_apps does NOT support Instagram webhook fields.
     // Instagram DM webhooks are subscribed at the app level via /{app-id}/subscriptions.
     // For both Facebook and Instagram, the page subscription uses the same messaging fields.
-    const fields = "messages,messaging_postbacks";
+    const fields = platform === "facebook" ? "messages,messaging_postbacks,feed" : "messages,messaging_postbacks";
 
     const res = await fetch(
       `https://graph.facebook.com/v21.0/${pageId}/subscribed_apps`,
@@ -124,6 +149,14 @@ async function subscribePageToWebhooks(
     // For Instagram: also subscribe the app to the instagram webhook object at the app level
     if (platform === "instagram" && appId && appSecret && webhookCallbackUrl) {
       await subscribeAppToInstagramWebhook(
+        appId,
+        appSecret,
+        webhookCallbackUrl,
+        verifyToken || "aisales_verify_2024"
+      );
+    }
+    if (appId && appSecret && webhookCallbackUrl) {
+      await subscribeAppToCatalogWebhook(
         appId,
         appSecret,
         webhookCallbackUrl,
@@ -410,9 +443,9 @@ Deno.serve(async (req) => {
 
     // Build scopes based on platform
     // pages_manage_metadata is required for /{page-id}/subscribed_apps to succeed (all platforms)
-    let scopes = "pages_show_list,pages_messaging,pages_manage_metadata";
+    let scopes = "pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,catalog_management,business_management";
     if (platform === "instagram") {
-      scopes += ",instagram_manage_messages";
+      scopes += ",instagram_manage_messages,instagram_basic";
     }
     if (platform === "whatsapp") {
       scopes =

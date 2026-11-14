@@ -20,7 +20,7 @@ export default function StoreSettingsPage() {
   const [form, setForm] = useState({
     name: '', description: '', category: '', address: '', phone: '', email: '',
     delivery_info: '', return_policy: '', logo_url: '', cover_image_url: '',
-    custom_ai_instructions: '',
+    custom_ai_instructions: '', currency: 'ILS',
   });
   const [hours, setHours] = useState<WorkingHours>({});
 
@@ -32,6 +32,7 @@ export default function StoreSettingsPage() {
         delivery_info: store.delivery_info || '', return_policy: store.return_policy || '',
         logo_url: store.logo_url || '', cover_image_url: store.cover_image_url || '',
         custom_ai_instructions: (store as any).custom_ai_instructions || '',
+        currency: (store as any).currency || 'ILS',
       });
       setHours((store.working_hours as WorkingHours) || days.reduce((acc, d) => ({ ...acc, [d]: { open: d !== 'Friday', from: '09:00', to: '18:00' } }), {}));
     }
@@ -109,6 +110,7 @@ export default function StoreSettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div><label className="text-xs text-muted-foreground">{t("store_name_field")}</label><input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
           <div><label className="text-xs text-muted-foreground">{t("category_field")}</label><input value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary" /></div>
+          <div><label className="text-xs text-muted-foreground">{dir === 'rtl' ? 'عملة المتجر' : 'Store currency'}</label><select value={form.currency} onChange={e => setForm(f => ({ ...f, currency: e.target.value }))} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary">{['ILS', 'JOD', 'USD', 'EUR', 'AED', 'SAR', 'EGP', 'GBP'].map(code => <option key={code}>{code}</option>)}</select></div>
         </div>
         <div><label className="text-xs text-muted-foreground">{t("description_field")}</label><textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={3} className="w-full mt-1 rounded-lg bg-muted px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-primary resize-none" /></div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

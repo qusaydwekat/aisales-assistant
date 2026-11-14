@@ -11,6 +11,8 @@ import { sanitizeAIResponse, parseImageUrlFromMessageContent, parseMessageContex
 import { generateAIReply, callResponsesAsChat, pruneEmptyOptionalArgs, pickFallbackModel } from "./ai-agent.ts";
 import { decideCustomerMessage } from "./jev-decisions.ts";
 import { shouldCancelDirectly, shouldEmphasizeCancellation } from "./jev-policy.ts";
+import { extractVoiceMessages, VOICE_PENDING, VOICE_FAILED } from "./voice-policy.ts";
+import { processConversationVoices } from "./voice-transcription.ts";
 
 async function handleWebhook(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
@@ -88,7 +90,8 @@ async function handleWebhook(req: Request): Promise<Response> {
       pageId?: string;
       platformMessageId?: string;
       displayName?: string;
-      kind: "text" | "image";
+      kind: "text" | "image" | "audio";
+      audioUrl?: string;
       imageUrl?: string;
       mediaId?: string;
       // Context: image the customer is replying to (e.g. an ad creative or a previous message image)
@@ -189,7 +192,7 @@ async function handleWebhook(req: Request): Promise<Response> {
                 adContext,
               });
             });
-          } else if (!fbHasText && (adContext || contextImageUrl || replyToMid)) {
+          } else if (!fbHasText && !fbAttachments.some((a: any) => a.type === "audio") && (adContext || contextImageUrl || replyToMid)) {
             // Pure referral / reply with no text — still create an entry so AI can react
             messages.push({
               platform: "facebook",
@@ -258,14 +261,14 @@ async function handleWebhook(req: Request): Promise<Response> {
           if (!text && igAttachments.length > 0 && igImageAttachments.length === 0) {
             const att = igAttachments[0];
             if (att.type === "video") text = "[Video]";
-            else if (att.type === "audio") text = "[Audio]";
+            else if (att.type === "audio") text = "";
             else if (att.type === "file") text = "[File]";
             else if (att.type === "sticker") text = "[Sticker]";
             else text = `[${att.type || "Attachment"}]`;
           }
 
-          if (!text && replyTo && igImageAttachments.length === 0) text = "[Story Reply]";
-          if (!text && adContext && igImageAttachments.length === 0) text = "[Started chat from ad]";
+          if (!text && replyTo && igImageAttachments.length === 0 && !igAttachments.some((a: any) => a.type === "audio")) text = "[Story Reply]";
+          if (!text && adContext && igImageAttachments.length === 0 && !igAttachments.some((a: any) => a.type === "audio")) text = "[Started chat from ad]";
 
           if (!text && igImageAttachments.length === 0) continue;
 
@@ -317,6 +320,7 @@ async function handleWebhook(req: Request): Promise<Response> {
         for (const change of entry.changes || []) {
           if (change.field === "messages" && change.value?.message) {
             const val = change.value;
+            if (val.message?.attachments?.some((a: any) => a.type === "audio") && !val.message?.text) continue;
             let text: string = val.message?.text || "";
             let kind: "text" | "image" = "text";
             let imageUrl: string | undefined;
@@ -397,6 +401,7 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
     }
 
+    messages.push(...extractVoiceMessages(body, platform));
     messages.sort(compareIncomingMessages);
 
     console.log(`[${platform}] Parsed ${messages.length} message(s)`);
@@ -634,6 +639,7 @@ async function handleWebhook(req: Request): Promise<Response> {
               text: msg.text,
               mediaId: msg.mediaId || "",
               imageUrl: msg.imageUrl || "",
+              audioUrl: msg.audioUrl || "",
             })
           )}`;
 
@@ -838,6 +844,16 @@ async function handleWebhook(req: Request): Promise<Response> {
           insertCustomerErr
         );
         continue;
+      }
+
+      if (msg.kind === "audio" && insertedMsg?.id) {
+        const { error: voiceJobError } = await supabase.from("voice_transcription_jobs").upsert({
+          message_id: insertedMsg.id, store_id: storeId, conversation_id: conversation.id,
+          audio_url: msg.audioUrl || null, media_id: msg.mediaId || null,
+        }, { onConflict: "message_id", ignoreDuplicates: true });
+        if (voiceJobError) {
+          await supabase.from("messages").update({ content: VOICE_FAILED }).eq("id", insertedMsg.id);
+        }
       }
 
       if (hasLaterMessageInSameConversation(groupMessages, msgIndex)) {
@@ -1080,6 +1096,9 @@ async function handleWebhook(req: Request): Promise<Response> {
         : undefined;
 
       try {
+      // Transcribe under this burst worker's continuous typing session, before
+      // language/intent/order decisions see the message. Audio never goes to the chat model.
+      if (pageAccessToken) await processConversationVoices(supabase, conversation.id, pageAccessToken);
       while (Date.now() < windowEndsAt && Date.now() - startedAt < MAX_TOTAL_WAIT_MS) {
         // 1) Bail if another worker already replied for this burst.
         const { data: latestAi } = await supabase
@@ -1184,6 +1203,11 @@ async function handleWebhook(req: Request): Promise<Response> {
       }
 
 
+      if (pageAccessToken) await processConversationVoices(supabase, conversation.id, pageAccessToken);
+      const { count: unfinishedVoices } = await supabase.from("messages").select("id", { count: "exact", head: true })
+        .eq("conversation_id", conversation.id).eq("content", VOICE_PENDING);
+      if (unfinishedVoices) continue;
+
       // Re-fetch conversation history after debounce to include all batched messages
       const { data: freshHistory } = await supabase
         .from("messages")
@@ -1203,6 +1227,16 @@ async function handleWebhook(req: Request): Promise<Response> {
           .map((entry) => stripMessageContext(entry.content))
           .filter((entry) => entry && entry.trim().length > 0)
           .join("\n");
+
+      if (pendingBurst.some((entry: any) => entry.content === VOICE_FAILED)) {
+        const arabic = /[\u0600-\u06FF]/.test(combinedCustomerMessage) || aiSettings?.language === "ar";
+        const reply = arabic ? "ما قدرت أسمع الرسالة الصوتية بوضوح. ممكن تبعتها مرة ثانية أو تكتبلي شو بتحتاج؟" : "I couldn't understand the voice message clearly. Could you send it again or type what you need?";
+        if (pageAccessToken) {
+          const sent = await sendMetaReplyWithRetry(msg.platform, msg.sender, reply, pageAccessToken, connectionPageId || msg.pageId || "");
+          if (sent) await supabase.from("messages").insert({ conversation_id: conversation.id, sender: "ai", content: reply });
+        }
+        continue;
+      }
 
       // ─── Fix 8: Per-message language auto-detection ───
       const autoLangEnabled = aiSettings?.auto_language_detect_enabled !== false;

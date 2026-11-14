@@ -209,8 +209,11 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
   };
 
   const syncError = (message: string) => {
+    if (/invalid scopes|not been approved|app review/i.test(message)) {
+      return text("Meta has not enabled the required import permissions for this app. The app administrator must enable them in Meta and complete any required review before reconnecting.", "لم تفعّل Meta صلاحيات الاستيراد المطلوبة لهذا التطبيق. يجب على مسؤول التطبيق تفعيلها لدى Meta وإكمال أي مراجعة مطلوبة قبل إعادة الربط.");
+    }
     if (/pages_read_engagement|permission|not been approved/i.test(message)) {
-      return text("Reconnect this Meta account and allow post and Shop access, then try again.", "أعد ربط حساب Meta واسمح بالوصول إلى المنشورات والمتجر، ثم حاول مرة أخرى.");
+      return text("Import access is missing. The app administrator must confirm the required post or Shop permissions are enabled in Meta before this account reconnects; reconnecting alone cannot enable them.", "صلاحيات الاستيراد غير متوفرة. يجب على مسؤول التطبيق التأكد من تفعيل صلاحيات المنشورات أو المتجر لدى Meta قبل إعادة ربط الحساب؛ إعادة الربط وحدها لا تفعّلها.");
     }
     return message;
   };

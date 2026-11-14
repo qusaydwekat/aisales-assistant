@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
+import { isReviewPriceEnabled, parseReviewPrice } from "@/lib/meta-review-selection";
 import { toast } from "sonner";
 
 interface Props {
@@ -34,16 +36,6 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     connection.status === "connected" && ["facebook", "instagram"].includes(connection.platform)
   ), [connections]);
   const [connectionId, setConnectionId] = useState("");
-  const authorizePosts = (id = connectionId) => {
-    const connection = eligibleConnections.find((item) => item.id === id);
-    if (!store?.id || connection?.platform !== "facebook") return;
-    const url = new URL(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth/start`);
-    url.searchParams.set("platform", "facebook");
-    url.searchParams.set("store_id", store.id);
-    url.searchParams.set("purpose", "post-import");
-    url.searchParams.set("redirect_url", `${window.location.origin}/platforms`);
-    window.location.assign(url.toString());
-  };
   const [discovered, setDiscovered] = useState<any[]>([]);
   const [externalId, setExternalId] = useState("");
   const [currency, setCurrency] = useState("ILS");
@@ -55,6 +47,15 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
   const { data: run } = useProductSyncRun(runId);
   const { data: previewRows = [] } = useProductImportCandidates(runId);
   const { data: reviewRows = [], refetch: refetchReview } = useProductImportCandidates();
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [reviewPrices, setReviewPrices] = useState<Record<string, string>>({});
+  const [reviewAvailability, setReviewAvailability] = useState<Record<string, string>>({});
+  const selectedRows = reviewRows.filter((row) => selectedIds.has(row.id));
+  const toggleSelection = (id: string, selected: boolean) => setSelectedIds((current) => {
+    const next = new Set(current);
+    if (selected) next.add(id); else next.delete(id);
+    return next;
+  });
 
   useEffect(() => {
     if (!connectionId && eligibleConnections[0]) setConnectionId(eligibleConnections[0].id);
@@ -177,6 +178,27 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     invalidate();
   });
 
+  const importSelected = () => perform("selected", async () => {
+    const entries = selectedRows.map((candidate) => ({
+      candidate,
+      price: parseReviewPrice(reviewPrices[candidate.id] ?? String(candidate.extracted?.price ?? "")),
+      availability: reviewAvailability[candidate.id] ?? candidate.extracted?.availability ?? "unknown",
+    }));
+    if (entries.some((entry) => entry.price === null)) throw new Error(text("Enter a valid price for each selected product.", "أدخل سعراً صالحاً لكل منتج محدد."));
+    if (entries.some((entry) => !["in_stock", "out_of_stock"].includes(entry.availability))) throw new Error(text("Confirm availability for each selected product.", "أكد توفر كل منتج محدد."));
+    let imported = 0;
+    try {
+      for (const { candidate, price, availability } of entries) {
+        await call("approve", { candidate_id: candidate.id, edits: { price, availability, currency: currency } });
+        toggleSelection(candidate.id, false);
+        imported++;
+      }
+    } finally {
+      invalidate();
+      if (imported) toast.success(text(`${imported} products imported`, `تم استيراد ${imported} منتجات`));
+    }
+  });
+
   const issueLabel = (issue: string) => {
     const labels: Record<string, string> = {
       missing_name: text("Name needed", "الاسم مطلوب"),
@@ -198,7 +220,8 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     const extracted = candidate.extracted || {};
     const issues = candidate.issues || [];
     return (
-      <div key={candidate.id} className="rounded-xl border border-border bg-card/60 p-3 flex gap-3">
+      <div key={candidate.id} className={`rounded-lg border bg-card p-3 flex gap-3 ${review && selectedIds.has(candidate.id) ? "border-primary" : "border-border"}`}>
+        {review && <Checkbox aria-label={text(`Select ${extracted.name || "product"}`, `تحديد ${extracted.name || "المنتج"}`)} checked={selectedIds.has(candidate.id)} onCheckedChange={(checked) => toggleSelection(candidate.id, checked === true)} disabled={!!busy} className="mt-1 shrink-0" />}
         <div className="h-16 w-16 rounded-lg bg-muted overflow-hidden shrink-0 flex items-center justify-center">
           {candidate.photos?.[0] ? <img src={candidate.photos[0]} alt="" className="h-full w-full object-cover" /> : <Store className="h-6 w-6 text-muted-foreground" />}
         </div>
@@ -207,11 +230,21 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
           <p className="text-xs text-muted-foreground">
             {extracted.price != null ? `${extracted.price} ${extracted.currency || ""}` : text("No reliable price", "لا يوجد سعر موثوق")}
           </p>
+          {review && <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
+            <label className="text-xs text-muted-foreground">{text("Price", "السعر")} · {currency}
+              <Input aria-label={text(`Price for ${extracted.name || "product"}`, `سعر ${extracted.name || "المنتج"}`)} type="number" min="0" step="0.01" placeholder="0.00" value={reviewPrices[candidate.id] ?? String(extracted.price ?? "")} disabled={!isReviewPriceEnabled(selectedIds, candidate.id) || !!busy} onChange={(event) => setReviewPrices((values) => ({ ...values, [candidate.id]: event.target.value }))} className="mt-1" />
+            </label>
+            <label className="text-xs text-muted-foreground">{text("Availability", "التوفر")}
+              <select aria-label={text(`Availability for ${extracted.name || "product"}`, `توفر ${extracted.name || "المنتج"}`)} value={reviewAvailability[candidate.id] ?? extracted.availability ?? "unknown"} disabled={!selectedIds.has(candidate.id) || !!busy} onChange={(event) => setReviewAvailability((values) => ({ ...values, [candidate.id]: event.target.value }))} className="mt-1 w-full h-10 rounded-md border border-input bg-background px-2 text-xs text-foreground disabled:opacity-50">
+                <option value="unknown">{text("Choose availability", "اختر التوفر")}</option><option value="in_stock">{text("In stock", "متوفر")}</option><option value="out_of_stock">{text("Out of stock", "غير متوفر")}</option>
+              </select>
+            </label>
+          </div>}
           {issues.length > 0 && <div className="flex flex-wrap gap-1">{issues.map((issue: string) => <span key={issue} className="rounded bg-warning/15 text-warning px-1.5 py-0.5 text-[10px]">{issueLabel(issue)}</span>)}</div>}
           <div className="flex items-center gap-3 pt-1">
             {candidate.permalink && <a href={candidate.permalink} target="_blank" rel="noreferrer" className="text-xs text-primary inline-flex items-center gap-1">{text("Original", "الأصل")}<ExternalLink className="h-3 w-3" /></a>}
-            {(review || issues.length > 0) && <button onClick={() => openEditor(candidate)} className="text-xs text-primary">{text("Review & edit", "مراجعة وتعديل")}</button>}
-            {review && <button onClick={() => dismiss(candidate.id)} className="text-xs text-muted-foreground">{text("Dismiss", "تجاهل")}</button>}
+            {(review || issues.length > 0) && <Button variant="link" size="sm" onClick={() => openEditor(candidate)} className="h-auto p-0 text-xs">{text("Edit details", "تعديل التفاصيل")}</Button>}
+            {review && <Button variant="ghost" size="sm" disabled={!!busy} onClick={() => dismiss(candidate.id)} className="h-auto p-0 text-xs text-muted-foreground">{text("Dismiss", "تجاهل")}</Button>}
           </div>
         </div>
       </div>
@@ -223,7 +256,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
       return text("Meta has not enabled the required import permissions for this app. The app administrator must enable them in Meta and complete any required review before reconnecting.", "لم تفعّل Meta صلاحيات الاستيراد المطلوبة لهذا التطبيق. يجب على مسؤول التطبيق تفعيلها لدى Meta وإكمال أي مراجعة مطلوبة قبل إعادة الربط.");
     }
     if (/pages_read_engagement/i.test(message)) {
-      return text("Facebook post access is missing from this connection. Authorize post access, select the same Page, then retry the import. Meta approval may still be required for accounts outside the app's test roles.", "صلاحية قراءة منشورات فيسبوك غير موجودة في هذا الربط. امنح صلاحية المنشورات، واختر نفس الصفحة، ثم أعد الاستيراد. قد تبقى موافقة Meta مطلوبة للحسابات خارج أدوار اختبار التطبيق.");
+      return text("Reconnect your Facebook Page and approve post access, then retry the import. Meta approval may still be required for accounts outside the app's test roles.", "أعد ربط صفحة فيسبوك ووافق على صلاحية المنشورات، ثم أعد الاستيراد. قد تبقى موافقة Meta مطلوبة للحسابات خارج أدوار اختبار التطبيق.");
     }
     if (/pages_read_engagement|permission|not been approved/i.test(message)) {
       return text("Import access is missing. The app administrator must confirm the required post or Shop permissions are enabled in Meta before this account reconnects; reconnecting alone cannot enable them.", "صلاحيات الاستيراد غير متوفرة. يجب على مسؤول التطبيق التأكد من تفعيل صلاحيات المنشورات أو المتجر لدى Meta قبل إعادة ربط الحساب؛ إعادة الربط وحدها لا تفعّلها.");
@@ -281,11 +314,6 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                     {busy === "discover" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     {text("Find products", "البحث عن المنتجات")}
                   </Button>
-                  {sourceType === "posts" && eligibleConnections.find((item) => item.id === connectionId)?.platform === "facebook" && (
-                    <Button variant="outline" onClick={() => authorizePosts()} disabled={!!busy || runRunning} className="gap-2 md:col-span-2">
-                      <Facebook className="h-4 w-4" />{text("Authorize Facebook post access", "منح صلاحية منشورات فيسبوك")}
-                    </Button>
-                  )}
                 </div>
               )}
 
@@ -338,7 +366,14 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
           )}
 
           {tab === "review" && (
-            reviewRows.length ? <div className="grid sm:grid-cols-2 gap-3">{reviewRows.map((candidate) => renderCandidate(candidate, true))}</div> : <div className="py-12 text-center"><CheckCircle2 className="h-9 w-9 text-success mx-auto mb-2" /><p className="text-sm text-muted-foreground">{text("Nothing needs review.", "لا يوجد ما يحتاج للمراجعة.")}</p></div>
+            reviewRows.length ? <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <label className="flex items-center gap-2 text-sm text-foreground"><Checkbox checked={selectedRows.length === reviewRows.length ? true : selectedRows.length ? "indeterminate" : false} disabled={!!busy} onCheckedChange={(checked) => setSelectedIds(checked === true ? new Set(reviewRows.map((row) => row.id)) : new Set())} />{text("Select all", "تحديد الكل")} <span className="text-muted-foreground">({selectedRows.length})</span></label>
+                <Button onClick={importSelected} disabled={!!busy || !selectedRows.length}>{busy === "selected" && <Loader2 className="h-4 w-4 animate-spin me-2" />}{text("Import selected", "استيراد المحدد")} ({selectedRows.length})</Button>
+              </div>
+              {actionError && <p role="alert" className="text-sm text-destructive break-words">{actionError}</p>}
+              <div className="grid lg:grid-cols-2 gap-3">{reviewRows.map((candidate) => renderCandidate(candidate, true))}</div>
+            </div> : <div className="py-12 text-center"><CheckCircle2 className="h-9 w-9 text-success mx-auto mb-2" /><p className="text-sm text-muted-foreground">{text("Nothing needs review.", "لا يوجد ما يحتاج للمراجعة.")}</p></div>
           )}
 
           {tab === "sources" && (
@@ -349,7 +384,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                   <Switch checked={source.auto_sync} onCheckedChange={(checked) => toggleAuto(source.id, checked)} disabled={busy === source.id} />
                 </div>
                 {source.last_error && <p className="text-xs text-destructive break-words">{syncError(source.last_error)}</p>}
-                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => syncNow(source.id)} disabled={!!busy}><RefreshCw className={`h-3.5 w-3.5 me-1.5 ${busy === source.id ? "animate-spin" : ""}`} />{text("Sync now", "مزامنة الآن")}</Button>{source.source_type === "posts" && source.status === "paused" && eligibleConnections.find((item) => item.id === source.connection_id)?.platform === "facebook" ? <Button size="sm" variant="outline" onClick={() => authorizePosts(source.connection_id)} disabled={!!busy}>{text("Authorize Facebook post access", "منح صلاحية منشورات فيسبوك")}</Button> : source.status === "paused" && <a href="/platforms" className="text-xs text-primary self-center">{text("Reconnect account", "إعادة ربط الحساب")}</a>}</div>
+                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => syncNow(source.id)} disabled={!!busy}><RefreshCw className={`h-3.5 w-3.5 me-1.5 ${busy === source.id ? "animate-spin" : ""}`} />{text("Sync now", "مزامنة الآن")}</Button>{source.status === "paused" && <a href="/platforms" className="text-xs text-primary self-center">{text("Reconnect account", "إعادة ربط الحساب")}</a>}</div>
               </div>
             ))}</div> : <p className="py-12 text-center text-sm text-muted-foreground">{text("Your saved import sources will appear here.", "ستظهر مصادر الاستيراد المحفوظة هنا.")}</p>
           )}

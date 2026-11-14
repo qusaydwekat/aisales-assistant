@@ -17,3 +17,4 @@
 - Meta OAuth requests enabled Facebook post-read access during Page connection; platform-specific messaging and unapproved Shop permissions stay unchanged so users approve supported access in one flow.
 - Meta review selection enables inline prices only for selected candidates and submits them through the existing approval validation, so bulk review cannot bypass factual availability checks.
 - Post imports persist a bounded recent-post window in source settings and each run checkpoint; stop pagination at that count and never reconcile missing products from partial post windows, so older products remain safe.
+- meta-store-info reads owner-scoped connected profiles with page-specific tokens and rehosts branding; its editable preview applies selected factual fields to the unsaved store form, never overwriting absent fields or saving automatically.

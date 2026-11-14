@@ -4,6 +4,8 @@ import { useStore, useUpdateStore } from "@/hooks/useSupabaseData";
 import { useFileUpload } from "@/hooks/useFileUpload";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { StoreInfoImportDialog } from "@/components/StoreInfoImportDialog";
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
@@ -64,9 +66,15 @@ export default function StoreSettingsPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-3xl pb-20 md:pb-6" dir={dir}>
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
         <h1 className="text-xl md:text-2xl font-heading font-bold text-foreground">{t("store_settings")}</h1>
         <p className="text-xs md:text-sm text-muted-foreground mt-1">{t("manage_store_info")}</p>
+        </div>
+        {store && <StoreInfoImportDialog storeId={store.id} onApply={info => {
+          setForm(current => ({ ...current, ...info }));
+          toast.success(dir === "rtl" ? "تمت إضافة المعلومات للمراجعة. لم يتم الحفظ بعد." : "Information added for review. Not saved yet.");
+        }} />}
       </div>
 
       {/* Logo & Cover */}
@@ -164,10 +172,9 @@ export default function StoreSettingsPage() {
         />
       </div>
 
-      <button onClick={handleSave} disabled={updateStore.isPending}
-        className="rounded-lg px-6 py-2.5 bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
+      <Button onClick={handleSave} disabled={updateStore.isPending}>
         {updateStore.isPending ? t('saving') : t('save_changes')}
-      </button>
+      </Button>
     </div>
   );
 }

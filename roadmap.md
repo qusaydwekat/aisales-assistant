@@ -22,7 +22,9 @@
 
 # Meta product importing
 
+- [x] Remove app-rejected import scopes from channel login, deploy, and verify the generated OAuth redirect; 17 focused tests passed.
+
 - [x] Approve the import and automatic-sync plan.
 - [x] Build complete Shop catalog and product-post imports without duplicates or guessed facts.
 - [x] Add review, safe automatic updates, Arabic/English controls, permission pauses, and six-hour reconciliation.
-- [ ] Verify a live Meta product import after the user reconnects with post/catalog access; current Meta tokens deny those permissions and Shop access may require App Review.
+- [ ] Verify a live Meta product import after the app administrator enables post/catalog permissions in Meta and completes any required App Review; reconnecting alone cannot grant permissions unavailable to the app.

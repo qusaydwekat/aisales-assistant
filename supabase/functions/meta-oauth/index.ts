@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { getMetaConnectionScopes } from "./scope-policy.ts";
 
 // Platform connections require an admin-confirmed subscription that has not expired.
 async function storeHasPaidSubscription(supabase: any, storeId: string): Promise<boolean> {
@@ -441,16 +442,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Build scopes based on platform
-    // pages_manage_metadata is required for /{page-id}/subscribed_apps to succeed (all platforms)
-    let scopes = "pages_show_list,pages_messaging,pages_manage_metadata,pages_read_engagement,catalog_management,business_management";
-    if (platform === "instagram") {
-      scopes += ",instagram_manage_messages,instagram_basic";
-    }
-    if (platform === "whatsapp") {
-      scopes =
-        "business_management,whatsapp_business_management,whatsapp_business_messaging";
-    }
+    const scopes = getMetaConnectionScopes(platform).join(",");
 
     const state = btoa(JSON.stringify({ platform, storeId, redirectUrl }));
 

@@ -454,7 +454,7 @@ Deno.serve(async (req) => {
       `&scope=${encodeURIComponent(scopes)}` +
       `&state=${encodeURIComponent(state)}` +
       `&response_type=code` +
-      (purpose === "post-import" ? "&auth_type=rerequest" : "");
+      (platform === "facebook" || purpose === "post-import" ? "&auth_type=rerequest" : "");
 
     return new Response(null, {
       status: 302,

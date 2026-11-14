@@ -39,8 +39,6 @@ vi.mock("../../supabase/functions/platform-webhook/burst-collector.ts", () => ({
   logPromptInChunks: () => {}, serializeAIMessageForLog: (value: unknown) => value,
 }));
 
-import { generateAIReply } from "../../supabase/functions/platform-webhook/ai-agent";
-
 afterEach(() => { vi.unstubAllGlobals(); vi.clearAllMocks(); });
 
 const orderArgs = {
@@ -49,6 +47,10 @@ const orderArgs = {
 };
 
 async function runAgent(steps: Array<{ tool?: string; result?: string }>) {
+  // Load the Deno worker at runtime so the browser TS project does not compile
+  // its server-only URL imports; Vitest supplies the mocks above.
+  const workerPath = "../../supabase/functions/platform-webhook/ai-agent.ts";
+  const { generateAIReply } = await import(workerPath);
   vi.stubGlobal("Deno", { env: { get: () => "test-key" } });
   const requests: any[] = [];
   vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {

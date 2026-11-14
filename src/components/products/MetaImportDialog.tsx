@@ -90,7 +90,11 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     const result = await call("discover", { connection_id: connectionId, source_type: sourceType });
     setDiscovered(result.sources || []);
     setExternalId(result.sources?.[0]?.id || "");
-    if (!result.sources?.length) toast.info(text("No readable Shops were found. You may need to reconnect with catalog access.", "لم نجد متاجر يمكن قراءتها. قد تحتاج لإعادة الربط مع إذن الكتالوج."));
+    if (!result.sources?.length) {
+      const message = text("No readable Shops were found. Reconnect with catalog access; Meta may also require App Review approval.", "لم نجد متاجر يمكن قراءتها. أعد الربط مع إذن الكتالوج؛ وقد تتطلب Meta أيضاً موافقة مراجعة التطبيق.");
+      setActionError(message);
+      toast.info(message);
+    }
   });
 
   const startPreview = () => perform("start", async () => {

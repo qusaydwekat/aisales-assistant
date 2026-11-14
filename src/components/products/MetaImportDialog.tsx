@@ -179,11 +179,14 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
   });
 
   const importSelected = () => perform("selected", async () => {
-    const entries = selectedRows.map((candidate) => ({
-      candidate,
-      price: parseReviewPrice(reviewPrices[candidate.id] ?? String(candidate.extracted?.price ?? "")),
-      availability: reviewAvailability[candidate.id] ?? candidate.extracted?.availability ?? "unknown",
-    }));
+    const entries = selectedRows.map((candidate) => {
+      const extracted = candidate.extracted && typeof candidate.extracted === "object" && !Array.isArray(candidate.extracted) ? candidate.extracted : {};
+      return {
+        candidate,
+        price: parseReviewPrice(reviewPrices[candidate.id] ?? String(extracted.price ?? "")),
+        availability: reviewAvailability[candidate.id] ?? String(extracted.availability ?? "unknown"),
+      };
+    });
     if (entries.some((entry) => entry.price === null)) throw new Error(text("Enter a valid price for each selected product.", "أدخل سعراً صالحاً لكل منتج محدد."));
     if (entries.some((entry) => !["in_stock", "out_of_stock"].includes(entry.availability))) throw new Error(text("Confirm availability for each selected product.", "أكد توفر كل منتج محدد."));
     let imported = 0;

@@ -2,8 +2,9 @@
 
 # Customer voice messages
 
-- [ ] Transcribe Facebook, Instagram and WhatsApp voice messages into the existing customer reply flow, preserving typing and burst grouping.
-- [ ] Test audio parsing, transcription failures and live speech; deploy and verify the customer flow.
+- [x] Transcribe Facebook, Instagram and WhatsApp voice messages into the existing customer reply flow, preserving typing and burst grouping.
+- [x] Test audio parsing and transcription failures (14 focused regressions passed), verify live WAV/OGG speech transcription and authenticated inbox, and deploy.
+- [ ] Verify an actual customer voice message and delivered reply on Meta; requires a new voice message from a connected customer account.
 
 # Connected-page store information
 

@@ -117,9 +117,8 @@ export async function processConversationVoices(db: any, conversationId: string,
         transcripts.push(await transcribeVoiceFile(file, key));
       }
       const transcript = transcripts.join(" ");
-      const { error: saveError } = await db.from("voice_transcription_jobs").update({ status: "completed", transcript, locked_until: null }).eq("id", job.id);
+      const { error: saveError } = await db.rpc("complete_voice_transcription", { _id: job.id, _transcript: transcript });
       if (saveError) throw new VoiceError("Voice transcript could not be saved.");
-      await db.from("messages").update({ content: transcript }).eq("id", job.message_id).eq("conversation_id", conversationId);
     } catch (error) {
       const e = error instanceof VoiceError ? error : new VoiceError("The voice recording could not be understood. Please send it again.");
       if (shouldPauseVoice(e.status) && e.kind !== "paused") await db.from("voice_transcription_control").upsert({ id: true, paused: true, pause_reason: e.message, pause_kind: e.kind, updated_at: new Date().toISOString() });

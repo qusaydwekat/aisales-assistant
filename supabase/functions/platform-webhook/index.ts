@@ -1269,6 +1269,33 @@ async function handleWebhook(req: Request): Promise<Response> {
         );
       }
 
+      // Jev supplies typed routing evidence; the main agent still writes the reply.
+      // If Jev is unavailable, the existing semantic agent and keyword safeguards remain active.
+      const messageDecision = await decideCustomerMessage({
+        currentMessage: combinedCustomerMessage,
+        recentConversation: allHistory.slice(-8).map((entry: any) => ({
+          sender: entry.sender,
+          content: stripMessageContext(entry.content || ""),
+        })),
+        activeOrders: (existingOrders || [])
+          .filter((order: any) => ["pending", "confirmed", "processing"].includes(order?.status))
+          .map((order: any) => ({ order_number: order.order_number, status: order.status })),
+      });
+      if (messageDecision) {
+        runtimeHints.push(
+          `RUNTIME MESSAGE INTENT: Jev classified the customer's primary intent as "${messageDecision.intent}" (confidence ${messageDecision.intentConfidence.toFixed(2)}). Use this as routing evidence alongside the actual messages. If it is "greeting" or "other", do not invent a question or volunteer store policies. If it is "order_update", use update_order rather than creating or cancelling an order.`
+        );
+        if (shouldEmphasizeCancellation(messageDecision)) {
+          runtimeHints.push(
+            `RUNTIME CANCELLATION SIGNAL: Jev estimates ${messageDecision.cancellationProbability.toFixed(2)} probability that the customer wants to cancel the entire order. Never ignore this signal. Call cancel_order now; do not update the order or create a new one. Report only the tool's actual result.`
+          );
+        } else if (messageDecision.cancellationProbability <= 0.3 && messageDecision.intent === "order_update") {
+          runtimeHints.push(
+            "RUNTIME ORDER CHANGE: The customer wants to update an existing order, not cancel it. Use update_order and preserve the requested changes."
+          );
+        }
+      }
+
       // ─── Phase 2 Fix 7: Proactive upsell ───
       const upsellEnabled = aiSettings?.upsell_enabled !== false;
       if (upsellEnabled && detectedEmotion !== "abusive" && detectedEmotion !== "frustrated") {

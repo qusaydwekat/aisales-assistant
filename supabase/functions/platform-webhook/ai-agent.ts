@@ -591,8 +591,8 @@ ORDER-SPECIFIC RULES (apply when an order tool is involved)
           } else if (tc.function?.name === "update_order") {
             // Server-side intent guard: prevent the model from misclassifying
             // intent or hallucinating fields the user didn't actually mention.
-            const cancelRe = /(الغي|إلغاء|الغاء|كنسل|بطل|بطلت|ما بدي الطلب|ما عاد بدي|ما بقا بدي|تراجعت|cancel|abort|nevermind|changed my mind|don'?t want it|no longer want)/i;
-            if (cancelRe.test(customerMessage || "")) {
+            const messageDecision = (aiSettings?._message_decision || null) as MessageDecision | null;
+            if (shouldRedirectUpdateToCancel(customerMessage || "", messageDecision)) {
               console.log(
                 "Intent guard: cancel intent detected in latest message; redirecting update_order -> cancel_order"
               );

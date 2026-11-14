@@ -1,9 +1,9 @@
-// @vitest-environment node
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchPublishedPosts } from "../../supabase/functions/meta-product-sync/meta-api";
 import { canReconcileMissingProducts, normalizePostLimit } from "../../supabase/functions/meta-product-sync/post-limit";
 
 afterEach(() => vi.unstubAllGlobals());
+beforeEach(() => vi.stubGlobal("AbortSignal", { timeout: () => new AbortController().signal }));
 
 describe("bounded post imports", () => {
   it("imports only the requested count and does not follow further pages", async () => {

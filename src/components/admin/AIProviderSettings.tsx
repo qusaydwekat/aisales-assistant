@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Save, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 // Models compatible with the agent's tool-calling + vision requests.
 const MODELS: { value: string; label: string; hint?: string }[] = [
@@ -19,7 +20,8 @@ const MODELS: { value: string; label: string; hint?: string }[] = [
 ];
 
 export default function AIProviderSettings() {
-  useLanguage();
+  const { dir } = useLanguage();
+  const [voicePause, setVoicePause] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [model, setModel] = useState("google/gemini-3-flash-preview");
@@ -29,6 +31,8 @@ export default function AIProviderSettings() {
 
   useEffect(() => {
     (async () => {
+      const { data: voiceControl } = await supabase.from("voice_transcription_control").select("paused,pause_reason").eq("id", true).maybeSingle();
+      if (voiceControl?.paused) setVoicePause(voiceControl.pause_reason || "Voice transcription paused");
       const { data, error } = await supabase
         .from("platform_ai_config")
         .select("*")
@@ -77,6 +81,14 @@ export default function AIProviderSettings() {
 
   return (
     <div className="space-y-6">
+      {voicePause && <div className="border border-destructive/30 rounded-lg p-4 space-y-3">
+        <h3 className="font-semibold text-foreground">{dir === "rtl" ? "الرسائل الصوتية متوقفة" : "Voice messages paused"}</h3>
+        <p className="text-sm text-destructive">{voicePause}</p>
+        <Button variant="outline" onClick={async () => {
+          const { error } = await supabase.from("voice_transcription_control").update({ paused: false, pause_reason: null, pause_kind: null, updated_at: new Date().toISOString() }).eq("id", true);
+          if (error) toast({ title: error.message, variant: "destructive" }); else setVoicePause(null);
+        }}>{dir === "rtl" ? "استئناف بعد استعادة الوصول" : "Resume after restoring access"}</Button>
+      </div>}
       <div className="glass rounded-xl p-5">
         <div className="flex items-center gap-2 mb-1">
           <Sparkles className="h-4 w-4 text-primary" />

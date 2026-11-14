@@ -18,3 +18,4 @@
 - Meta review selection enables inline prices only for selected candidates and submits them through the existing approval validation, so bulk review cannot bypass factual availability checks.
 - Post imports persist a bounded recent-post window in source settings and each run checkpoint; stop pagination at that count and never reconcile missing products from partial post windows, so older products remain safe.
 - meta-store-info reads owner-scoped connected profiles with page-specific tokens and rehosts branding; its editable preview applies selected factual fields to the unsaved store form, never overwriting absent fields or saving automatically.
+- Voice attachments use voice-policy and voice-transcription modules: message-scoped leased jobs transcribe complete audio before burst intent/order handling, with continuous typing, owner-visible errors and a persisted platform pause for terminal gateway access/credit failures; replies remain text.

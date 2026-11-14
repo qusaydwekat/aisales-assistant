@@ -22,9 +22,11 @@
 
 # Meta product importing
 
+- [x] Add and verify separate Facebook post-import authorization now that the administrator enabled pages_read_engagement; signed-in button and deployed redirect verified, 20 focused tests passed.
+
 - [x] Remove app-rejected import scopes from channel login, deploy, and verify the generated OAuth redirect; 17 focused tests passed.
 
 - [x] Approve the import and automatic-sync plan.
 - [x] Build complete Shop catalog and product-post imports without duplicates or guessed facts.
 - [x] Add review, safe automatic updates, Arabic/English controls, permission pauses, and six-hour reconciliation.
-- [ ] Verify a live Meta product import after the app administrator enables post/catalog permissions in Meta and completes any required App Review; reconnecting alone cannot grant permissions unavailable to the app.
+- [ ] Verify a live Meta product import after the user authorizes Facebook post access and selects the same Page; Shop imports still await catalog permission support and any required App Review.

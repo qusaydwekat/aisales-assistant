@@ -34,6 +34,16 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     connection.status === "connected" && ["facebook", "instagram"].includes(connection.platform)
   ), [connections]);
   const [connectionId, setConnectionId] = useState("");
+  const authorizePosts = (id = connectionId) => {
+    const connection = eligibleConnections.find((item) => item.id === id);
+    if (!store?.id || connection?.platform !== "facebook") return;
+    const url = new URL(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/meta-oauth/start`);
+    url.searchParams.set("platform", "facebook");
+    url.searchParams.set("store_id", store.id);
+    url.searchParams.set("purpose", "post-import");
+    url.searchParams.set("redirect_url", `${window.location.origin}/platforms`);
+    window.location.assign(url.toString());
+  };
   const [discovered, setDiscovered] = useState<any[]>([]);
   const [externalId, setExternalId] = useState("");
   const [currency, setCurrency] = useState("ILS");
@@ -212,6 +222,9 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
     if (/invalid scopes|not been approved|app review/i.test(message)) {
       return text("Meta has not enabled the required import permissions for this app. The app administrator must enable them in Meta and complete any required review before reconnecting.", "لم تفعّل Meta صلاحيات الاستيراد المطلوبة لهذا التطبيق. يجب على مسؤول التطبيق تفعيلها لدى Meta وإكمال أي مراجعة مطلوبة قبل إعادة الربط.");
     }
+    if (/pages_read_engagement/i.test(message)) {
+      return text("Facebook post access is missing from this connection. Authorize post access, select the same Page, then retry the import. Meta approval may still be required for accounts outside the app's test roles.", "صلاحية قراءة منشورات فيسبوك غير موجودة في هذا الربط. امنح صلاحية المنشورات، واختر نفس الصفحة، ثم أعد الاستيراد. قد تبقى موافقة Meta مطلوبة للحسابات خارج أدوار اختبار التطبيق.");
+    }
     if (/pages_read_engagement|permission|not been approved/i.test(message)) {
       return text("Import access is missing. The app administrator must confirm the required post or Shop permissions are enabled in Meta before this account reconnects; reconnecting alone cannot enable them.", "صلاحيات الاستيراد غير متوفرة. يجب على مسؤول التطبيق التأكد من تفعيل صلاحيات المنشورات أو المتجر لدى Meta قبل إعادة ربط الحساب؛ إعادة الربط وحدها لا تفعّلها.");
     }
@@ -268,6 +281,11 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                     {busy === "discover" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                     {text("Find products", "البحث عن المنتجات")}
                   </Button>
+                  {sourceType === "posts" && eligibleConnections.find((item) => item.id === connectionId)?.platform === "facebook" && (
+                    <Button variant="outline" onClick={() => authorizePosts()} disabled={!!busy || runRunning} className="gap-2 md:col-span-2">
+                      <Facebook className="h-4 w-4" />{text("Authorize Facebook post access", "منح صلاحية منشورات فيسبوك")}
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -331,7 +349,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                   <Switch checked={source.auto_sync} onCheckedChange={(checked) => toggleAuto(source.id, checked)} disabled={busy === source.id} />
                 </div>
                 {source.last_error && <p className="text-xs text-destructive break-words">{syncError(source.last_error)}</p>}
-                <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => syncNow(source.id)} disabled={!!busy}><RefreshCw className={`h-3.5 w-3.5 me-1.5 ${busy === source.id ? "animate-spin" : ""}`} />{text("Sync now", "مزامنة الآن")}</Button>{source.status === "paused" && <a href="/platforms" className="text-xs text-primary self-center">{text("Reconnect account", "إعادة ربط الحساب")}</a>}</div>
+                <div className="flex flex-wrap gap-2"><Button size="sm" variant="outline" onClick={() => syncNow(source.id)} disabled={!!busy}><RefreshCw className={`h-3.5 w-3.5 me-1.5 ${busy === source.id ? "animate-spin" : ""}`} />{text("Sync now", "مزامنة الآن")}</Button>{source.source_type === "posts" && source.status === "paused" && eligibleConnections.find((item) => item.id === source.connection_id)?.platform === "facebook" ? <Button size="sm" variant="outline" onClick={() => authorizePosts(source.connection_id)} disabled={!!busy}>{text("Authorize Facebook post access", "منح صلاحية منشورات فيسبوك")}</Button> : source.status === "paused" && <a href="/platforms" className="text-xs text-primary self-center">{text("Reconnect account", "إعادة ربط الحساب")}</a>}</div>
               </div>
             ))}</div> : <p className="py-12 text-center text-sm text-muted-foreground">{text("Your saved import sources will appear here.", "ستظهر مصادر الاستيراد المحفوظة هنا.")}</p>
           )}

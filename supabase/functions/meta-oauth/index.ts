@@ -442,7 +442,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const scopes = getMetaConnectionScopes(platform).join(",");
+    const purpose = url.searchParams.get("purpose") || "messaging";
+    const scopes = getMetaConnectionScopes(platform, purpose).join(",");
 
     const state = btoa(JSON.stringify({ platform, storeId, redirectUrl }));
 
@@ -452,7 +453,8 @@ Deno.serve(async (req) => {
       `&redirect_uri=${encodeURIComponent(callbackUrl)}` +
       `&scope=${encodeURIComponent(scopes)}` +
       `&state=${encodeURIComponent(state)}` +
-      `&response_type=code`;
+      `&response_type=code` +
+      (purpose === "post-import" ? "&auth_type=rerequest" : "");
 
     return new Response(null, {
       status: 302,

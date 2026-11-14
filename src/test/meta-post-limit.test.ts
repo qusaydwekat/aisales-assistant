@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchPublishedPosts } from "../../supabase/functions/meta-product-sync/meta-api";
 import { canReconcileMissingProducts, normalizePostLimit } from "../../supabase/functions/meta-product-sync/post-limit";

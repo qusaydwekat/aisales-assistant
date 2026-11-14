@@ -1,5 +1,10 @@
 # Website experience refresh
 
+# Customer voice messages
+
+- [ ] Transcribe Facebook, Instagram and WhatsApp voice messages into the existing customer reply flow, preserving typing and burst grouping.
+- [ ] Test audio parsing, transcription failures and live speech; deploy and verify the customer flow.
+
 # Connected-page store information
 
 - [x] Add secure Facebook/Instagram profile import and editable preview without saving automatically.

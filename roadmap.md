@@ -1,5 +1,10 @@
 # Website experience refresh
 
+# Connected-page store information
+
+- [x] Add secure Facebook/Instagram profile import and editable preview without saving automatically.
+- [x] Test field mapping and tenant isolation (4 tests); verify live signed-in Facebook import, edited preview, no automatic save, and mobile layout. Live Instagram verification awaits a connected Instagram account.
+
 # Confirmed order registration
 
 - [x] Fix tool-round exhaustion after customer approval; search-to-order and failed-action recovery regressions passed and reply worker deployed. Live Messenger order confirmation still needs a new customer message; the previous unsaved order was not recreated automatically.

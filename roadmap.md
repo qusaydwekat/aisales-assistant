@@ -26,7 +26,8 @@
 
 # Meta product importing
 
-- [ ] Add a configurable recent-post count, enforce it during fetching and later syncs, and verify bounded pagination without deactivating older products.
+- [x] Add a configurable recent-post count (default 20, range 1–100), persist it for later syncs, deploy bounded fetching, and protect older products; 17 tests passed and authenticated count submission verified.
+- [ ] Verify completion of a bounded live Facebook preview after the existing running import finishes; the three-post test was blocked by the source's in-progress run (409).
 
 - [x] Include Facebook post access in page connection and simplify review with selection, inline prices, and selected-product import; deployed redirect verified, 22 tests passed, sample selection checked on desktop/mobile.
 

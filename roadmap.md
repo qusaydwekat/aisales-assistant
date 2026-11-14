@@ -2,8 +2,8 @@
 
 # Connected-page store information
 
-- [ ] Add secure Facebook/Instagram profile import and editable preview without saving automatically.
-- [ ] Test field mapping, tenant isolation, and the signed-in import/edit flow.
+- [x] Add secure Facebook/Instagram profile import and editable preview without saving automatically.
+- [x] Test field mapping and tenant isolation (4 tests); verify live signed-in Facebook import, edited preview, no automatic save, and mobile layout. Live Instagram verification awaits a connected Instagram account.
 
 # Confirmed order registration
 

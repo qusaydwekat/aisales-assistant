@@ -22,6 +22,7 @@ export interface NormalizedProduct {
   colors: string[];
   permalink?: string | null;
   multiProduct?: boolean;
+  variantPricesDiffer?: boolean;
   raw: unknown;
 }
 

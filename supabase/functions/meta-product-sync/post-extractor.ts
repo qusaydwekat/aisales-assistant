@@ -50,6 +50,7 @@ export function emptyPostProduct(post: any, connection: any): NormalizedProduct 
     name: "",
     description: postText(post, platform),
     category: "",
+    brand: "",
     price: null,
     comparePrice: null,
     currency: null,

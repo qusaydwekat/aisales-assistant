@@ -292,12 +292,12 @@ export default function ProductsPage() {
                 ) : (
                   <Package className="h-12 w-12 text-muted-foreground/30" />
                 )}
-                {p.stock <= 5 && p.stock > 0 && (
+                {p.stock_tracked !== false && p.stock <= 5 && p.stock > 0 && (
                   <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-warning/20 text-warning flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3" /> {t("low_stock")}
                   </span>
                 )}
-                {p.stock === 0 && (
+                {!canSellProduct(p) && (
                   <span className="absolute top-2 end-2 px-2 py-0.5 rounded text-[10px] font-medium bg-destructive/20 text-destructive">
                     {t("out_of_stock")}
                   </span>
@@ -345,15 +345,15 @@ export default function ProductsPage() {
                 <p className="text-xs text-muted-foreground">{p.category}</p>
                 <h3 className="text-sm font-medium text-foreground mt-0.5 line-clamp-2 min-h-10" title={p.name}>{p.name}</h3>
                 <div className="flex items-baseline gap-2 mt-1">
-                  <span className="text-foreground font-heading font-bold">${Number(p.price).toFixed(2)}</span>
+                  <span className="text-foreground font-heading font-bold">{formatProductPrice(Number(p.price), p.currency, dir === "rtl" ? "ar" : "en")}</span>
                   {!!p.compare_price && (
                     <span className="text-xs text-muted-foreground line-through">
-                      ${Number(p.compare_price).toFixed(2)}
+                      {formatProductPrice(Number(p.compare_price), p.currency, dir === "rtl" ? "ar" : "en")}
                     </span>
                   )}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {t("stock_label")}: {p.stock} · {t("sku_label")}: {p.sku || "—"}
+                  {t("stock_label")}: {p.stock_tracked === false ? (p.availability === "in_stock" ? (dir === "rtl" ? "متوفر" : "In stock") : (dir === "rtl" ? "غير متوفر" : "Unavailable")) : p.stock} · {t("sku_label")}: {p.sku || "—"}
                 </p>
               </div>
             </motion.div>
@@ -388,9 +388,9 @@ export default function ProductsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3 text-muted-foreground">{p.category}</td>
-                  <td className="px-4 py-3 text-foreground">${Number(p.price).toFixed(2)}</td>
+                  <td className="px-4 py-3 text-foreground">{formatProductPrice(Number(p.price), p.currency, dir === "rtl" ? "ar" : "en")}</td>
                   <td className="px-4 py-3">
-                    <span className={p.stock <= 5 ? "text-warning" : "text-muted-foreground"}>{p.stock}</span>
+                    <span className={p.stock_tracked !== false && p.stock <= 5 ? "text-warning" : "text-muted-foreground"}>{p.stock_tracked === false ? (p.availability === "in_stock" ? (dir === "rtl" ? "متوفر" : "In stock") : "—") : p.stock}</span>
                   </td>
                   <td className="px-4 py-3">
                     <span

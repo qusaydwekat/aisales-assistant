@@ -253,8 +253,8 @@ export default function StorefrontPage() {
                   <h3 className="text-sm font-medium text-foreground mt-0.5 line-clamp-2 min-h-10">{p.name}</h3>
                   <div className="flex items-center justify-between mt-2">
                     <div className="flex items-baseline gap-1.5">
-                      <span className="font-heading font-bold text-foreground">${Number(p.price).toFixed(2)}</span>
-                      {!!p.compare_price && <span className="text-[10px] text-muted-foreground line-through">${Number(p.compare_price).toFixed(2)}</span>}
+                      <span className="font-heading font-bold text-foreground">{formatProductPrice(Number(p.price), p.currency, dir === "rtl" ? "ar" : "en")}</span>
+                      {!!p.compare_price && <span className="text-[10px] text-muted-foreground line-through">{formatProductPrice(Number(p.compare_price), p.currency, dir === "rtl" ? "ar" : "en")}</span>}
                     </div>
                     {canSellProduct(p) && (
                       <Button variant="ghost" onClick={e => { e.stopPropagation(); addToCart(p); }}
@@ -299,10 +299,10 @@ export default function StorefrontPage() {
                 </div>
                 {showProduct.description && <p className="text-sm text-muted-foreground">{showProduct.description}</p>}
                 <div className="flex items-baseline gap-2">
-                  <span className="text-2xl font-heading font-bold text-foreground">${Number(showProduct.price).toFixed(2)}</span>
-                  {!!showProduct.compare_price && <span className="text-sm text-muted-foreground line-through">${Number(showProduct.compare_price).toFixed(2)}</span>}
+                  <span className="text-2xl font-heading font-bold text-foreground">{formatProductPrice(Number(showProduct.price), showProduct.currency, dir === "rtl" ? "ar" : "en")}</span>
+                  {!!showProduct.compare_price && <span className="text-sm text-muted-foreground line-through">{formatProductPrice(Number(showProduct.compare_price), showProduct.currency, dir === "rtl" ? "ar" : "en")}</span>}
                 </div>
-                <p className="text-xs text-muted-foreground">{showProduct.stock > 0 ? `${showProduct.stock} in stock` : 'Out of stock'}</p>
+                <p className="text-xs text-muted-foreground">{showProduct.stock_tracked === false ? (canSellProduct(showProduct) ? (dir === "rtl" ? "متوفر" : "In stock") : tr("Out of stock")) : canSellProduct(showProduct) ? `${showProduct.stock} ${dir === "rtl" ? "متوفر" : "in stock"}` : tr("Out of stock")}</p>
                 {canSellProduct(showProduct) && (
                   <Button variant="ghost" onClick={() => { addToCart(showProduct); setShowProduct(null); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors flex items-center justify-center gap-2">
@@ -336,7 +336,7 @@ export default function StorefrontPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-foreground truncate">{c.product.name}</p>
-                      <p className="text-xs text-muted-foreground">${Number(c.product.price).toFixed(2)}</p>
+                      <p className="text-xs text-muted-foreground">{formatProductPrice(Number(c.product.price), c.product.currency, dir === "rtl" ? "ar" : "en")}</p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Button variant="ghost" onClick={() => updateQuantity(c.product.id, -1)} className="h-7 w-7 rounded-lg bg-muted flex items-center justify-center hover:bg-background"><Minus className="h-3 w-3" /></Button>
@@ -350,7 +350,7 @@ export default function StorefrontPage() {
                 <div className="p-4 border-t border-border space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-foreground">{tr("Total")}</span>
-                    <span className="text-xl font-heading font-bold text-foreground">${cartTotal.toFixed(2)}</span>
+                    <span className="text-xl font-heading font-bold text-foreground">{formatProductPrice(cartTotal, cart[0]?.product.currency, dir === "rtl" ? "ar" : "en")}</span>
                   </div>
                   <Button variant="ghost" onClick={() => { setShowCart(false); setShowCheckout(true); }}
                     className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-medium text-sm hover:bg-primary/90 transition-colors">
@@ -385,12 +385,12 @@ export default function StorefrontPage() {
                 {cart.map(c => (
                   <div key={c.product.id} className="flex justify-between text-sm">
                     <span className="text-muted-foreground">{c.product.name} × {c.quantity}</span>
-                    <span className="text-foreground">${(c.product.price * c.quantity).toFixed(2)}</span>
+                    <span className="text-foreground">{formatProductPrice(c.product.price * c.quantity, c.product.currency, dir === "rtl" ? "ar" : "en")}</span>
                   </div>
                 ))}
                 <div className="border-t border-border pt-1.5 flex justify-between font-medium">
                   <span className="text-foreground">{tr("Total")}</span>
-                  <span className="text-foreground">${cartTotal.toFixed(2)}</span>
+                  <span className="text-foreground">{formatProductPrice(cartTotal, cart[0]?.product.currency, dir === "rtl" ? "ar" : "en")}</span>
                 </div>
               </div>
               <Button variant="ghost" onClick={handleCheckout} disabled={submitting || !orderForm.name || !orderForm.phone}

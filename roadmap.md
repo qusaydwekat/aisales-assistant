@@ -23,5 +23,6 @@
 # Meta product importing
 
 - [x] Approve the import and automatic-sync plan.
-- [ ] Import complete Shop catalogs and product posts without duplicates or guessed facts.
-- [ ] Add review, safe automatic updates, Arabic/English controls, and end-to-end verification.
+- [x] Build complete Shop catalog and product-post imports without duplicates or guessed facts.
+- [x] Add review, safe automatic updates, Arabic/English controls, permission pauses, and six-hour reconciliation.
+- [ ] Verify a live Meta product import after the user reconnects with post/catalog access; current Meta tokens deny those permissions and Shop access may require App Review.

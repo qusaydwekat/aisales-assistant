@@ -155,6 +155,14 @@ async function subscribePageToWebhooks(
         verifyToken || "aisales_verify_2024"
       );
     }
+    if (appId && appSecret && webhookCallbackUrl) {
+      await subscribeAppToCatalogWebhook(
+        appId,
+        appSecret,
+        webhookCallbackUrl,
+        verifyToken || "aisales_verify_2024"
+      );
+    }
 
     return true;
   } catch (err) {

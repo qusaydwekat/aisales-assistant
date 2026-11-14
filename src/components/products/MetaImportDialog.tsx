@@ -40,6 +40,8 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
   const [externalId, setExternalId] = useState("");
   const [currency, setCurrency] = useState("ILS");
   const [autoSync, setAutoSync] = useState(true);
+  const [postLimit, setPostLimit] = useState("20");
+  const validPostLimit = Number.isInteger(Number(postLimit)) && Number(postLimit) >= 1 && Number(postLimit) <= 100;
   const [runId, setRunId] = useState<string | null>(null);
   const [busy, setBusy] = useState("");
   const [editor, setEditor] = useState<any | null>(null);
@@ -117,6 +119,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
       name: selected?.name,
       currency,
       auto_sync: autoSync,
+      ...(sourceType === "posts" ? { post_limit: Number(postLimit) } : {}),
       preview: true,
     });
     setRunId(result.run_id);
@@ -344,8 +347,13 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
                   <label className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2 text-xs text-foreground">
                     {text("Automatic sync", "مزامنة تلقائية")}<Switch checked={autoSync} onCheckedChange={setAutoSync} />
                   </label>
-                  <Button onClick={startPreview} disabled={!!busy || !externalId || runRunning} className="md:col-span-3">
-                    {busy === "start" && <Loader2 className="h-4 w-4 animate-spin me-2" />}{text("Preview all products", "معاينة كل المنتجات")}
+                  {sourceType === "posts" && <label className="text-xs text-muted-foreground md:col-span-3">
+                    {text("Latest posts to import", "عدد أحدث المنشورات للاستيراد")}
+                    <Input aria-label={text("Latest posts to import", "عدد أحدث المنشورات للاستيراد")} type="number" min="1" max="100" step="1" value={postLimit} onChange={(event) => setPostLimit(event.target.value)} disabled={!!busy || runRunning} className="mt-1 max-w-40" />
+                    {!validPostLimit && <span className="block mt-1 text-destructive">{text("Choose between 1 and 100 posts.", "اختر عدداً بين 1 و100 منشور.")}</span>}
+                  </label>}
+                  <Button onClick={startPreview} disabled={!!busy || !externalId || runRunning || (sourceType === "posts" && !validPostLimit)} className="md:col-span-3">
+                    {busy === "start" && <Loader2 className="h-4 w-4 animate-spin me-2" />}{sourceType === "posts" ? text(`Preview latest ${postLimit} posts`, `معاينة أحدث ${postLimit} منشور`) : text("Preview all products", "معاينة كل المنتجات")}
                   </Button>
                 </div>
               )}
@@ -383,7 +391,7 @@ export function MetaImportDialog({ open, onClose, connections }: Props) {
             savedSources.length ? <div className="space-y-3">{savedSources.map((source: any) => (
               <div key={source.id} className="rounded-xl border border-border p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div><p className="text-sm font-medium text-foreground">{source.name}</p><p className="text-xs text-muted-foreground">{source.source_type === "shop" ? text("Shop", "متجر") : text("Posts", "منشورات")} · {source.last_successful_sync_at ? new Date(source.last_successful_sync_at).toLocaleString() : text("Not synced yet", "لم تتم المزامنة بعد")}</p></div>
+                  <div><p className="text-sm font-medium text-foreground">{source.name}</p><p className="text-xs text-muted-foreground">{source.source_type === "shop" ? text("Shop", "متجر") : text(`Latest ${source.settings?.post_limit || 20} posts`, `أحدث ${source.settings?.post_limit || 20} منشور`)} · {source.last_successful_sync_at ? new Date(source.last_successful_sync_at).toLocaleString() : text("Not synced yet", "لم تتم المزامنة بعد")}</p></div>
                   <Switch checked={source.auto_sync} onCheckedChange={(checked) => toggleAuto(source.id, checked)} disabled={busy === source.id} />
                 </div>
                 {source.last_error && <p className="text-xs text-destructive break-words">{syncError(source.last_error)}</p>}

@@ -3,6 +3,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 import { discoverCatalogs, isMetaAuthFailure, MetaApiError, postSourceFor } from "./meta-api.ts";
 import { approveImportCandidate, commitSyncRun, runProductSync } from "./sync-engine.ts";
+import { MAX_POST_LIMIT, normalizePostLimit } from "./post-limit.ts";
 
 const BodySchema = z.object({
   action: z.enum(["discover", "start", "commit", "sync-source", "set-auto", "approve", "dismiss", "run-background", "run-scheduled", "webhook"]),
@@ -12,6 +13,7 @@ const BodySchema = z.object({
   external_id: z.string().min(1).max(500).optional(),
   name: z.string().max(500).optional(),
   auto_sync: z.boolean().optional(),
+  post_limit: z.number().int().min(1).max(MAX_POST_LIMIT).optional(),
   preview: z.boolean().optional(),
   currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
   run_id: z.string().uuid().optional(),
@@ -98,7 +100,9 @@ async function createRun(source: any, preview: boolean, currency: string, trigge
     source_id: source.id,
     trigger_type: trigger,
     status: "running",
-    checkpoint: { mode: preview ? "preview" : "commit", currency },
+    checkpoint: { mode: preview ? "preview" : "commit", currency,
+      ...(source.source_type === "posts" ? { post_limit: normalizePostLimit(source.settings?.post_limit) } : {}),
+    },
   }).select("id").single();
   if (error || !run) throw new Error(error?.message || "Could not start sync");
   background(executeRun(run.id));
@@ -179,6 +183,8 @@ Deno.serve(async (req) => {
         const { error } = await admin.from("stores").update({ currency }).eq("id", connection.store_id);
         if (error) throw error;
       }
+      const { data: existingSource } = await admin.from("meta_product_sources").select("settings")
+        .eq("connection_id", connection.id).eq("source_type", body.source_type).eq("external_id", body.external_id).maybeSingle();
       const { data: source, error } = await admin.from("meta_product_sources").upsert({
         store_id: connection.store_id,
         connection_id: connection.id,
@@ -186,6 +192,9 @@ Deno.serve(async (req) => {
         external_id: body.external_id,
         name: body.name || body.external_id,
         auto_sync: body.auto_sync === true,
+        settings: { ...existingSource?.settings,
+          ...(body.source_type === "posts" ? { post_limit: normalizePostLimit(body.post_limit) } : {}),
+        },
         status: "active",
         last_error: null,
       }, { onConflict: "connection_id,source_type,external_id" }).select("*").single();

@@ -26,6 +26,8 @@
 
 # Meta product importing
 
+- [ ] Add a configurable recent-post count, enforce it during fetching and later syncs, and verify bounded pagination without deactivating older products.
+
 - [x] Include Facebook post access in page connection and simplify review with selection, inline prices, and selected-product import; deployed redirect verified, 22 tests passed, sample selection checked on desktop/mobile.
 
 - [x] Add and verify separate Facebook post-import authorization now that the administrator enabled pages_read_engagement; signed-in button and deployed redirect verified, 20 focused tests passed.

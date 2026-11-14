@@ -1161,6 +1161,17 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_public_store: {
+        Args: { _store_id?: string }
+        Returns: {
+          cover_image_url: string
+          description: string
+          id: string
+          logo_url: string
+          name: string
+          phone: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

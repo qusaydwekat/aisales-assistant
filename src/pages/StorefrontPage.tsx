@@ -57,9 +57,8 @@ export default function StorefrontPage() {
   const loadStore = async () => {
     setLoading(true);
     try {
-      let storeQuery = supabase.from("stores").select("id, name, description, logo_url, cover_image_url, phone, email");
-      if (storeId) storeQuery = storeQuery.eq("id", storeId);
-      const { data: stores } = await storeQuery.limit(1).single();
+      const { data: storeRows } = await supabase.rpc("get_public_store", storeId ? { _store_id: storeId } : {});
+      const stores = storeRows?.[0] as any;
       if (!stores) { setLoading(false); return; }
       setStore(stores);
 

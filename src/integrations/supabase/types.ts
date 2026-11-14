@@ -1565,6 +1565,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      complete_voice_transcription: {
+        Args: { _id: string; _transcript: string }
+        Returns: undefined
+      }
       get_public_store: {
         Args: { _store_id?: string }
         Returns: {

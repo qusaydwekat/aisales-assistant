@@ -1,8 +1,4 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { OggOpusDecoder } from "ogg-opus-decoder";
-import { createParser } from "eventsource-parser";
-vi.mock("npm:ogg-opus-decoder@1.7.5", () => ({ OggOpusDecoder }));
-vi.mock("npm:eventsource-parser@4.1.3", () => ({ createParser }));
 afterEach(() => vi.unstubAllGlobals());
 async function worker() { const path = "../../supabase/functions/platform-webhook/voice-transcription.ts"; return import(path); }
 

@@ -1,0 +1,1 @@
+ALTER TABLE public.platform_ai_config ADD COLUMN IF NOT EXISTS decision_model text NOT NULL DEFAULT 'typesafe/jev-1.13';

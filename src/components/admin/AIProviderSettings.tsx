@@ -27,6 +27,7 @@ export default function AIProviderSettings() {
   const [model, setModel] = useState("google/gemini-3-flash-preview");
   const [autofillModel, setAutofillModel] = useState("google/gemini-3-flash-preview");
   const [testModel, setTestModel] = useState("google/gemini-3-flash-preview");
+  const [decisionModel, setDecisionModel] = useState("typesafe/jev-1.13");
   const [rowId, setRowId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -46,6 +47,7 @@ export default function AIProviderSettings() {
         setModel(data.model);
         setAutofillModel(data.autofill_model);
         setTestModel(data.test_model);
+        setDecisionModel((data as any).decision_model || "typesafe/jev-1.13");
       }
       setLoading(false);
     })();
@@ -58,6 +60,7 @@ export default function AIProviderSettings() {
       model,
       autofill_model: autofillModel,
       test_model: testModel,
+      decision_model: decisionModel,
       updated_by: (await supabase.auth.getUser()).data.user?.id || null,
     };
     const { error } = rowId
@@ -123,6 +126,15 @@ export default function AIProviderSettings() {
           value={testModel}
           onChange={setTestModel}
         />
+
+        <div>
+          <label className="text-xs font-medium text-foreground">{dir === "rtl" ? "محرك القرارات (TypeSafe Jev)" : "Decision engine (TypeSafe Jev)"}</label>
+          <p className="text-[11px] text-muted-foreground mb-1.5">{dir === "rtl" ? "يفهم نية الزبون ويكشف طلبات الإلغاء بسرعة. لا يكتب الردود." : "Detects customer intent and cancellation requests fast. Does not write replies."}</p>
+          <select value={decisionModel} onChange={(e) => setDecisionModel(e.target.value)} className="w-full px-3 py-2 rounded-lg bg-background border border-border text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+            <option value="typesafe/jev-1.13">Jev 1.13 — {dir === "rtl" ? "مُوصى به" : "Recommended"}</option>
+            <option value="off">{dir === "rtl" ? "إيقاف" : "Off"}</option>
+          </select>
+        </div>
 
         <button
           onClick={save}

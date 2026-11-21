@@ -12,6 +12,7 @@ export async function decideCustomerMessage(
 ): Promise<MessageDecision | null> {
   const apiKey = Deno.env.get("LOVABLE_API_KEY");
   if (!apiKey || !input.currentMessage.trim()) return null;
+  if (!(await isDecisionModelEnabled())) return null;
 
   const requestBody = JSON.stringify(buildMessageDecisionRequest(input));
   const send = () => fetch(JEV_ENDPOINT, {
@@ -46,4 +47,23 @@ export async function decideCustomerMessage(
     console.warn("Jev decision failed; continuing with the main agent:", error);
     return null;
   }
+}
+
+let decisionCache: { at: number; enabled: boolean } | null = null;
+async function isDecisionModelEnabled(): Promise<boolean> {
+  if (decisionCache && Date.now() - decisionCache.at < 60_000) return decisionCache.enabled;
+  let enabled = true;
+  try {
+    const url = Deno.env.get("SUPABASE_URL");
+    const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (url && key) {
+      const res = await fetch(`${url}/rest/v1/platform_ai_config?select=decision_model&limit=1`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(3000),
+      });
+      if (res.ok) enabled = ((await res.json())?.[0]?.decision_model ?? "typesafe/jev-1.13") !== "off";
+    }
+  } catch { /* keep enabled */ }
+  decisionCache = { at: Date.now(), enabled };
+  return enabled;
 }

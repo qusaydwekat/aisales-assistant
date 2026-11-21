@@ -614,6 +614,7 @@ export type Database = {
       platform_ai_config: {
         Row: {
           autofill_model: string
+          decision_model: string
           id: string
           model: string
           provider: string
@@ -624,6 +625,7 @@ export type Database = {
         }
         Insert: {
           autofill_model?: string
+          decision_model?: string
           id?: string
           model?: string
           provider?: string
@@ -634,6 +636,7 @@ export type Database = {
         }
         Update: {
           autofill_model?: string
+          decision_model?: string
           id?: string
           model?: string
           provider?: string
